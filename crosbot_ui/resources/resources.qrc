@@ -1,0 +1,13 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource>
+	<file>cas-icon.png</file>
+	<file>geotiff-icon.png</file>
+	<file>grid-icon.png</file>
+	<file>snaps-icon.png</file>
+	<file>pointcloud-icon.png</file>
+	<file>pointcloud2-icon.png</file>
+	<file>android-icon.png</file>
+	<file>resetpos-icon.png</file>
+	<file>noimage-icon.png</file>
+</qresource>
+</RCC>
