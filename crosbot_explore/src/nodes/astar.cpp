@@ -92,7 +92,16 @@ public:
     		imagePub.publish(image->toROS());
     	}
 
-    	// TODO: return the plan
+    	// return the plan
+    	res.path.header.stamp = ros::Time::now();
+    	std::string frame_id = latestMap->header.frame_id;
+    	res.path.header.frame_id = frame_id;
+    	res.path.poses.resize(path.size());
+    	for (size_t i = 0; i < path.size(); ++i) {
+    		geometry_msgs::PoseStamped& pose = res.path.poses[i];
+    		pose.header.frame_id = frame_id;
+    		pose.pose = path[i].toROS();
+    	}
 
     	return true;
     }
