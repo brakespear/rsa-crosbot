@@ -162,6 +162,12 @@ public:
     	return x*p.x + y*p.y;
     }
 
+    inline std::string toString() const {
+        char cStr[256];
+        sprintf(cStr, "(%.3lf, %.3lf)", x, y);
+        return std::string(cStr);
+    }
+
     inline static Point2D parse(std::string str) {
     	double x, y;
     	if (sscanf(str.c_str(), "(%lf,%lf)", &x,&y) == 2) {
