@@ -13,6 +13,7 @@
 #endif
 
 #include <math.h>
+#include <cmath>
 #include <stdint.h>
 
 #include <crosbot/serialization.hpp>
@@ -449,6 +450,10 @@ public:
     	geometry_msgs::Quaternion rval;
     	rval.x = x; rval.y = y; rval.z = z; rval.w = w;
     	return rval;
+    }
+
+    inline tf::Quaternion toTF() const {
+    	return tf::Quaternion(x, y, z, w);
     }
 
 #endif
