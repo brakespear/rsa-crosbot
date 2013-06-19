@@ -33,6 +33,8 @@ public:
 	 */
 	Pose robot;
 
+	uint32_t id;
+
 	virtual UUID getUUID() const { return uuid; }
 
 	virtual size_t write(serialization::OutputStream& stream) const throw (IOException);
@@ -104,6 +106,7 @@ public:
 
 #ifdef ROS_VERSION
 	inline Snap& operator=(const crosbot_map::SnapMsg& snp) {
+		id = snp.header.seq;
 		timestamp = snp.header.stamp;
 		type = (Snap::Type)snp.type;
 		status = (Snap::Status)snp.status;
@@ -141,7 +144,7 @@ public:
 
     inline crosbot_map::SnapMsgPtr toROS() const {
     	crosbot_map::SnapMsgPtr rval(new crosbot_map::SnapMsg());
-
+    	rval->header.seq = id;
     	rval->header.stamp = timestamp.toROS();
     	rval->type = type;
     	rval->status = status;
@@ -159,6 +162,20 @@ public:
 				rval->clouds.push_back(*(clouds[i]->toROS()));
 			}
 		}
+
+    	return rval;
+    }
+
+    inline crosbot_map::SnapMsgPtr toROSsmall() const {
+    	crosbot_map::SnapMsgPtr rval(new crosbot_map::SnapMsg());
+
+    	rval->header.seq = id;
+    	rval->header.stamp = timestamp.toROS();
+    	rval->type = type;
+    	rval->status = status;
+    	rval->robot = robot.toROS();
+    	rval->pose = pose.toROS();
+    	rval->description = description;
 
     	return rval;
     }
