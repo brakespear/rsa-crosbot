@@ -519,9 +519,9 @@ public:
 	}
 
 	static Image::Encoding fromROS(std::string e) {
-		if (e == sensor_msgs::image_encodings::MONO8) {
+		if (e == sensor_msgs::image_encodings::MONO8 || e == sensor_msgs::image_encodings::TYPE_8UC1) {
 			return Mono8;
-		} else if (e == sensor_msgs::image_encodings::MONO16) {
+		} else if (e == sensor_msgs::image_encodings::MONO16 || e == sensor_msgs::image_encodings::TYPE_16UC1) {
 			return Mono16;
 		} else if (e == sensor_msgs::image_encodings::YUV422) {
 			return YUV422;
@@ -529,17 +529,17 @@ public:
 			return RGB8;
 		} else if (e == sensor_msgs::image_encodings::RGBA8) {
 			return RGBA8;
-		} else if (e == sensor_msgs::image_encodings::BGR8) {
+		} else if (e == sensor_msgs::image_encodings::BGR8 || e == sensor_msgs::image_encodings::TYPE_8UC3) {
 			return BGR8;
-		} else if (e == sensor_msgs::image_encodings::BGRA8) {
+		} else if (e == sensor_msgs::image_encodings::BGRA8 || e == sensor_msgs::image_encodings::TYPE_8UC4) {
 			return BGRA8;
 		} else if (e == sensor_msgs::image_encodings::RGB16) {
 			return RGB16;
 		} else if (e == sensor_msgs::image_encodings::RGBA16) {
 			return RGBA16;
-		} else if (e == sensor_msgs::image_encodings::BGR16) {
+		} else if (e == sensor_msgs::image_encodings::BGR16 || e == sensor_msgs::image_encodings::TYPE_16UC3) {
 			return BGR16;
-		} else if (e == sensor_msgs::image_encodings::BGRA16) {
+		} else if (e == sensor_msgs::image_encodings::BGRA16 || e == sensor_msgs::image_encodings::TYPE_16UC4) {
 			return BGRA16;
 		} else if (e == sensor_msgs::image_encodings::BAYER_RGGB8) {
 			return BAYER_RGGB8;
