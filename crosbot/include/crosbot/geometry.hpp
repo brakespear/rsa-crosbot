@@ -142,6 +142,13 @@ public:
 		return sqrt(dx*dx+dy*dy);
 	}
 
+    // Gives the angle between two points interpreted as vectors
+    inline double angleTo(const Point2D& other) {
+        Point2D thisNorm = normalise();
+        Point2D otherNorm = other.normalise();
+        return acos(thisNorm.dot(otherNorm));
+    }
+
     inline double length() const {
     	return sqrt(x*x+y*y);
     }
