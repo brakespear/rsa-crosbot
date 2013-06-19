@@ -284,6 +284,12 @@ public:
     	return Point3D(y*p.z - p.y*z, z*p.x - p.z*x, x*p.y - p.x*y);
     }
 
+    inline std::string toString() const {
+        char cStr[256];
+        sprintf(cStr, "(%.3lf, %.3lf, %.3lf)", x, y, z);
+        return std::string(cStr);
+    }
+
     inline static Point3D parse(std::string str) {
     	double x, y, z;
     	if (sscanf(str.c_str(), "(%lf,%lf,%lf)", &x,&y,&z) == 3) {
