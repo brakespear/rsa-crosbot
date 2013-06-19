@@ -31,14 +31,16 @@ ImageRender::ImageRender(RobotPanel& panel, ConfigElementPtr config) :
 	topic = config->getParam(PARAM_TOPIC);
 	topic = config->getParam(RENDER_IMAGE, topic);
 	topic = config->getParam(PARAM_NAME, topic);
+	transport = config->getParam("transport", "raw");
 }
 
 void ImageRender::start() {
 	if (topic != "") {
 		ros::NodeHandle nh("~");
-		subscriber = nh.subscribe(topic, 1, &ImageRender::callback, this);
+		image_transport::ImageTransport it(nh);
+		image_transport::TransportHints hint(transport);
+		subscriber = it.subscribe(topic, 1, &ImageRender::callback, this, hint);
 	}
-
 }
 
 void ImageRender::stop() {
@@ -59,8 +61,11 @@ bool ImageRender::keyPressEvent(QKeyEvent *ke) {
 	return false;
 }
 
-void ImageRender::callback(sensor_msgs::ImageConstPtr rosImage) {
+void ImageRender::callback(const sensor_msgs::ImageConstPtr& rosImage) {
 	ImagePtr image = new Image(rosImage);
+	if (image->encoding == Image::Unknown) {
+		ERROR("crosbot::Image: Unknown encoding %s\n", rosImage->encoding.c_str());
+	}
 
 	this->image = image;
 }

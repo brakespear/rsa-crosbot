@@ -96,7 +96,7 @@ void SpeedRender::render() {
 #define MOUSE_DELTA		120
 bool SpeedRender::wheelEvent(QWheelEvent *we) {
 	float currentSpeed, currentTurnRate;
-	panel.getCurrentSpeeds(currentSpeed, currentTurnRate);
+	panel.getThrottle(currentSpeed, currentTurnRate);
 	if(we->modifiers() != 0) {
 			float newTurnRate = currentTurnRate;
 
@@ -120,7 +120,7 @@ bool SpeedRender::wheelEvent(QWheelEvent *we) {
 		}
 		currentSpeed = newSpeed;
 	}
-	panel.setCurrentSpeeds(currentSpeed, currentTurnRate);
+	panel.setThrottle(currentSpeed, currentTurnRate);
 	return true;
 }
 

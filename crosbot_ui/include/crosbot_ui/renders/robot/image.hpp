@@ -8,10 +8,11 @@
 #ifndef CROSBOT_RENDER_IMAGE_HPP_
 #define CROSBOT_RENDER_IMAGE_HPP_
 
+#include <ros/ros.h>
 #include <crosbot_ui/panels/robot.hpp>
 
 #include <sensor_msgs/Image.h>
-#include <ros/ros.h>
+#include <image_transport/image_transport.h>
 
 namespace crosbot {
 
@@ -27,9 +28,9 @@ public:
 	virtual void render();
 
 	virtual bool isHidden();
-	virtual bool keyPressEvent(QKeyEvent *ke);
+	virtual bool keyPressEvent(QKeyEvent *e);
 
-	void callback(sensor_msgs::ImageConstPtr);
+	void callback(const sensor_msgs::ImageConstPtr&);
 protected:
 	ImagePtr image, textureImage;
 	bool hidden;
@@ -37,8 +38,9 @@ protected:
 
 	Colour4f colour;
 	GLuint textureId;
-	std::string topic;
-	ros::Subscriber subscriber;
+	std::string topic, transport;
+	image_transport::Subscriber subscriber;
+
 };
 
 } // namespace gui

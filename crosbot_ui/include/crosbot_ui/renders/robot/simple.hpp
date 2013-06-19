@@ -60,7 +60,6 @@ protected:
 	std::string topic;
 	ros::Subscriber subscriber;
 
-
 	Colour4f lineColour, fillColour;
 };
 
