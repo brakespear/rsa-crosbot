@@ -17,6 +17,8 @@
 #include <QtGui/QIcon>
 #include <GL/gl.h>
 
+#include <dlfcn.h>
+
 namespace crosbot {
 using namespace ros::console;
 
@@ -67,12 +69,11 @@ void Gui::configure(ConfigElementPtr config) {
 	for (unsigned int i = 0; i < config->getChildCount(); i++) {
 		ConfigElementPtr childConfig = config->getChild(i);
 		// TODO: Add library inclusion.
-//		if (strcasecmp(childConfig->name.c_str(), ELEMENT_LIBRARY) == 0) {
-//			loadLibrary(childConfig);
+		if (strcasecmp(childConfig->name.c_str(), ELEMENT_LIBRARY) == 0) {
+			loadLibrary(childConfig);
 //		} else if (strcasecmp(childConfig->name.c_str(), ELEMENT_BENCHMARK) == 0) {
 //            loadBenchmark(childConfig);
-//		} else
-		if (strcasecmp(childConfig->name.c_str(), ELEMENT_MAP) == 0) {
+		} else if (strcasecmp(childConfig->name.c_str(), ELEMENT_MAP) == 0) {
 			MapPtr map = MapFactory::createMap(childConfig);
 			if (map != NULL) {
 				std::string name = childConfig->getParam(PARAM_NAME, "Map");
@@ -204,6 +205,23 @@ void Gui::ROSThread::stop() {
 		ERROR("ROSThread is refusing to close.\n");
 	}
 }
+
+void Gui::loadLibrary(ConfigElementPtr config) {
+	std::string libraryFile = config->getParam(PARAM_FILE, "");
+
+	if (libraryFile == "") {
+		ERROR("No filename given for dynamic library.\n");
+		return;
+	}
+
+	void *handle = dlopen(libraryFile.c_str(), RTLD_NOW | RTLD_GLOBAL);
+//	void *handle = dlopen(libraryFile.c_str(), RTLD_NOW);
+
+	if (handle == NULL) {
+		ERROR("Unable to load library %s. (error: %s)\n", libraryFile.c_str(), dlerror());
+	}
+}
+
 
 } // namespace gui
 

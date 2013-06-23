@@ -19,6 +19,7 @@ namespace crosbot {
 namespace gui {
 
 #define ELEMENT_MENU	"menu"
+#define ELEMENT_LIBRARY	"library"
 
 class Gui;
 typedef Handle<Gui> GuiPtr;
@@ -69,6 +70,8 @@ public:
 	GuiWindow *getWindow() {
 		return &window;
 	}
+
+	void loadLibrary(ConfigElementPtr config);
 
 	static MapManager maps;
 };
