@@ -142,6 +142,13 @@ public:
 		return sqrt(dx*dx+dy*dy);
 	}
 
+    // Gives the angle between two points interpreted as vectors
+    inline double angleTo(const Point2D& other) {
+        Point2D thisNorm = normalise();
+        Point2D otherNorm = other.normalise();
+        return acos(thisNorm.dot(otherNorm));
+    }
+
     inline double length() const {
     	return sqrt(x*x+y*y);
     }
@@ -153,6 +160,12 @@ public:
 
     inline double dot(const Point2D& p) const {
     	return x*p.x + y*p.y;
+    }
+
+    inline std::string toString() const {
+        char cStr[256];
+        sprintf(cStr, "(%.3lf, %.3lf)", x, y);
+        return std::string(cStr);
     }
 
     inline static Point2D parse(std::string str) {
@@ -275,6 +288,12 @@ public:
 
     inline Point3D cross(const Point3D& p) const {
     	return Point3D(y*p.z - p.y*z, z*p.x - p.z*x, x*p.y - p.x*y);
+    }
+
+    inline std::string toString() const {
+        char cStr[256];
+        sprintf(cStr, "(%.3lf, %.3lf, %.3lf)", x, y, z);
+        return std::string(cStr);
     }
 
     inline static Point3D parse(std::string str) {

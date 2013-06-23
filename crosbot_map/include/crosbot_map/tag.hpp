@@ -71,6 +71,7 @@ public:
 		VICTIM      = 0,
 		LANDMARK    = 1,
 		SCAN        = 2,
+		HOLE        = 3,
 	};
 
 	/**
