@@ -206,19 +206,63 @@ void Gui::ROSThread::stop() {
 	}
 }
 
+#define MAX_PACKAGE_LOC		4096
 void Gui::loadLibrary(ConfigElementPtr config) {
+	std::string package = config->getParam("pkg", "");
+	std::string find = config->getParam("find", "");
 	std::string libraryFile = config->getParam(PARAM_FILE, "");
 
+	std::string packageLoc;
+	if (package != "") {
+		std::string consoleCmd = "rospack find ";
+		consoleCmd.append(package);
+
+		FILE *console = popen(consoleCmd.c_str(), "r");
+		char buffer[MAX_PACKAGE_LOC+1], buffer2[256];
+		sprintf(buffer2, "%%%us", MAX_PACKAGE_LOC);
+		fscanf(console, buffer2, buffer);
+		pclose(console);
+
+		packageLoc = buffer;
+//		LOG("GUI::loadLibrary() - package location: %s\n", packageLoc.c_str());
+	}
+
+	if (find != "") {
+		std::string consoleCmd = "catkin_find ";
+		consoleCmd.append(find);
+
+		FILE *console = popen(consoleCmd.c_str(), "r");
+		char buffer[MAX_PACKAGE_LOC+1], buffer2[256];
+		sprintf(buffer2, "%%%us", MAX_PACKAGE_LOC);
+		fscanf(console, buffer2, buffer);
+		pclose(console);
+
+		if (strlen(buffer) == 0 || buffer[0] != '/') {
+			ERROR("Gui: Unable to find library %s to load.\n", find.c_str());
+			return;
+		}
+
+		packageLoc = buffer;
+//		LOG("GUI::loadLibrary() - library location: %s\n", packageLoc.c_str());
+
+		libraryFile = packageLoc;
+		packageLoc = "";
+	}
+
 	if (libraryFile == "") {
-		ERROR("No filename given for dynamic library.\n");
+		ERROR("Gui: No filename given for dynamic library.\n");
 		return;
 	}
+
+	libraryFile = packageLoc + libraryFile;
+
+	LOG("Gui: Loading library: %s\n", libraryFile.c_str());
 
 	void *handle = dlopen(libraryFile.c_str(), RTLD_NOW | RTLD_GLOBAL);
 //	void *handle = dlopen(libraryFile.c_str(), RTLD_NOW);
 
 	if (handle == NULL) {
-		ERROR("Unable to load library %s. (error: %s)\n", libraryFile.c_str(), dlerror());
+		ERROR("Gui: Unable to load library %s. (error: %s)\n", libraryFile.c_str(), dlerror());
 	}
 }
 
