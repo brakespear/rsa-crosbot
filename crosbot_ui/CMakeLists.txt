@@ -48,7 +48,7 @@ SET(QT_USE_QTOPENGL TRUE)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
    INCLUDE_DIRS include
-#  LIBRARIES crosbot_ui
+   LIBRARIES crosbot_ui
 #  CATKIN_DEPENDS crosbot crosbot_fastslam roscpp
 #  DEPENDS system_lib
 )
