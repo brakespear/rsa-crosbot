@@ -9,8 +9,8 @@
 #include <crosbot_ui/crosbotgui.hpp>
 
 //#include <typeinfo>
-#include <QUrl>
-#include <QHBoxLayout>
+#include <QtCore/QUrl>
+#include <QtGui/QHBoxLayout>
 //#include <QVBoxLayout>
 //#include <QLabel>
 //#include <casrobot/tasks/autonomy/autonomy.h>

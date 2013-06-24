@@ -10,6 +10,7 @@
 #include <crosbot_ui/panels/pointcloud.hpp>
 #include <crosbot_ui/panels/map.hpp>
 #include <crosbot_ui/panels/snap.hpp>
+#include <crosbot_ui/panels/snap2.hpp>
 #include <crosbot_ui/panels/robot.hpp>
 
 namespace crosbot {
@@ -57,6 +58,9 @@ Panel *PanelFactory::createPanel(ConfigElementPtr config) {
 		} else if (strcasecmp(config->name.c_str(), PANEL_SNAP) == 0 ||
 				strcasecmp(config->name.c_str(), ELEMENT_SNAPS) == 0) {
 			rval = new SnapPanel(config);
+		} else if (strcasecmp(config->name.c_str(), "snap2") == 0 ||
+				strcasecmp(config->name.c_str(), "snaps2") == 0) {
+			rval = new SnapPanel2(config);
 		} else if (strcasecmp(config->name.c_str(), PANEL_ROBOT) == 0) {
 			rval = new RobotPanel(config);
 		}

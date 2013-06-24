@@ -12,10 +12,10 @@
 #include <crosbot/data.hpp>
 #include <crosbot_map/map.hpp>
 
-#include <QTextEdit>
-#include <QTreeWidget>
-#include <QGroupBox>
-#include <QRadioButton>
+#include <QtGui/QTextEdit>
+#include <QtGui/QTreeWidget>
+#include <QtGui/QGroupBox>
+#include <QtGui/QRadioButton>
 //#include <QDialog>
 //#include <QTimer>
 //#include <QPushButton>
