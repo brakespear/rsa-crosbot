@@ -95,12 +95,17 @@ public:
 
 	void listSnaps(Map::TagListPtr tags);
 	void callbackSnap(crosbot_map::SnapMsgPtr snap);
+	std::vector < SnapPtr > toConfirm;
 public Q_SLOTS:
 	void handleSelectionChanged();
 	void handleChangeInStatus();
-	void handleSnapConfirmation(SnapPtr snap);
+	void handleSnapConfirmation();
+	void handleListUpdate();
 Q_SIGNALS:
-	void confirmationNeeded(SnapPtr snap);
+	void confirmationNeeded();
+	void updateSnapList();
+
+
 protected:
 	SnapView2 snapView;
 

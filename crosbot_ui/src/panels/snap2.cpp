@@ -182,6 +182,7 @@ SnapViewWidget2::SnapViewWidget2(ConfigElementPtr config) :
     rejectedRB.setEnabled(false);
     
     connect(this, SIGNAL(confirmationNeeded()), this, SLOT(handleSnapConfirmation()));
+    connect(this, SIGNAL(updateSnapList()), this, SLOT(handleListUpdate()));
 
 //	mapName = config->getParam(PARAM_NAME);
 //	mapName = config->getParam(ELEMENT_MAP, mapName);
@@ -265,7 +266,6 @@ SnapTreeItem2* SnapViewWidget2::findSnap(int32_t id, Snap::Type type) {
 
 void SnapViewWidget2::setStatus(SnapPtr snap, Snap::Status status) {
 	snap->status = status;
-
 	crosbot_map::ModifySnap::Request req;
 	crosbot_map::ModifySnap::Response res;
 	req.id.data =  snap->id;
@@ -276,78 +276,83 @@ void SnapViewWidget2::setStatus(SnapPtr snap, Snap::Status status) {
 }
 
 void SnapViewWidget2::callbackSnap(crosbot_map::SnapMsgPtr snap) {
-	// TODO: SnapPanel2::callbackSnap()
-	LOG("SnapPanel2: Snap recieved.\n");
-
 	if (snap->type == Snap::VICTIM &&snap->status == Snap::UNCONFIRMED) {
 		Pose p = snap->pose;
 		if (p.position.length() <= 1.5) {
 			SnapPtr s = new Snap(snap);
+			toConfirm.push_back(s);
 
-			Q_EMIT confirmationNeeded(s);
+			Q_EMIT confirmationNeeded();
+		}
+	}
+}
+
+void SnapViewWidget2::handleListUpdate() {
+	crosbot_map::ListSnaps::Request request;
+	crosbot_map::ListSnaps::Response response;
+
+	if (listSrv.call(request, response)) {
+		for (size_t i = 0; i < response.snaps.size(); ++i) {
+			SnapTreeItem2* snapItem = findSnap(response.snaps[i].id, (Snap::Type)response.snaps[i].type);
+
+			if (snapItem == NULL) {
+				SnapPtr snap =  new Snap(response.snaps[i]);
+				QTreeWidgetItem *item = new SnapTreeItem2(snap);
+
+				if (snap->type == Snap::VICTIM) {
+					victims.addChild(item);
+				} else if (snap->type == Snap::LANDMARK) {
+					landmarks.addChild(item);
+				} else if (snap->type == Snap::SCAN) {
+					scans.addChild(item);
+				} else {
+					other.addChild(item);
+				}
+			} else {
+				crosbot_map::SnapMsg& msg = response.snaps[i];
+				bool repaint = false;
+				if (snapItem->snap->status != msg.status) {
+					snapItem->snap->status = (Snap::Status)msg.status;
+					repaint = true;
+				}
+				if (snapItem->snap->description != msg.description) {
+					snapItem->snap->description = msg.description;
+					repaint = true;
+				}
+
+				if (snapItem->snap->type !=  msg.type) {
+					repaint = true;
+
+					snapItem->parent()->removeChild(snapItem);
+					snapItem->snap->type =  (Snap::Type)msg.type;
+					switch(snapItem->snap->type) {
+					case Snap::VICTIM:
+						victims.addChild(snapItem); break;
+					case Snap::LANDMARK:
+						landmarks.addChild(snapItem); break;
+					case Snap::SCAN:
+						scans.addChild(snapItem); break;
+					defautl:
+						other.addChild(snapItem); break;
+					}
+				}
+
+				if (repaint) {
+					snapItem->updateView();
+				}
+
+				if (snapItem->snap == snapView.getSnap())
+					snapView.setSnap(snapItem->snap);
+			}
 		}
 	}
 }
 
 void SnapViewWidget2::updateList() {
 	while (updateThread.operating) {
-		crosbot_map::ListSnaps::Request request;
-		crosbot_map::ListSnaps::Response response;
+		Q_EMIT updateSnapList();
 
-		if (listSrv.call(request, response)) {
-			for (size_t i = 0; i < response.snaps.size(); ++i) {
-				SnapTreeItem2* snapItem = findSnap(response.snaps[i].header.seq, (Snap::Type)response.snaps[i].type);
-
-				if (snapItem == NULL) {
-					SnapPtr snap =  new Snap(response.snaps[i]);
-					QTreeWidgetItem *item = new SnapTreeItem2(snap);
-
-					if (snap->type == Snap::VICTIM) {
-						victims.addChild(item);
-					} else if (snap->type == Snap::LANDMARK) {
-						landmarks.addChild(item);
-					} else if (snap->type == Snap::SCAN) {
-						scans.addChild(item);
-					} else {
-						other.addChild(item);
-					}
-				} else {
-					crosbot_map::SnapMsg& msg = response.snaps[i];
-					bool repaint = false;
-					if (snapItem->snap->status != msg.status) {
-						snapItem->snap->status = (Snap::Status)msg.status;
-						repaint = true;
-					}
-					if (snapItem->snap->description != msg.description) {
-						snapItem->snap->description = msg.description;
-						repaint = true;
-					}
-
-					if (snapItem->snap->type !=  msg.type) {
-						repaint = true;
-
-						snapItem->parent()->removeChild(snapItem);
-						snapItem->snap->type =  (Snap::Type)msg.type;
-						switch(snapItem->snap->type) {
-						case Snap::VICTIM:
-							victims.addChild(snapItem); break;
-						case Snap::LANDMARK:
-							landmarks.addChild(snapItem); break;
-						case Snap::SCAN:
-							scans.addChild(snapItem); break;
-						defautl:
-							other.addChild(snapItem); break;
-						}
-					}
-
-					if (repaint) {
-						snapItem->updateView();
-					}
-				}
-			}
-		}
-
-		usleep(5000000);
+		usleep(2000000);
 	}
 }
 
@@ -490,13 +495,18 @@ void SnapViewWidget2::stop() {
 ////	snapView.setSnap(snap);
 //}
 
-void SnapViewWidget2::handleSnapConfirmation(SnapPtr snap) {
-	SnapConfirmDialog dialog(snap, this);
-	int result = dialog.exec();bool statusChanged = false;
-	if (result == 1) {
-		setStatus(snap, Snap::CONFIRMED);
-	} else if (result == -1) {
-		setStatus(snap, Snap::REJECTED);
+void SnapViewWidget2::handleSnapConfirmation() {
+	while (toConfirm.size() > 0) {
+		SnapPtr snap = toConfirm[0];
+		toConfirm.erase(toConfirm.begin());
+
+		SnapConfirmDialog dialog(snap, this);
+		int result = dialog.exec();bool statusChanged = false;
+		if (result == 1) {
+			setStatus(snap, Snap::CONFIRMED);
+		} else if (result == -1) {
+			setStatus(snap, Snap::REJECTED);
+		}
 	}
 }
 

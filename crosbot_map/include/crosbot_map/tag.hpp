@@ -33,6 +33,9 @@ public:
 	 */
 	Pose robot;
 
+	/**
+	 * A unique identifier.
+	 */
 	uint32_t id;
 
 	virtual UUID getUUID() const { return uuid; }
@@ -75,11 +78,6 @@ public:
 	};
 
 	/**
-	 * A description of the snap.
-	 */
-	std::string description;
-
-	/**
 	 * The type of object the snap represents.
 	 */
 	Type type;
@@ -88,6 +86,11 @@ public:
 	 * The status of the snap.
 	 */
 	Status status;
+
+	/**
+	 * A description of the snap.
+	 */
+	std::string description;
 
 	/**
 	 * Images related to the snap.
@@ -107,7 +110,7 @@ public:
 
 #ifdef ROS_VERSION
 	inline Snap& operator=(const crosbot_map::SnapMsg& snp) {
-		id = snp.header.seq;
+		id = snp.id;
 		timestamp = snp.header.stamp;
 		type = (Snap::Type)snp.type;
 		status = (Snap::Status)snp.status;
@@ -145,7 +148,7 @@ public:
 
     inline crosbot_map::SnapMsgPtr toROS() const {
     	crosbot_map::SnapMsgPtr rval(new crosbot_map::SnapMsg());
-    	rval->header.seq = id;
+    	rval->id = id;
     	rval->header.stamp = timestamp.toROS();
     	rval->type = type;
     	rval->status = status;
@@ -170,7 +173,7 @@ public:
     inline crosbot_map::SnapMsgPtr toROSsmall() const {
     	crosbot_map::SnapMsgPtr rval(new crosbot_map::SnapMsg());
 
-    	rval->header.seq = id;
+    	rval->id = id;
     	rval->header.stamp = timestamp.toROS();
     	rval->type = type;
     	rval->status = status;
