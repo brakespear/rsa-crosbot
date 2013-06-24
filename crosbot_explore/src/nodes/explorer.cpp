@@ -14,6 +14,8 @@
 #include <crosbot_explore/GetPath.h>
 #include <geometry_msgs/Twist.h>
 
+#include <crosbot/config.hpp>
+
 using namespace crosbot;
 using namespace crosbot_explore;
 
@@ -56,6 +58,14 @@ public:
 		paramNH.param<std::string>("base_frame", baseFrame, DEFAULT_BASEFRAME);
 
 		// TODO: read voronoi constraints
+		ConfigElementPtr cfg = new ROSConfigElement(paramNH);
+		ConfigElementPtr voronoiCfg = cfg->getChild("voronoi");
+		if (voronoiCfg != NULL) {
+			voronoiConstraints.restricted = voronoiCfg->getParamAsDouble("restrict", voronoiConstraints.restricted);
+			voronoiConstraints.partial = voronoiCfg->getParamAsDouble("partial", voronoiConstraints.partial);
+			voronoiConstraints.expand = voronoiCfg->getParamAsDouble("expand", voronoiConstraints.expand);
+			voronoiConstraints.orphanThreshold = voronoiCfg->getParamAsInt("orphan", voronoiConstraints.orphanThreshold);
+		}
 
 		gridSub = nh.subscribe("map", 1, &ExplorerNode::callbackOccGrid, this);
 		historySub = nh.subscribe("history", 1, &ExplorerNode::callbackHistory, this);

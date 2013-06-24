@@ -29,6 +29,8 @@ add_service_files(
   DIRECTORY srv
   FILES
     GetPath.srv
+    FollowPath.srv
+    SetMode.srv
 )
 
 ## Generate added messages and services with any dependencies listed here
