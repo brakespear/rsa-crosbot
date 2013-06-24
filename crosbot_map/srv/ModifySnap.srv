@@ -1,5 +1,5 @@
 std_msgs/Int32  id
 std_msgs/UInt8  type
 std_msgs/UInt8  status
-std_msgs/String descript2ion
+std_msgs/String description
 ---
