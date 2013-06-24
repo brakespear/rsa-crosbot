@@ -98,9 +98,9 @@ public:
 public Q_SLOTS:
 	void handleSelectionChanged();
 	void handleChangeInStatus();
-	void handleSnapConfirmation();
+	void handleSnapConfirmation(SnapPtr snap);
 Q_SIGNALS:
-	void confirmationNeeded();
+	void confirmationNeeded(SnapPtr snap);
 protected:
 	SnapView2 snapView;
 

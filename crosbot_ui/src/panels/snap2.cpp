@@ -284,20 +284,13 @@ void SnapViewWidget2::callbackSnap(crosbot_map::SnapMsgPtr snap) {
 		if (p.position.length() <= 1.5) {
 			SnapPtr s = new Snap(snap);
 
-			SnapConfirmDialog dialog(s, this);
-			int result = dialog.exec();bool statusChanged = false;
-			if (result == 1) {
-				setStatus(s, Snap::CONFIRMED);
-			} else if (result == -1) {
-				setStatus(s, Snap::REJECTED);
-			}
+			Q_EMIT confirmationNeeded(s);
 		}
 	}
 }
 
 void SnapViewWidget2::updateList() {
 	while (updateThread.operating) {
-		// TODO::SnapPanel2::updateList()
 		crosbot_map::ListSnaps::Request request;
 		crosbot_map::ListSnaps::Response response;
 
@@ -497,8 +490,14 @@ void SnapViewWidget2::stop() {
 ////	snapView.setSnap(snap);
 //}
 
-void SnapViewWidget2::handleSnapConfirmation() {
-    // TODO: SnapViewWidget::handleSnapConfirmation()
+void SnapViewWidget2::handleSnapConfirmation(SnapPtr snap) {
+	SnapConfirmDialog dialog(snap, this);
+	int result = dialog.exec();bool statusChanged = false;
+	if (result == 1) {
+		setStatus(snap, Snap::CONFIRMED);
+	} else if (result == -1) {
+		setStatus(snap, Snap::REJECTED);
+	}
 }
 
 void SnapViewWidget2::handleChangeInStatus() {
