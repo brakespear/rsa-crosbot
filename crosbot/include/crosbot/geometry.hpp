@@ -48,9 +48,11 @@ namespace crosbot {
 #ifdef ROS_VERSION
 
 #include <geometry_msgs/Point.h>
+#include <geometry_msgs/PointStamped.h>
 #include <geometry_msgs/Point32.h>
 #include <geometry_msgs/Quaternion.h>
 #include <geometry_msgs/Pose.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Transform.h>
 #include <nav_msgs/Odometry.h>
 #include <tf/transform_datatypes.h>
@@ -318,9 +320,14 @@ public:
 #ifdef ROS_VERSION
 
 	Point3D(const geometry_msgs::Point& p) : x(p.x), y(p.y), z(p.z) {}
-
 	inline Point3D& operator=(const geometry_msgs::Point& p) {
 		x = p.x; y = p.y; z = p.z;
+		return *this;
+	}
+
+	Point3D(const geometry_msgs::PointStamped& p) : x(p.point.x), y(p.point.y), z(p.point.z) {}
+	inline Point3D& operator=(const geometry_msgs::PointStamped& p) {
+		x = p.point.x; y = p.point.y; z = p.point.z;
 		return *this;
 	}
 
@@ -352,6 +359,10 @@ public:
     	geometry_msgs::Point32 rval;
     	rval.x = x; rval.y = y; rval.z = z;
     	return rval;
+    }
+
+    inline tf::Vector3 toTF() const {
+    	return tf::Vector3(x,y,z);
     }
 #endif
 };
@@ -637,14 +648,18 @@ public:
 #ifdef ROS_VERSION
 
 	Pose3D(const geometry_msgs::Pose& p) : position(p.position), orientation(p.orientation) {}
-
 	inline Pose3D& operator=(const geometry_msgs::Pose& p) {
 		position = p.position; orientation = p.orientation;
 		return *this;
 	}
 
-	Pose3D(const geometry_msgs::Transform& tr) : position(tr.translation), orientation(tr.rotation) {}
+	Pose3D(const geometry_msgs::PoseStamped& p) : position(p.pose.position), orientation(p.pose.orientation) {}
+	inline Pose3D& operator=(const geometry_msgs::PoseStamped& p) {
+		position = p.pose.position; orientation = p.pose.orientation;
+		return *this;
+	}
 
+	Pose3D(const geometry_msgs::Transform& tr) : position(tr.translation), orientation(tr.rotation) {}
 	inline Pose3D& operator=(const geometry_msgs::Transform& tr) {
 		position = tr.translation; orientation = tr.rotation;
 		return *this;
@@ -676,6 +691,11 @@ public:
 
     	return rval;
     }
+
+    inline tf::Transform toTF() const {
+    	return tf::Transform(orientation.toTF(), position.toTF());
+    }
+
 #endif
 };
 typedef Pose3D Pose;

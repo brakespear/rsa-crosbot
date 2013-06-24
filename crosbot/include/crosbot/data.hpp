@@ -10,7 +10,6 @@
 #ifndef CROSBOT_DATA_H_
 #define CROSBOT_DATA_H_
 
-#define DEFAULT_MAXWAIT4TRANSFORM	2.0			// [s]
 
 #include <crosbot/geometry.hpp>
 #include <crosbot/handle.hpp>
@@ -33,6 +32,7 @@
 namespace crosbot {
 
 #define NSECS_PER_SEC	1000000000LL
+#define DEFAULT_MAXWAIT4TRANSFORM	2.0			// [s]
 
 struct UUID {
 public:
