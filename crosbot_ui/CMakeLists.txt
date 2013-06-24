@@ -80,6 +80,7 @@ add_library(crosbot_ui
   src/panels/pointcloud.cpp
   src/panels/robot.cpp
   src/panels/snap.cpp
+  src/panels/snap2.cpp
   src/panels/wasdmouse.cpp
   src/renders/map/map.cpp
   src/renders/map/geotiff.cpp
