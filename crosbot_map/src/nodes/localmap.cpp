@@ -16,7 +16,6 @@ using namespace crosbot;
 
 #define DEFAULT_MAPFRAME			"/odom"
 #define DEFAULT_BASEFRAME			"/base_link"
-#define DEFAULT_MAXWAIT4TRANSFORM	2.0			// [s]
 
 #define DEFAULT_MAPWIDTH			10.0
 #define DEFAULT_MAPHEIGHT			10.0
