@@ -1,0 +1,3 @@
+std_msgs/Int32 id
+---
+crosbot_map/SnapMsg snap
