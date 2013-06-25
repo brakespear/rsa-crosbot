@@ -21,6 +21,33 @@ Time Time::now() {
 	return Time(time.tv_sec, time.tv_usec*1000);
 }
 
+std::string Time::formatDate() const {
+	time_t nowtime;
+	struct tm *nowtm;
+	char tmbuf[256];
+
+	nowtime = sec;
+	nowtm = localtime(&nowtime);
+	strftime(tmbuf, sizeof tmbuf, "%Y-%m-%d", nowtm);
+	std::string rval(tmbuf);
+	return rval;
+}
+
+std::string Time::formatDateAndTime() const {
+	time_t nowtime;
+	struct tm *nowtm;
+	char tmbuf[256];
+
+	nowtime = sec;
+	nowtm = localtime(&nowtime);
+	strftime(tmbuf, sizeof tmbuf, "%Y-%m-%d-%H-%M-%S", nowtm);
+
+	std::string rval(tmbuf);
+	snprintf(tmbuf, sizeof tmbuf, ".%03d", nsec / 1000000);
+	rval.append(tmbuf);
+	return rval;
+}
+
 int Image::bitDepth(Encoding encoding) {
 	switch (encoding) {
 	case Mono8: case RGB8: case RGBA8: case BGR8: case BGRA8:

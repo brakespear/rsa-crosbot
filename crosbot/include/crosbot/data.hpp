@@ -280,6 +280,9 @@ public:
 		return *this;
 	}
 
+	std::string formatDate() const;
+	std::string formatDateAndTime() const;
+
 #ifdef ROS_VERSION
 
 	Time(const ros::Time& t) : sec(t.sec), nsec(t.nsec) {}

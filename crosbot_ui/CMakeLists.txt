@@ -96,16 +96,21 @@ add_library(crosbot_ui
 
 ## Declare a cpp executable
 add_executable(gui src/nodes/gui.cpp)
+add_executable(geo_logger src/nodes/geo_logger.cpp)
 
 ## Add dependencies to the executable
 # add_dependencies(crosbot_ui_node ${PROJECT_NAME})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(crosbot_ui
-  ${catkin_LIBRARIES} crosbot crosbot_map crosbot_fastslam ${QT_LIBRARIES} glut GLU
+  ${catkin_LIBRARIES} crosbot crosbot_map crosbot_fastslam ${QT_LIBRARIES} glut GLU phonon
 )
 
 target_link_libraries(gui
+  ${catkin_LIBRARIES} crosbot_ui
+)
+
+target_link_libraries(geo_logger
   ${catkin_LIBRARIES} crosbot_ui
 )
 

@@ -85,7 +85,8 @@ int main(int argc, char **argv) {
 	// Seed random number generator.
 	srand(Time::now().sec);
 	
-	QApplication a( argc, argv );
+	QApplication app( argc, argv );
+	app.setApplicationName(QString("gui"));
 	glutInit(&argc, argv);
 
 	myGui = Gui::createGUI(config);
@@ -110,8 +111,8 @@ int main(int argc, char **argv) {
 	
 	if (rval == 0) {
 		LOG("GUI started.\n");
-		a.connect( &a, SIGNAL(lastWindowClosed()), &a, SLOT(quit()));
-		rval = a.exec();
+		app.connect( &app, SIGNAL(lastWindowClosed()), &app, SLOT(quit()));
+		rval = app.exec();
 	}
 
 	LOG("Closing GUI.\n");
