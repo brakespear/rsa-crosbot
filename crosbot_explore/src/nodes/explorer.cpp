@@ -12,6 +12,8 @@
 #include <tf/transform_listener.h>
 
 #include <crosbot_explore/GetPath.h>
+#include <crosbot_explore/FollowPath.h>
+#include <crosbot_explore/SetMode.h>
 #include <geometry_msgs/Twist.h>
 
 #include <crosbot/config.hpp>
@@ -29,6 +31,8 @@ protected:
 	ros::Subscriber gridSub, historySub;
 	ros::Publisher imagePub, velPub;
 	tf::TransformListener tfListener;
+	ros::ServiceServer waypointSrv, setModeSrv;
+
 
 	ReadWriteLock rosLock;
 	nav_msgs::OccupancyGridConstPtr latestMap;
@@ -52,6 +56,30 @@ public:
     	this->latestHistory = latestHistory;
     }
 
+    bool callbackFollowPath(crosbot_explore::FollowPath::Request& req, crosbot_explore::FollowPath::Response& res) {
+
+    	// TODO: callbackFollowPath
+
+    	return false;
+    }
+
+    bool callbackSetMode(crosbot_explore::SetMode::Request& req, crosbot_explore::SetMode::Response& res) {
+    	switch (req.mode.data) {
+    	case 1:
+    		resume(); break;
+    	case 2:
+    		search.side = SearchParameters::Left;
+    		search.strategy = SearchParameters::WallFollow; break;
+    	case 3:
+    		search.side = SearchParameters::Left;
+    		search.strategy = SearchParameters::WallFollow; break;
+    	case 0: default:
+    		pause(); break;
+    	}
+
+    	return true;
+    }
+
 	void initalise(ros::NodeHandle& nh) {
 		// read configuration/parameters
 		ros::NodeHandle paramNH("~");	// Because ROS's search order is buggered
@@ -71,6 +99,8 @@ public:
 		historySub = nh.subscribe("history", 1, &ExplorerNode::callbackHistory, this);
 		imagePub = nh.advertise<sensor_msgs::Image>("image", 1);
 		velPub = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
+		waypointSrv = nh.advertiseService("/explore/follow_path", &ExplorerNode::callbackFollowPath, this);
+		setModeSrv = nh.advertiseService("/explore/set_mode", &ExplorerNode::callbackSetMode, this);
 	}
 
 	void shutdown() {
