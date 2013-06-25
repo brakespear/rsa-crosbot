@@ -88,6 +88,8 @@ public:
 	void start();
 	void stop();
 
+	void playSound(std::string file);
+
 //	void motionTracked(MapPtr map) {}
 //	void mapUpdated(MapPtr map);
 //	void tagAdded(MapPtr map, TagPtr tag);

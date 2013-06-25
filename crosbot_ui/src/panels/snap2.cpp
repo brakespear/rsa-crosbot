@@ -16,6 +16,13 @@
 #include <QtCore/QUrl>
 #include <QtGui/QHBoxLayout>
 #include <QtGui/QLabel>
+#include <QtGui/QSound>
+
+#include <phonon/audiooutput.h>
+#include <phonon/mediaobject.h>
+#include <phonon/mediasource.h>
+#include <phonon/videowidget.h>
+
 //#include <QVBoxLayout>
 //#include <QLabel>
 //#include <casrobot/tasks/autonomy/autonomy.h>
@@ -412,6 +419,9 @@ void SnapViewWidget2::listSnaps(Map::TagListPtr tags) {
     }
 }
 
+Phonon::AudioOutput *audio = NULL;
+Phonon::MediaObject obj;
+
 void SnapViewWidget2::start() {
 	snapTree.clearSelection();
 	updateThread.start();
@@ -421,6 +431,10 @@ void SnapViewWidget2::start() {
 	listSrv = nh.serviceClient<crosbot_map::ListSnaps>("list_snaps", true);
 	getSrv = nh.serviceClient<crosbot_map::GetSnap>("get_snap", true);
 	modifySrv = nh.serviceClient<crosbot_map::ModifySnap>("modify_snap", true);
+
+	audio = new Phonon::AudioOutput( this );
+	if (audio != NULL)
+		Phonon::createPath( &obj, audio );
 
 //	if (mapName != "") {
 //		map = Gui::maps.getMap(mapName);
@@ -495,15 +509,31 @@ void SnapViewWidget2::stop() {
 ////	snapView.setSnap(snap);
 //}
 
+void SnapViewWidget2::playSound(std::string file) {
+	if (audio == NULL)
+		return;
+	const QUrl url = QUrl( QLatin1String( file.c_str() ) );
+	Phonon::MediaSource src( url );
+	obj.setCurrentSource( src );
+//		VideoWidget video;
+//		video.show();
+//		Phonon::createPath( &obj, &video );
+	obj.play();
+//	obj.state();
+}
+
 void SnapViewWidget2::handleSnapConfirmation() {
 	while (toConfirm.size() > 0) {
 		SnapPtr snap = toConfirm[0];
 		toConfirm.erase(toConfirm.begin());
 
 		SnapConfirmDialog dialog(snap, this);
+//		playSound("file:///usr/lib/libreoffice/share/gallery/sounds/train.wav");
+		playSound("file:///usr/lib/libreoffice/share/gallery/sounds/beam.wav");
 		int result = dialog.exec();bool statusChanged = false;
 		if (result == 1) {
 			setStatus(snap, Snap::CONFIRMED);
+			playSound("file:///usr/lib/libreoffice/share/gallery/sounds/applause.wav");
 		} else if (result == -1) {
 			setStatus(snap, Snap::REJECTED);
 		}
