@@ -57,10 +57,17 @@ public:
     }
 
     bool callbackFollowPath(crosbot_explore::FollowPath::Request& req, crosbot_explore::FollowPath::Response& res) {
+    	// TODO: convert from whatever to icp frame
 
-    	// TODO: callbackFollowPath
+    	std::vector < crosbot::Pose > waypoints;
+    	search.setWaypoints(waypoints, getLatestPose());
+    	search.strategy = SearchParameters::Waypoint;
+    	waypoints.resize(req.path.poses.size());
+    	for (size_t i = 0; i < waypoints.size(); ++i)
+    		waypoints[i] = req.path.poses[i];
+    	search.setWaypoints(waypoints, getLatestPose());
 
-    	return false;
+    	return true;
     }
 
     bool callbackSetMode(crosbot_explore::SetMode::Request& req, crosbot_explore::SetMode::Response& res) {
