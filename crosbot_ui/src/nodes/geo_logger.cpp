@@ -334,7 +334,7 @@ public:
 		geoData += data;
 		sprintf(data, "%f\n", minVisX);	// upper left cell
 		geoData += data;
-		sprintf(data, "%f\n", minVisY);	// upper left cell
+		sprintf(data, "%f\n", minVisY + (imageHeight * map->info.resolution));	// upper left cell
 		geoData += data;
 
 		return rval;
