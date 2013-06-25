@@ -417,10 +417,10 @@ void SnapViewWidget2::start() {
 	updateThread.start();
 
 	ros::NodeHandle nh;
-	snapSub = nh.subscribe("snap", 100, &SnapViewWidget2::callbackSnap, this);
-	listSrv = nh.serviceClient<crosbot_map::ListSnaps>("list_snaps", true);
-	getSrv = nh.serviceClient<crosbot_map::GetSnap>("get_snap", true);
-	modifySrv = nh.serviceClient<crosbot_map::ModifySnap>("modify_snap", true);
+	snapSub = nh.subscribe("/snaps/publisher", 100, &SnapViewWidget2::callbackSnap, this);
+	listSrv = nh.serviceClient<crosbot_map::ListSnaps>("/snaps/list", false);
+	getSrv = nh.serviceClient<crosbot_map::GetSnap>("/snaps/get", false);
+	modifySrv = nh.serviceClient<crosbot_map::ModifySnap>("/snaps/update", false);
 
 //	if (mapName != "") {
 //		map = Gui::maps.getMap(mapName);
