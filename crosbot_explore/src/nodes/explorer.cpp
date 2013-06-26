@@ -130,7 +130,9 @@ public:
 			return Pose(INFINITY, INFINITY, INFINITY);
 		}
 		std::string mapFrame = latestMap->header.frame_id;
-		tf::StampedTransform transform;
+      LOG("getLatestPose() - %s, %s\n", mapFrame.c_str(), baseFrame.c_str());
+
+      tf::StampedTransform transform;
 		try {
 			tfListener.waitForTransform(mapFrame, baseFrame, ros::Time(0), ros::Duration(2));
 			tfListener.lookupTransform(mapFrame, baseFrame, ros::Time(0), transform);
