@@ -57,7 +57,7 @@ void SnapView2::setSnap(SnapPtr snap) {
 		return;
 	}
 	char line[4096];
-	sprintf(line, "<h2>%s</h2>", snap->description.c_str());
+	sprintf(line, "<h2>%d - %s</h2>", snap->id, snap->description.c_str());
 	std::string contents = line;
 
 	std::string type = "Unknown";
