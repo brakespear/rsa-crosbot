@@ -21,6 +21,7 @@
 #include <QtGui/QPen>
 #include <QtGui/QPainter>
 #include <QtGui/QFontMetrics>
+#include <QtGui/QApplication>
 
 using namespace crosbot;
 
@@ -158,6 +159,7 @@ public:
 			for (unsigned int i = 1; i < history->poses.size(); i++) {
 				p = history->poses[i];
 				QPoint end((p.position.x - minVisX) / map->info.resolution, (p.position.y - minVisY) / map->info.resolution);
+				painter.drawLine(start, end);
 				start = end;
 			}
 
@@ -254,7 +256,7 @@ public:
 					}
 
 					textPainter.drawEllipse(QPointF(cX, cY), victimRadius,victimRadius);
-				} else {
+				} else if (snap->type == Snap::LANDMARK){
 					sprintf(iStr, "%d", ++hazardCount);
 
 					textPainter.setPen(penHazard);
@@ -299,19 +301,21 @@ public:
 				(int)GeoTIFFConstants::orientationColour.b));
 		QPoint orientOrigin(checkerBoardPixelWidth*3, checkerBoardPixelHeight*2);
 		QPoint xEnd(orientOrigin.x(), orientOrigin.y()-checkerBoardPixelHeight);
-		QPoint yEnd(orientOrigin.x()-checkerBoardPixelWidth, orientOrigin.y());
+		QPoint yEnd(orientOrigin.x()+checkerBoardPixelWidth, orientOrigin.y());
 		textPainter.drawLine(orientOrigin, xEnd);
 		textPainter.drawLine(orientOrigin, yEnd);
 		textPainter.drawLine(xEnd, QPoint(xEnd.x() - 2, xEnd.y() + 2));
 		textPainter.drawLine(xEnd, QPoint(xEnd.x() + 2, xEnd.y() + 2));
-		textPainter.drawLine(yEnd, QPoint(yEnd.x() + 2, yEnd.y() - 2));
-		textPainter.drawLine(yEnd, QPoint(yEnd.x() + 2, yEnd.y() + 2));
+		textPainter.drawLine(yEnd, QPoint(yEnd.x() - 2, yEnd.y() - 2));
+		textPainter.drawLine(yEnd, QPoint(yEnd.x() - 2, yEnd.y() + 2));
 		int dY = (fm.height() - fm.descent() -fm.ascent()) / 2;
-		QPoint xText(orientOrigin.x() + 5, (orientOrigin.y() + xEnd.y()) / 2 + dY);
 		int dX = fm.width("y") / 2;
-		QPoint yText((orientOrigin.x() + yEnd.x()) / 2 - dX, orientOrigin.y() + fm.height() - fm.descent());
-		textPainter.drawText(xText, "x");
-		textPainter.drawText(yText, "y");
+//		QPoint yText(orientOrigin.x() + 5, (orientOrigin.y() + xEnd.y()) / 2 + dY);
+		QPoint yText((orientOrigin.x() + yEnd.x()) / 2 - dX - 2, orientOrigin.y() + fm.height() - fm.descent());
+//		QPoint xText((orientOrigin.x() + yEnd.x()) / 2 - dX, orientOrigin.y() + fm.height() - fm.descent());
+		QPoint xText(orientOrigin.x() - 12, (orientOrigin.y() + xEnd.y()) / 2 + dY + 2);
+		textPainter.drawText(xText, "y");
+		textPainter.drawText(yText, "x");
 
 
 		if (title == "") {
@@ -354,16 +358,24 @@ public:
 			return;
 
 		Time current = crosbot::Time::now();
-		std::string filename = current.formatDateAndTime();
+		std::string filename = "/home/rescue/workspace/log/" + current.formatDateAndTime();
 		filename.append(".tif");
+
+		LOG("Saving to %s.\n", filename.c_str());
 
 		// TODO: Get snaps
 		crosbot_map::ListSnaps::Request snapsReq;
 		crosbot_map::ListSnaps::Response snapsRes;
-		if (!snapSrv.call(snapsReq, snapsRes)) {
+		try {
+			if (!snapSrv.call(snapsReq, snapsRes)) {
+				snapsRes.snaps.clear();
+			}
+		} catch (...) {
+			ERROR("geo_logger: Unable to get snap list.\n");
 			snapsRes.snaps.clear();
 		}
 
+		LOG("Have snaps list.\n", filename.c_str());
 		// TODO: Paint GeoTiff
 		std::string geoData; Point2D minXY;
 		QImage *geotiff = getGeoTiffImage(currentMap, "", currentHistory, snapsRes.snaps, geoData);
@@ -377,6 +389,7 @@ public:
 				return;
 			}
 
+			LOG("Have geotiff image list.\n", filename.c_str());
 			// save file// write image to file
 			std::string rawFileName = filename + "f";
 			if (!geotiff->save(QString(rawFileName.c_str()), "TIFF")) {
@@ -419,6 +432,8 @@ public:
 			QProcess qproc;
 			char cmdtxt[filename.size() + rawFileName.size() + worldFileName.size() + 128];
 			sprintf(cmdtxt, "geotifcp -e %s %s %s", worldFileName.c_str(), rawFileName.c_str(), filename.c_str());
+			LOG("%s\n", cmdtxt);
+
 			qproc.start(cmdtxt);
 			// if geotifcp ever stops returning disable this
 			qproc.waitForFinished();
@@ -426,7 +441,10 @@ public:
 
 	void run() {
 		while (operating) {
-			usleep(1000000);
+			if (usleep(10000000) == -1) {
+//				LOG("Hello\n");
+				continue;
+			}
 
 			saveMap();
 		}
@@ -436,16 +454,20 @@ public:
 
 };
 
-
+//QApplication app;
 int main(int argc, char**argv) {
-	ros::init(argc, argv, "view_client");
+	ros::init(argc, argv, "geo_logger");
 
 	GeoLogger geo;
 	geo.start();
 
+	QApplication app( argc, argv );
+	app.setApplicationName(QString("gui"));
+//	app.exec();
 	while (ros::ok()) {
 		ros::spin();
 	}
+
 	geo.operating = false;
 
 	return 0;
