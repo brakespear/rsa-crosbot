@@ -94,6 +94,10 @@ public:
 			voronoiConstraints.expand = voronoiCfg->getParamAsDouble("expand", voronoiConstraints.expand);
 			voronoiConstraints.orphanThreshold = voronoiCfg->getParamAsInt("orphan", voronoiConstraints.orphanThreshold);
 		}
+		if (cfg != NULL) {
+		    drive.maxVel = cfg->getParamAsDouble("maxVel", drive.maxVel);
+		    drive.maxTurn = cfg->getParamAsDouble("maxTurn", drive.maxTurn);
+		}
 
 		gridSub = nh.subscribe("map", 1, &ExplorerNode::callbackOccGrid, this);
 		historySub = nh.subscribe("history", 1, &ExplorerNode::callbackHistory, this);
