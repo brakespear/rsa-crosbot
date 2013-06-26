@@ -134,7 +134,7 @@ public:
 			return Pose(INFINITY, INFINITY, INFINITY);
 		}
 		std::string mapFrame = latestMap->header.frame_id;
-      LOG("getLatestPose() - %s, %s\n", mapFrame.c_str(), baseFrame.c_str());
+//      LOG("getLatestPose() - %s, %s\n", mapFrame.c_str(), baseFrame.c_str());
 
       tf::StampedTransform transform;
 		try {
