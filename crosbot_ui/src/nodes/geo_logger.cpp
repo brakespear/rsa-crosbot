@@ -35,6 +35,8 @@ public:
 	ros::Subscriber gridSub, histSub;
 	ros::ServiceClient snapSrv;
 
+	std::string fileLoc;
+
 	void callbackOccupancy(nav_msgs::OccupancyGridConstPtr grid) {
 		Lock lock(mapLock);
 		latestMap = grid;
@@ -45,11 +47,13 @@ public:
 		latestHistory = history;
 	}
 
-	GeoLogger() : operating(true) {
+	GeoLogger() : operating(true), fileLoc("/home/rescue/workspace/log/") {
 		ros::NodeHandle nh;
 		gridSub = nh.subscribe("map", 1, &GeoLogger::callbackOccupancy, this);
 		histSub = nh.subscribe("history", 1, &GeoLogger::callbackHistory, this);
 		snapSrv = nh.serviceClient< crosbot_map::ListSnaps >("/snaps/list", true);
+		ros::NodeHandle nhPriv("~");
+		nh.param("dir", fileLoc, fileLoc);
 	}
 
 	QImage *getGeoTiffImage(nav_msgs::OccupancyGridConstPtr& map, const std::string& title, nav_msgs::PathConstPtr& history, const std::vector< crosbot_map::SnapMsg >& snaps, std::string& geoData) {
@@ -358,7 +362,7 @@ public:
 			return;
 
 		Time current = crosbot::Time::now();
-		std::string filename = "/home/rescue/workspace/log/" + current.formatDateAndTime();
+		std::string filename = fileLoc + current.formatDateAndTime();
 		filename.append(".tif");
 
 		LOG("Saving to %s.\n", filename.c_str());
