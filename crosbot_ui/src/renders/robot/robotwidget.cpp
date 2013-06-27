@@ -215,11 +215,6 @@ void RobotWidget::setUpdateInterval(int updateInterval) {
 }
 
 void RobotWidget::keyPressEvent(QKeyEvent *e) {
-	for (uint32_t i = 0; i < renders.size(); ++i) {
-		if (renders[i]->keyPressEvent(e)) {
-			return;
-		}
-	}
 
 	if (e->key() == Qt::Key_W || e->key() == Qt::Key_Up ||
 			e->key() == Qt::Key_S || e->key() == Qt::Key_Down ||
@@ -246,6 +241,18 @@ void RobotWidget::keyPressEvent(QKeyEvent *e) {
 		if (rightPressed)
 			turn -= turnThrottle;
 		panel.setCurrentSpeeds(speed, turn);
+		return;
+	}
+
+	for (uint32_t i = 0; i < renders.size(); ++i) {
+		if (renders[i]->keyPressEvent(e)) {
+			return;
+		}
+	}
+	for (size_t i = 0; i < listeners.size(); ++i) {
+		KeyListener* l = listeners[i];
+		if (l != NULL && l->keyPressEvent(e))
+			return;
 	}
 }
 
