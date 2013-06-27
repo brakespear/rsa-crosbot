@@ -93,7 +93,7 @@ public:
     		search.side = SearchParameters::Left;
     		search.strategy = SearchParameters::WallFollow; break;
     	case 3:
-    		search.side = SearchParameters::Left;
+    		search.side = SearchParameters::Right;
     		search.strategy = SearchParameters::WallFollow; break;
     	case 0: default:
     		pause(); break;
