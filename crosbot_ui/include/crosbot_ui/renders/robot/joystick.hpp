@@ -22,11 +22,17 @@ public:
 	class RenderJoystick : public Joystick {
 	public:
 		JoystickRender& render;
+		int buttonKeys[MAX_JOYSTICK_BUTTONS];
 
-		RenderJoystick(JoystickRender& render) : render(render) {}
+		RenderJoystick(JoystickRender& render) : render(render) {
+			for (int i = 0; i < MAX_JOYSTICK_BUTTONS; ++i) {
+				buttonKeys[i] = Joystick::Undefined;
+			}
+		}
 		void axisChanged(Axis, int);
 		void buttonPressed(int);
 		void buttonReleased(int);
+
 	};
 
 	JoystickRender(RobotPanel& panel, ConfigElementPtr config);

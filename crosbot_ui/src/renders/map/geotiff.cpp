@@ -48,7 +48,7 @@ Colour4f GeoTIFFConstants::markerTextColour				= Colour4f(255, 255, 255);
 Colour4f GeoTIFFConstants::victimColour					= Colour4f(240, 10, 10);
 Colour4f GeoTIFFConstants::victimUnconfirmedColour		= Colour4f(240, 100, 10);
 float GeoTIFFConstants::victimMarkerDiameter			= 0.35; // In meters
-Colour4f GeoTIFFConstants::hazardColour					= Colour4f(255, 100, 30);
+Colour4f GeoTIFFConstants::hazardColour					= Colour4f(30, 30, 255);
 float GeoTIFFConstants::hazardMarkerSide				= 0.30; // In meters
 
 /**

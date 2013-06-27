@@ -22,6 +22,8 @@ namespace gui {
 #define ELEMENT_PARAM			"param"
 
 #define ELEMENT_DRIVE			"drive"
+#define ELEMENT_KEY				"key"
+#define ELEMENT_JOINT			"joint"
 
 #define PARAM_LEFT				"left"
 #define PARAM_RIGHT				"right"

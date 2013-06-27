@@ -4,11 +4,15 @@
  *  Created on: 19/08/2009
  *      Author: rescue
  */
+
+//#include <ros/ros.h>
 #include <crosbot_ui/renders/robot/robotwidget.hpp>
 #include <crosbot_ui/panels/robot.hpp>
 
 #include <QTimer>
 #include <QKeyEvent>
+#include <std_msgs/String.h>
+#include <sensor_msgs/JointState.h>
 
 #include <crosbot/utils.hpp>
 
@@ -16,6 +20,95 @@ namespace crosbot {
 
 namespace gui {
 using namespace std;
+
+class JointController {
+protected:
+	ros::Subscriber jointSub;
+	ros::Publisher jointPub;
+	bool connected;
+
+	class Joint {
+	public:
+		std::string name;
+		double pos, desiredPos;
+		Joint(const std::string& name) : name(name), pos(NAN), desiredPos(NAN) {}
+	};
+
+
+	Joint& getJoint();
+	ReadWriteLock jLock;
+	std::vector< Joint > joints;
+public:
+	JointController() : connected(false) {}
+
+	void shutdown() {
+		jointPub.shutdown();
+		jointSub.shutdown();
+		connected = false;
+	}
+
+	Joint *findJoint(const std::string& joint) {
+		Lock lock(jLock);
+		for (size_t i = 0; i < joints.size(); ++i) {
+			if (joints[i].name == joint) {
+				return &joints[i];
+			}
+		}
+		return NULL;
+	}
+
+	void callbackJoints(const sensor_msgs::JointStateConstPtr& state) {
+		for (size_t i = 0; i < state->name.size(); ++i) {
+			Joint *joint = findJoint(state->name[i]);
+
+			{{
+				Lock lock(jLock, true);
+				if (joint == NULL) {
+					joints.push_back(Joint(state->name[i]));
+					joint = &joints[joints.size() - 1];
+				}
+				joint->pos = state->position[i];
+			}}
+		}
+	}
+
+	void connect() {
+		if (connected)
+			return;
+
+		ros::NodeHandle nh;
+		jointSub = nh.subscribe("/joint_states", 2, &JointController::callbackJoints, this);
+		jointPub = nh.advertise< sensor_msgs::JointState >("/joint_control", 1);
+	}
+
+	double getPos(const std::string& joint) {
+		Lock lock(jLock);
+		for (size_t i = 0; i < joints.size(); ++i) {
+			Joint& j = joints[i];
+			if (j.name == joint)
+				return j.pos;
+		}
+
+		return NAN;
+	}
+
+	void setPos(const std::string& joint, double pos) {
+		Joint *j = findJoint(joint);
+		if (jointPub.getNumSubscribers() == 0)
+			return;
+		sensor_msgs::JointState state;
+		state.header.stamp = ros::Time::now();
+		state.name.push_back(joint);
+		state.position.push_back(pos);
+
+		if (j != NULL) {
+			j->desiredPos = pos;
+		}
+
+		jointPub.publish(state);
+	}
+};
+JointController joints;
 
 RobotWidget::RobotWidget(RobotPanel& panel) : panel(panel) {
 	aspectRatio = 1.0;
@@ -317,6 +410,88 @@ bool RobotRender::mouseReleaseEvent(QMouseEvent *) { return false; }
 bool RobotRender::mouseMoveEvent(QMouseEvent *) { return false; }
 bool RobotRender::mouseDoubleClickEvent(QMouseEvent *) { return false; }
 bool RobotRender::wheelEvent(QWheelEvent *) { return false; }
+
+class TopicMessageKey : public RobotWidget::KeyListener {
+public:
+	int key;
+	ros::Publisher pub;
+	std::string message;
+	TopicMessageKey(ConfigElementPtr cfg) : key(-1) {
+		string str = cfg->getParam("key", "");
+		if (str != "") {
+			key = Panel::getKeyForChar(str[0]);
+		}
+
+		str = cfg->getParam("topic", "");
+		if (str != "") {
+			ros::NodeHandle nh;
+			pub = nh.advertise< std_msgs::String >(str, 1, false);
+		}
+
+		message = cfg->getParam("message", message);
+		message = cfg->getParam("string", message);
+		message = cfg->getParam("msg", message);
+	}
+
+	bool keyPressEvent(QKeyEvent *e) {
+		if (key == e->key()) {
+			if (pub.getNumSubscribers() > 0) {
+				std_msgs::String msg;
+				msg.data = message;
+				pub.publish(msg);
+			}
+			return true;
+		}
+		return false;
+	}
+
+	bool keyReleaseEvent(QKeyEvent *e) { return false; }
+};
+
+class JointKey : public RobotWidget::KeyListener {
+public:
+	std::string joint;
+	int up, down;
+	double step;
+
+	JointKey(ConfigElementPtr cfg) : up(-1), down(-1), step(0.05) {
+		joint = cfg->getParam("joint");
+		joint = cfg->getParam("name", joint);
+
+		string str = cfg->getParam("up", "");
+		if (str != "") {
+			up = Panel::getKeyForChar(str[0]);
+		}
+		str = cfg->getParam("down", "");
+		if (str != "") {
+			down = Panel::getKeyForChar(str[0]);
+		}
+
+		step = cfg->getParamAsDouble("step", step);
+	}
+
+	bool keyPressEvent(QKeyEvent *e) {
+		if (up == e->key()) {
+			joints.setPos(joint, joints.getPos(joint) + step);
+			return true;
+		} else if (down == e->key()) {
+			joints.setPos(joint, joints.getPos(joint) - step);
+			return true;
+		}
+		return false;
+	}
+
+	bool keyReleaseEvent(QKeyEvent *e) { return false; }
+};
+
+void RobotWidget::addInputListener(ConfigElementPtr cfg) {
+	if (strcasecmp(cfg->name.c_str(), ELEMENT_KEY) == 0) {
+		listeners.push_back(new TopicMessageKey(cfg));
+	} else if (strcasecmp(cfg->name.c_str(), ELEMENT_JOINT) == 0) {
+		joints.connect();
+		listeners.push_back(new JointKey(cfg));
+	}
+}
 
 } // namespace gui
 

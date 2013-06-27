@@ -23,6 +23,8 @@ namespace gui {
 #define PARAM_ROTATE	"rotate"
 #define PARAM_BOUNDS	"bounds"
 
+
+
 class RobotPanel;
 class RobotRender {
 public:
@@ -58,6 +60,13 @@ class RobotWidget: public QGLWidget
 {
 Q_OBJECT;
 public:
+	class KeyListener {
+	public:
+		virtual ~KeyListener() {}
+		virtual bool keyPressEvent(QKeyEvent *e)=0;
+		virtual bool keyReleaseEvent(QKeyEvent *e)=0;
+	};
+
 	RobotWidget(RobotPanel&);
 	virtual ~RobotWidget();
 	
@@ -96,11 +105,13 @@ public:
 	virtual void wheelEvent(QWheelEvent *);
 	virtual void focusOutEvent(QFocusEvent *);
 //	virtual void clickToCameraCoord(int inX, int inY, float &outX, float &outY);
+	void addInputListener(ConfigElementPtr cfg);
 protected:
 	RobotPanel& panel;
 
 	float aspectRatio;
 	std::vector<RobotRender *> renders;
+	std::vector<KeyListener *> listeners;
 	
 	int width;
 	int height;

@@ -57,15 +57,30 @@ public:
     }
 
     bool callbackFollowPath(crosbot_explore::FollowPath::Request& req, crosbot_explore::FollowPath::Response& res) {
-    	// TODO: convert from whatever to icp frame
+    	VoronoiGridPtr voronoi = latestVoronoi;
+    	if (voronoi == NULL) {
+    		ERROR("explorer: No map to plan on.\n");
+    		return false;
+    	}
 
-    	std::vector < crosbot::Pose > waypoints;
-    	search.setWaypoints(waypoints, getLatestPose());
-    	search.strategy = SearchParameters::Waypoint;
-    	waypoints.resize(req.path.poses.size());
-    	for (size_t i = 0; i < waypoints.size(); ++i)
-    		waypoints[i] = req.path.poses[i];
-    	search.setWaypoints(waypoints, getLatestPose());
+    	tf::StampedTransform transform;
+    	try {
+    		tfListener.waitForTransform(voronoi->frame, req.path.header.frame_id, ros::Time::now(), ros::Duration(DEFAULT_MAXWAIT4TRANSFORM));
+			tfListener.lookupTransform(voronoi->frame, req.path.header.frame_id, ros::Time::now(), transform);
+		} catch (tf::TransformException& ex) {
+			ERROR("localmap: Error getting transform. (%s)\n", ex.what());
+			return false;
+		}
+
+		std::vector< Pose > waypoints;
+		waypoints.resize(req.path.poses.size());
+
+		for (size_t i = 0; i < waypoints.size(); ++i) {
+			waypoints[i] = transform * Pose(req.path.poses[i]).toTF();
+		}
+
+		search.setWaypoints(waypoints, getLatestPose());
+		search.strategy = SearchParameters::Waypoint;
 
     	return true;
     }
@@ -100,6 +115,10 @@ public:
 			voronoiConstraints.partial = voronoiCfg->getParamAsDouble("partial", voronoiConstraints.partial);
 			voronoiConstraints.expand = voronoiCfg->getParamAsDouble("expand", voronoiConstraints.expand);
 			voronoiConstraints.orphanThreshold = voronoiCfg->getParamAsInt("orphan", voronoiConstraints.orphanThreshold);
+		}
+		if (cfg != NULL) {
+		    drive.maxVel = cfg->getParamAsDouble("maxVel", drive.maxVel);
+		    drive.maxTurn = cfg->getParamAsDouble("maxTurn", drive.maxTurn);
 		}
 
 		gridSub = nh.subscribe("map", 1, &ExplorerNode::callbackOccGrid, this);
@@ -137,7 +156,9 @@ public:
 			return Pose(INFINITY, INFINITY, INFINITY);
 		}
 		std::string mapFrame = latestMap->header.frame_id;
-		tf::StampedTransform transform;
+//      LOG("getLatestPose() - %s, %s\n", mapFrame.c_str(), baseFrame.c_str());
+
+      tf::StampedTransform transform;
 		try {
 			tfListener.waitForTransform(mapFrame, baseFrame, ros::Time(0), ros::Duration(2));
 			tfListener.lookupTransform(mapFrame, baseFrame, ros::Time(0), transform);
