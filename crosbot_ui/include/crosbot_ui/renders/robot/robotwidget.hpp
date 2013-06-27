@@ -10,6 +10,7 @@
 
 #include <QtOpenGL/QGLWidget>
 #include <crosbot/config.hpp>
+#include <crosbot_ui/opengl.hpp>
 
 #include <string>
 #include <vector>
@@ -22,8 +23,6 @@ namespace gui {
 #define PARAM_KEY		"key"
 #define PARAM_ROTATE	"rotate"
 #define PARAM_BOUNDS	"bounds"
-
-
 
 class RobotPanel;
 class RobotRender {
@@ -56,6 +55,20 @@ protected:
     float rotate;
 };
 
+#define JUNK_RENDER
+#ifdef JUNK_RENDER
+
+class JointRender : public RobotRender {
+public:
+	Colour4f colour;
+
+	JointRender(RobotPanel& panel, ConfigElementPtr config);
+	virtual void start();
+	virtual void stop();
+	virtual void render();
+};
+
+#endif
 class RobotWidget: public QGLWidget
 {
 Q_OBJECT;

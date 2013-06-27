@@ -565,6 +565,49 @@ void RobotWidget::addInputListener(ConfigElementPtr cfg) {
 	}
 }
 
+#ifdef JUNK_RENDER
+
+JointRender::JointRender(RobotPanel& panel, ConfigElementPtr config) :
+		RobotRender(panel, config, QRectF(0, 0, 1, 0.1)),
+		colour(1.0, 0, 0, 0.5)
+{}
+
+void JointRender::start() {
+	joints.connect();
+}
+
+void JointRender::stop() {}
+
+#define MIN(X, Y)		(((X) < (Y)) ? (X):(Y))
+//#define MAX(X, Y)		(((X) > (Y)) ? (X):(Y))
+#define TEXTSIZE_MIN			8
+#define TEXTSIZE_MAX			36
+#define TEXT_REDUCTION_RATIO	0.8
+void JointRender::render() {
+	preRender();
+
+    char ascii[4096];
+    sprintf(ascii, "b: %3.0lf  s: %3.0lf  e: %3.0lf  t: %3.0lf  p: %3.0lf",
+    		RAD2DEG(joints.getPos("arm_base")), RAD2DEG(joints.getPos("arm_shoulder")), RAD2DEG(joints.getPos("arm_elbow")),
+    		RAD2DEG(joints.getPos("neck_tilt")), RAD2DEG(joints.getPos("neck_pan")));
+    QString label("");
+    label.append(ascii);
+
+    RobotWidget* widget = dynamic_cast<RobotWidget*>(panel.getWidget());
+    if (widget != NULL) {
+		int textSize = MIN(widget->size().width(),widget->size().height()) * rect.height() * TEXT_REDUCTION_RATIO;
+		if (textSize < TEXTSIZE_MIN) {
+			textSize = TEXTSIZE_MIN;
+		} else if (textSize > TEXTSIZE_MAX) {
+			textSize = TEXTSIZE_MAX;
+		}
+		glColor4f(colour.r, colour.g, colour.b, colour.a);
+		widget->renderText(0.0f,0.0f,0.0f,label,QFont("Helvetica", textSize));
+    }
+	postRender();
+}
+#endif
+
 } // namespace gui
 
 } // namespace robotgui

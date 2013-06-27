@@ -101,6 +101,10 @@ RobotRender *RobotPanel::getRender(ConfigElementPtr config, RobotPanel& panel) {
 			rval = new ImageRender(panel, config);
 		} else if (strcasecmp(config->name.c_str(), RENDER_JOYSTICK) == 0) {
 			rval = new JoystickRender(panel, config);
+#ifdef JUNK_RENDER
+		} else if (strcasecmp(config->name.c_str(), "junk") == 0) {
+			rval = new JointRender(panel, config);
+#endif
 		}
 	}
 
