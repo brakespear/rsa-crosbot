@@ -56,7 +56,7 @@ public:
 		nh.param("dir", fileLoc, fileLoc);
 	}
 
-	QImage *getGeoTiffImage(nav_msgs::OccupancyGridConstPtr& map, const std::string& title, nav_msgs::PathConstPtr& history, const std::vector< crosbot_map::SnapMsg >& snaps, std::string& geoData) {
+	QImage *getGeoTiffImage(nav_msgs::OccupancyGridConstPtr& map, const std::string& title, nav_msgs::PathConstPtr& history, const std::vector< crosbot_map::SnapMsg >& snaps, std::string& geoData, std::string snapDetails) {
 		if (map == NULL || map->info.width == 0 || map->info.height == 0) {
 			ERROR("GeoTiff: Cannot draw an empty map.\n");
 			return NULL;
@@ -237,6 +237,7 @@ public:
 		}
 
 		int victimCount = 0, hazardCount = 0;
+		std::string victimDetails, hazardDetails;
 		for (unsigned int i = 0; i < snaps.size(); i++) {
 			SnapPtr snap = new Snap(snaps[i]);
 			if (snap == NULL)
@@ -259,6 +260,8 @@ public:
 						textPainter.setBrush(penVictimUnconfirmed.brush());
 					}
 
+					victimDetails += std::string(iStr) + ", " + targetPose.position.toString() + ", " + snap->description + "\n";
+
 					textPainter.drawEllipse(QPointF(cX, cY), victimRadius,victimRadius);
 				} else if (snap->type == Snap::LANDMARK){
 					sprintf(iStr, "%d", ++hazardCount);
@@ -271,6 +274,8 @@ public:
 					diamond[2] = QPointF(cX, cY - hazardXYSize);
 					diamond[3] = QPointF(cX - hazardXYSize, cY);
 
+					hazardDetails += std::string(iStr) + ", " + targetPose.position.toString() + ", " + snap->description + "\n";
+
 					textPainter.drawPolygon(diamond, 4);
 				}
 
@@ -280,6 +285,10 @@ public:
 				textPainter.drawText(QPointF(cX - dX, cY + dY), QString(iStr));
 			}
 		}
+		if (victimCount > 0)
+			snapDetails += "Victims:\n" + victimDetails;
+		if (hazardCount > 0)
+			snapDetails += "QR Codes:\n" + hazardDetails;
 
 		// Scale
 		textPainter.setPen(QColor((int)GeoTIFFConstants::scaleColour.r,
@@ -363,7 +372,6 @@ public:
 
 		Time current = crosbot::Time::now();
 		std::string filename = fileLoc + current.formatDateAndTime();
-		filename.append(".tif");
 
 		LOG("Saving to %s.\n", filename.c_str());
 
@@ -381,8 +389,8 @@ public:
 
 		LOG("Have snaps list.\n", filename.c_str());
 		// TODO: Paint GeoTiff
-		std::string geoData; Point2D minXY;
-		QImage *geotiff = getGeoTiffImage(currentMap, "", currentHistory, snapsRes.snaps, geoData);
+		std::string geoData, snapData; Point2D minXY;
+		QImage *geotiff = getGeoTiffImage(currentMap, "", currentHistory, snapsRes.snaps, geoData, snapData);
 
 		// TODO: Write geotiff
 //		QString geoData; Point2D minXY;
@@ -395,7 +403,7 @@ public:
 
 			LOG("Have geotiff image list.\n", filename.c_str());
 			// save file// write image to file
-			std::string rawFileName = filename + "f";
+			std::string rawFileName = filename + ".tiff";
 			if (!geotiff->save(QString(rawFileName.c_str()), "TIFF")) {
 				char eMsg[rawFileName.size() + 128];
 
@@ -409,13 +417,13 @@ public:
 			delete geotiff;
 
 			// write the world file
-			std::string worldFileName = filename;
-			if (worldFileName.size() > 5 && strcasecmp(worldFileName.substr(worldFileName.size()-4).c_str(), ".tif") == 0) {
-				worldFileName = worldFileName.substr(0, worldFileName.size()-4);
-			} else if (worldFileName.size() > 6 && strcasecmp(worldFileName.substr(worldFileName.size()-5).c_str(), ".tiff") == 0) {
-				worldFileName = worldFileName.substr(0, worldFileName.size()-5);
-			}
-			worldFileName += ".tfw";
+			std::string worldFileName = filename + ".tfw";
+//			if (worldFileName.size() > 5 && strcasecmp(worldFileName.substr(worldFileName.size()-4).c_str(), ".tif") == 0) {
+//				worldFileName = worldFileName.substr(0, worldFileName.size()-4);
+//			} else if (worldFileName.size() > 6 && strcasecmp(worldFileName.substr(worldFileName.size()-5).c_str(), ".tiff") == 0) {
+//				worldFileName = worldFileName.substr(0, worldFileName.size()-5);
+//			}
+//			worldFileName += ".tfw";
 
 			FILE *worldFile = fopen(worldFileName.c_str(), "w");
 			if (worldFile == NULL) {
@@ -435,12 +443,18 @@ public:
 			// if the image isn't a tif nothing happens
 			QProcess qproc;
 			char cmdtxt[filename.size() + rawFileName.size() + worldFileName.size() + 128];
-			sprintf(cmdtxt, "geotifcp -e %s %s %s", worldFileName.c_str(), rawFileName.c_str(), filename.c_str());
+			sprintf(cmdtxt, "geotifcp -e %s %s %s", worldFileName.c_str(), rawFileName.c_str(), (filename + ".tif").c_str());
 			LOG("%s\n", cmdtxt);
 
 			qproc.start(cmdtxt);
 			// if geotifcp ever stops returning disable this
 			qproc.waitForFinished();
+			if (snapData != "") {
+				FILE* file = fopen((filename + ".csv").c_str(), "w");
+				if (file != NULL) {
+					fprintf(file, "%s", snapData.c_str());
+				}
+			}
 	}
 
 	void run() {

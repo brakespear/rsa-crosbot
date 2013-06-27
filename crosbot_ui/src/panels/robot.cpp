@@ -124,6 +124,9 @@ RobotPanel::RobotPanel(ConfigElementPtr config) :
 
 			maxSpeed = child->getParamAsFloat("speed", maxSpeed);
 			maxTurn = child->getParamAsFloat("turn", maxTurn);
+		} else if (strcasecmp(child->name.c_str(), ELEMENT_KEY) == 0 ||
+				strcasecmp(child->name.c_str(), ELEMENT_JOINT) == 0) {
+			widget.addInputListener(child);
 		} else {
 			RobotRender* render = getRender(child, *this);
 			if (render != NULL) {

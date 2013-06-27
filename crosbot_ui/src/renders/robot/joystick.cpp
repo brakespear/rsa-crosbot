@@ -7,6 +7,8 @@
 
 #include <crosbot_ui/renders/robot/joystick.hpp>
 
+#include <QtGui/qevent.h>
+
 namespace crosbot {
 
 namespace gui {
@@ -60,6 +62,12 @@ void JoystickRender::RenderJoystick::buttonPressed(int b) {
 		speed *= (0.5 - getRelativePosition(Joystick::X)) * 2;
 		turn  *= (0.5 - getRelativePosition(Joystick::Y)) * 2;
 		render.panel.setCurrentSpeeds(speed, turn);
+	} else if (buttonKeys[b] != Joystick::Undefined) {
+		QKeyEvent keyEvent(QEvent::KeyPress, buttonKeys[b], 0);
+		RobotWidget* widget = dynamic_cast < RobotWidget* > (render.panel.getWidget());
+		if (widget != NULL) {
+			widget->keyPressEvent(&keyEvent);
+		}
 	}
 
 	// TODO: Add options to turn button presses into KeyEvents
@@ -68,6 +76,12 @@ void JoystickRender::RenderJoystick::buttonPressed(int b) {
 void JoystickRender::RenderJoystick::buttonReleased(int b) {
 	if (b == settings.actionButton) {
 		render.panel.setCurrentSpeeds(0.0, 0.0);
+	} else if (buttonKeys[b] != Joystick::Undefined) {
+		QKeyEvent keyEvent(QEvent::KeyRelease, buttonKeys[b], 0);
+		RobotWidget* widget = dynamic_cast < RobotWidget* > (render.panel.getWidget());
+		if (widget != NULL) {
+			widget->keyPressEvent(&keyEvent);
+		}
 	}
 }
 
