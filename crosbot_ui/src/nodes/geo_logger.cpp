@@ -52,8 +52,11 @@ public:
 		gridSub = nh.subscribe("map", 1, &GeoLogger::callbackOccupancy, this);
 		histSub = nh.subscribe("history", 1, &GeoLogger::callbackHistory, this);
 		snapSrv = nh.serviceClient< crosbot_map::ListSnaps >("/snaps/list", true);
+
+		// Config
 		ros::NodeHandle nhPriv("~");
-		nh.param("dir", fileLoc, fileLoc);
+		nhPriv.param("dir", fileLoc, fileLoc);
+		if (*(fileLoc.rbegin()) != '/') fileLoc.append("/");
 	}
 
 	QImage *getGeoTiffImage(nav_msgs::OccupancyGridConstPtr& map, const std::string& title, nav_msgs::PathConstPtr& history, const std::vector< crosbot_map::SnapMsg >& snaps, std::string& geoData, std::string& snapDetails) {
