@@ -56,7 +56,7 @@ public:
 		nh.param("dir", fileLoc, fileLoc);
 	}
 
-	QImage *getGeoTiffImage(nav_msgs::OccupancyGridConstPtr& map, const std::string& title, nav_msgs::PathConstPtr& history, const std::vector< crosbot_map::SnapMsg >& snaps, std::string& geoData, std::string snapDetails) {
+	QImage *getGeoTiffImage(nav_msgs::OccupancyGridConstPtr& map, const std::string& title, nav_msgs::PathConstPtr& history, const std::vector< crosbot_map::SnapMsg >& snaps, std::string& geoData, std::string& snapDetails) {
 		if (map == NULL || map->info.width == 0 || map->info.height == 0) {
 			ERROR("GeoTiff: Cannot draw an empty map.\n");
 			return NULL;
@@ -388,11 +388,11 @@ public:
 		}
 
 		LOG("Have snaps list.\n", filename.c_str());
-		// TODO: Paint GeoTiff
+		// Paint GeoTiff
 		std::string geoData, snapData; Point2D minXY;
 		QImage *geotiff = getGeoTiffImage(currentMap, "", currentHistory, snapsRes.snaps, geoData, snapData);
 
-		// TODO: Write geotiff
+		// Write geotiff
 //		QString geoData; Point2D minXY;
 //			QImage* geotiff = mapView->render->getGeoTIFF(QString(title.c_str()), geoData, minXY);
 			if (geotiff == NULL) {
