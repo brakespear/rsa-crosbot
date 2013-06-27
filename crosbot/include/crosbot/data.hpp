@@ -280,6 +280,7 @@ public:
 		return *this;
 	}
 
+	std::string format(const std::string format) const;
 	std::string formatDate() const;
 	std::string formatDateAndTime() const;
 

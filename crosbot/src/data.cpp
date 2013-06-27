@@ -21,6 +21,18 @@ Time Time::now() {
 	return Time(time.tv_sec, time.tv_usec*1000);
 }
 
+std::string Time::format(const std::string format) const {
+	time_t nowtime;
+	struct tm *nowtm;
+	char tmbuf[1024];
+
+	nowtime = sec;
+	nowtm = localtime(&nowtime);
+	strftime(tmbuf, sizeof tmbuf, format.c_str(), nowtm);
+	std::string rval(tmbuf);
+	return rval;
+}
+
 std::string Time::formatDate() const {
 	time_t nowtime;
 	struct tm *nowtm;

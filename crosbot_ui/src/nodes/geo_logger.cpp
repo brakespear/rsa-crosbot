@@ -277,7 +277,13 @@ public:
 					diamond[2] = QPointF(cX, cY - hazardXYSize);
 					diamond[3] = QPointF(cX - hazardXYSize, cY);
 
-					hazardDetails += std::string(iStr) + ", " + targetPose.position.toString() + ", " + snap->description + "\n";
+					hazardDetails += std::string(iStr) + ";" + snap->timestamp.format("%H:%M:%S;") + snap->description + ";";
+					sprintf(iStr, "%d;", targetPose.position.x);
+					hazardDetails += std::string(iStr);
+					sprintf(iStr, "%d;", targetPose.position.y);
+					hazardDetails += std::string(iStr);
+					sprintf(iStr, "%d\n", targetPose.position.z);
+					hazardDetails += std::string(iStr);
 
 					textPainter.drawPolygon(diamond, 4);
 				}
@@ -288,10 +294,12 @@ public:
 				textPainter.drawText(QPointF(cX - dX, cY + dY), QString(iStr));
 			}
 		}
-		if (victimCount > 0)
-			snapDetails += "Victims:\n" + victimDetails;
-		if (hazardCount > 0)
-			snapDetails += "QR Codes:\n" + hazardDetails;
+//		if (victimCount > 0)
+//			snapDetails += "Victims:\n" + victimDetails;
+		if (hazardCount > 0) {
+			snapDetails += "CASualty, Australia\n" + Time::now().format("%Y-%m-%d; %H:%M:%S") +
+					"Mission 4\n\n" + hazardDetails;
+		}
 
 		// Scale
 		textPainter.setPen(QColor((int)GeoTIFFConstants::scaleColour.r,
