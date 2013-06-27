@@ -57,10 +57,32 @@ public:
     }
 
     bool callbackFollowPath(crosbot_explore::FollowPath::Request& req, crosbot_explore::FollowPath::Response& res) {
+    	VoronoiGridPtr voronoi = latestVoronoi;
+    	if (voronoi == NULL) {
+    		ERROR("explorer: No map to plan on.\n");
+    		return false;
+    	}
 
-    	// TODO: callbackFollowPath
+    	tf::StampedTransform transform;
+    	try {
+    		tfListener.waitForTransform(voronoi->frame, req.path.header.frame_id, ros::Time::now(), ros::Duration(DEFAULT_MAXWAIT4TRANSFORM));
+			tfListener.lookupTransform(voronoi->frame, req.path.header.frame_id, ros::Time::now(), transform);
+		} catch (tf::TransformException& ex) {
+			ERROR("localmap: Error getting transform. (%s)\n", ex.what());
+			return false;
+		}
 
-    	return false;
+		std::vector< Pose > waypoints;
+		waypoints.resize(req.path.poses.size());
+
+		for (size_t i = 0; i < waypoints.size(); ++i) {
+			waypoints[i] = transform * Pose(req.path.poses[i]).toTF();
+		}
+
+		search.setWaypoints(waypoints, getLatestPose());
+		search.strategy = SearchParameters::Waypoint;
+
+    	return true;
     }
 
     bool callbackSetMode(crosbot_explore::SetMode::Request& req, crosbot_explore::SetMode::Response& res) {

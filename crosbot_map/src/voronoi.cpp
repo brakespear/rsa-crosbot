@@ -62,7 +62,7 @@ VoronoiGrid::VoronoiGrid(const nav_msgs::OccupancyGrid& grid, const Constraints&
     		Pose robot, const nav_msgs::Path& history) :
     		Data(Time(grid.header.stamp)),
     		width(grid.info.width), height(grid.info.height), resolution(grid.info.resolution),
-    		origin(grid.info.origin)
+    		origin(grid.info.origin), frame(grid.header.frame_id)
 {
 	cells.resize(width*height);
 

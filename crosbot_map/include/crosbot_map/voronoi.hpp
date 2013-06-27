@@ -130,6 +130,7 @@ public:
     unsigned int width, height;
     float resolution;
     Pose origin;
+    std::string frame;
 
     std::vector<VoronoiCell> cells;
 
