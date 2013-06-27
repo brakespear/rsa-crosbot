@@ -234,7 +234,6 @@ void Joystick::run() {
 
 				char mapping[ABS_CNT];
 				ioctl(device, JSIOCGAXMAP, mapping);
-				LOG("Joystick: Mapping \"%s\"\n", mapping);
 
 				fcntl(device, F_SETFL, O_NONBLOCK);
 

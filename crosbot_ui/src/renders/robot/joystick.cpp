@@ -21,6 +21,20 @@ JoystickRender::JoystickRender(RobotPanel& panel, ConfigElementPtr config) :
 		activeColour(1.0, 0, 0)
 {
 	joystick.configure(config);
+	for (uint32_t i = 0; i < config->getChildCount(); ++i) {
+		ConfigElementPtr child = config->getChild(i);
+
+		if (child != NULL && (strcasecmp(child->name.c_str(), "button") == 0)) {
+			int id =  child->getParamAsInt("id", Joystick::Undefined);
+			id =  child->getParamAsInt("button", id);
+			if (id >= 0 && id < MAX_JOYSTICK_BUTTONS) {
+				std::string key = child->getParam("key");
+				if (key != "") {
+					joystick.buttonKeys[id] = Panel::getKeyForChar(key[0]);
+				}
+			}
+		}
+	}
 }
 
 void JoystickRender::start() {
@@ -63,14 +77,13 @@ void JoystickRender::RenderJoystick::buttonPressed(int b) {
 		turn  *= (0.5 - getRelativePosition(Joystick::Y)) * 2;
 		render.panel.setCurrentSpeeds(speed, turn);
 	} else if (buttonKeys[b] != Joystick::Undefined) {
+		// Options to turn button presses into KeyEvents
 		QKeyEvent keyEvent(QEvent::KeyPress, buttonKeys[b], 0);
 		RobotWidget* widget = dynamic_cast < RobotWidget* > (render.panel.getWidget());
 		if (widget != NULL) {
 			widget->keyPressEvent(&keyEvent);
 		}
 	}
-
-	// TODO: Add options to turn button presses into KeyEvents
 }
 
 void JoystickRender::RenderJoystick::buttonReleased(int b) {

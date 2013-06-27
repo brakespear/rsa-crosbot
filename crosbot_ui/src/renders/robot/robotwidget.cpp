@@ -93,9 +93,10 @@ public:
 	}
 
 	void setPos(const std::string& joint, double pos) {
-		Joint *j = findJoint(joint);
 		if (jointPub.getNumSubscribers() == 0)
 			return;
+
+		Joint *j = findJoint(joint);
 		sensor_msgs::JointState state;
 		state.header.stamp = ros::Time::now();
 		state.name.push_back(joint);
@@ -103,6 +104,24 @@ public:
 
 		if (j != NULL) {
 			j->desiredPos = pos;
+		}
+
+		jointPub.publish(state);
+	}
+
+	void zero(const std::vector< std::string >& joints) {
+		if (joints.size() == 0 || jointPub.getNumSubscribers() == 0)
+			return;
+
+		sensor_msgs::JointState state;
+		state.header.stamp = ros::Time::now();
+		for (size_t i = 0; i < joints.size(); ++i) {
+			Joint *j = findJoint(joints[i]);
+			if (j == NULL)
+				continue;
+			state.name.push_back(j->name);
+			state.position.push_back(0);
+			j->desiredPos = 0;
 		}
 
 		jointPub.publish(state);
@@ -491,12 +510,58 @@ public:
 	bool keyReleaseEvent(QKeyEvent *e) { return false; }
 };
 
+class JointZeroKey : public RobotWidget::KeyListener {
+public:
+	std::vector< std::string > jointsToZero;
+	int key;
+
+	JointZeroKey(ConfigElementPtr cfg) : key(-1) {
+		std::string joint = cfg->getParam("joint");
+		joint = cfg->getParam("name", joint);
+
+		if (joint != "") {
+			size_t fnd = joint.find_first_of(' ', 0), last = 0;
+			if (fnd == joint.npos) {
+				jointsToZero.push_back(joint);
+			} else {
+				while (fnd != joint.npos) {
+					jointsToZero.push_back(joint.substr(last, fnd - last));
+					last = fnd + 1;
+					fnd = joint.find_first_of(' ', last);
+				}
+				std::string lastJoint = joint.substr(last);
+				if (lastJoint != "")
+					jointsToZero.push_back(lastJoint);
+			}
+		}
+
+		string str = cfg->getParam("key", "");
+		if (str != "") {
+			key = Panel::getKeyForChar(str[0]);
+		}
+	}
+
+	bool keyPressEvent(QKeyEvent *e) {
+		if (key == e->key()) {
+			joints.zero(jointsToZero);
+			return true;
+		}
+		return false;
+	}
+
+	bool keyReleaseEvent(QKeyEvent *e) { return false; }
+};
+
 void RobotWidget::addInputListener(ConfigElementPtr cfg) {
 	if (strcasecmp(cfg->name.c_str(), ELEMENT_KEY) == 0) {
 		listeners.push_back(new TopicMessageKey(cfg));
 	} else if (strcasecmp(cfg->name.c_str(), ELEMENT_JOINT) == 0) {
 		joints.connect();
-		listeners.push_back(new JointKey(cfg));
+		if (cfg->getParamAsBool("zero", false)) {
+			listeners.push_back(new JointZeroKey(cfg));
+		} else {
+			listeners.push_back(new JointKey(cfg));
+		}
 	}
 }
 
