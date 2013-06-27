@@ -457,6 +457,8 @@ public:
 				if (file != NULL) {
 					fprintf(file, "%s", snapData.c_str());
 				}
+				fflush(file);
+				fclose(file);
 			}
 	}
 
