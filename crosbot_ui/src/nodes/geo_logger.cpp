@@ -30,8 +30,10 @@ public:
 	bool operating;
 	Mutex mapLock;
 	nav_msgs::OccupancyGridConstPtr latestMap;
+	bool mapDirty;
 	nav_msgs::PathConstPtr latestHistory;
 
+	ros::Time lastSave;
 	ros::Subscriber gridSub, histSub;
 	ros::ServiceClient snapSrv;
 
@@ -40,6 +42,7 @@ public:
 	void callbackOccupancy(nav_msgs::OccupancyGridConstPtr grid) {
 		Lock lock(mapLock);
 		latestMap = grid;
+		mapDirty = true;
 	}
 
 	void callbackHistory(nav_msgs::PathConstPtr history) {
@@ -51,7 +54,7 @@ public:
 		ros::NodeHandle nh;
 		gridSub = nh.subscribe("map", 1, &GeoLogger::callbackOccupancy, this);
 		histSub = nh.subscribe("history", 1, &GeoLogger::callbackHistory, this);
-		snapSrv = nh.serviceClient< crosbot_map::ListSnaps >("/snaps/list", true);
+		snapSrv = nh.serviceClient< crosbot_map::ListSnaps >("/snaps/list", false);
 
 		// Config
 		ros::NodeHandle nhPriv("~");
@@ -144,6 +147,7 @@ public:
 
 		float minVisX = map->info.origin.position.x;
 		float minVisY = map->info.origin.position.y;
+		LOG("minXY (%.3f, %.3f) at resolution %.2lf\n", minVisX, minVisY, map->info.resolution);
 //	//	float maxVisX = hmm->offsetX + (maxHMX+1) * (hmm->patchColumns * map->info.resolution);
 //		float maxVisY = hmm->offsetY + (maxHMY+1) * (hmm->parameters.patchRows * map->info.resolution);
 
@@ -252,9 +256,16 @@ public:
 						cY = (targetPose.position.y - minVisY) / map->info.resolution;
 				cY = geotiffImage.height() - cY;
 
+				LOG("Target (%.3lf, %.3lf) at pixel (%.0lf, %.0lf)\n",
+						targetPose.position.x, targetPose.position.y, cX, cY);
+
+				LOG("minXY (%.3f, %.3f) at resolution %.2lf\n", minVisX, minVisY, map->info.resolution);
+
 				char iStr[64];
+				std::string markText;
 				if (snap->type == Snap::VICTIM) {
 					sprintf(iStr, "%d", ++victimCount);
+					markText = iStr;
 					if (snap->status == Snap::CONFIRMED) {
 						textPainter.setPen(penVictim);
 						textPainter.setBrush(penVictim.brush());
@@ -268,6 +279,7 @@ public:
 					textPainter.drawEllipse(QPointF(cX, cY), victimRadius,victimRadius);
 				} else if (snap->type == Snap::LANDMARK){
 					sprintf(iStr, "%d", ++hazardCount);
+					markText = iStr;
 
 					textPainter.setPen(penHazard);
 					textPainter.setBrush(penHazard.brush());
@@ -278,27 +290,27 @@ public:
 					diamond[3] = QPointF(cX - hazardXYSize, cY);
 
 					hazardDetails += std::string(iStr) + ";" + snap->timestamp.format("%H:%M:%S;") + snap->description + ";";
-					sprintf(iStr, "%d;", targetPose.position.x);
+					sprintf(iStr, "%.3lf;", targetPose.position.x);
 					hazardDetails += std::string(iStr);
-					sprintf(iStr, "%d;", targetPose.position.y);
+					sprintf(iStr, "%.3lf;", targetPose.position.y);
 					hazardDetails += std::string(iStr);
-					sprintf(iStr, "%d\n", targetPose.position.z);
+					sprintf(iStr, "%.3lf\n", targetPose.position.z);
 					hazardDetails += std::string(iStr);
 
 					textPainter.drawPolygon(diamond, 4);
 				}
 
 				textPainter.setPen(QColor(255,255,255));
-				float dX = fm.width(QString(iStr)) / 2.0, dY = fm.height() / 2.0 - fm.descent();
+				float dX = fm.width(QString(markText.c_str())) / 2.0, dY = fm.height() / 2.0 - fm.descent();
 
-				textPainter.drawText(QPointF(cX - dX, cY + dY), QString(iStr));
+				textPainter.drawText(QPointF(cX - dX, cY + dY), QString(markText.c_str()));
 			}
 		}
 //		if (victimCount > 0)
 //			snapDetails += "Victims:\n" + victimDetails;
 		if (hazardCount > 0) {
 			snapDetails += "CASualty, Australia\n" + Time::now().format("%Y-%m-%d; %H:%M:%S") +
-					"Mission 4\n\n" + hazardDetails;
+					"\nMission 4\n\n" + hazardDetails;
 		}
 
 		// Scale
@@ -368,7 +380,7 @@ public:
 		return rval;
 	}
 
-	void saveMap() {
+	bool saveMap() {
 		nav_msgs::OccupancyGridConstPtr currentMap;
 		nav_msgs::PathConstPtr currentHistory;
 
@@ -376,10 +388,11 @@ public:
 			Lock lock(mapLock);
 			currentMap = latestMap;
 			currentHistory = latestHistory;
+			mapDirty = false;
 		}}
 
 		if (currentMap == NULL)
-			return;
+			return false;
 
 		Time current = crosbot::Time::now();
 		std::string filename = fileLoc + current.formatDateAndTime();
@@ -391,6 +404,7 @@ public:
 		crosbot_map::ListSnaps::Response snapsRes;
 		try {
 			if (!snapSrv.call(snapsReq, snapsRes)) {
+				ERROR("geo_logger: Unable to get snap list.\n");
 				snapsRes.snaps.clear();
 			}
 		} catch (...) {
@@ -398,7 +412,7 @@ public:
 			snapsRes.snaps.clear();
 		}
 
-		LOG("Have snaps list.\n", filename.c_str());
+		LOG("Have snaps list.\n", snapsRes.snaps.size());
 		// Paint GeoTiff
 		std::string geoData, snapData; Point2D minXY;
 		QImage *geotiff = getGeoTiffImage(currentMap, "", currentHistory, snapsRes.snaps, geoData, snapData);
@@ -406,29 +420,29 @@ public:
 		// Write geotiff
 //		QString geoData; Point2D minXY;
 //			QImage* geotiff = mapView->render->getGeoTIFF(QString(title.c_str()), geoData, minXY);
-			if (geotiff == NULL) {
-				ERROR("geo_logger: Problem Rendering GeoTIFF.\n");
+		if (geotiff == NULL) {
+			ERROR("geo_logger: Problem Rendering GeoTIFF.\n");
 //				QMessageBox::critical(this, "Problem Saving GeoTIFF", "Unable to render GeoTIFF from map.");
-				return;
-			}
+			return false;
+		}
 
-			LOG("Have geotiff image list.\n", filename.c_str());
-			// save file// write image to file
-			std::string rawFileName = filename + ".tiff";
-			if (!geotiff->save(QString(rawFileName.c_str()), "TIFF")) {
-				char eMsg[rawFileName.size() + 128];
+		LOG("Have geotiff image list.\n", filename.c_str());
+		// save file// write image to file
+		std::string rawFileName = filename + ".tiff";
+		if (!geotiff->save(QString(rawFileName.c_str()), "TIFF")) {
+			char eMsg[rawFileName.size() + 128];
 
-				sprintf(eMsg, "Could not save raw TIFF to file %s.", rawFileName.c_str());
-				ERROR("geo_logger: Problem saving map to TIFF. (file %s)\n", rawFileName.c_str());
+			sprintf(eMsg, "Could not save raw TIFF to file %s.", rawFileName.c_str());
+			ERROR("geo_logger: Problem saving map to TIFF. (file %s)\n", rawFileName.c_str());
 //				QMessageBox::critical(this, "Problem Saving GeoTIFF", QString(eMsg));
-				delete geotiff;
-				return;
-			}
-			// GeoTiff saved so we delete it.
 			delete geotiff;
+			return false;
+		}
+		// GeoTiff saved so we delete it.
+		delete geotiff;
 
-			// write the world file
-			std::string worldFileName = filename + ".tfw";
+		// write the world file
+		std::string worldFileName = filename + ".tfw";
 //			if (worldFileName.size() > 5 && strcasecmp(worldFileName.substr(worldFileName.size()-4).c_str(), ".tif") == 0) {
 //				worldFileName = worldFileName.substr(0, worldFileName.size()-4);
 //			} else if (worldFileName.size() > 6 && strcasecmp(worldFileName.substr(worldFileName.size()-5).c_str(), ".tiff") == 0) {
@@ -436,48 +450,52 @@ public:
 //			}
 //			worldFileName += ".tfw";
 
-			FILE *worldFile = fopen(worldFileName.c_str(), "w");
-			if (worldFile == NULL) {
-				ERROR("geo_logger: Problem opening GeoTIFF world file. (file %s)\n", worldFileName.c_str());
+		FILE *worldFile = fopen(worldFileName.c_str(), "w");
+		if (worldFile == NULL) {
+			ERROR("geo_logger: Problem opening GeoTIFF world file. (file %s)\n", worldFileName.c_str());
 //				QMessageBox::critical(this, "Problem Saving GeoTIFF", "Problem opening GeoTIFF world file.");
-				return;
+			return false;
+		}
+
+		fprintf(worldFile, "%s\n", geoData.c_str());
+
+		fflush(worldFile);
+		fclose(worldFile);
+
+		// Combine tif and worldfile into a geotiff file
+
+		// need to use an external process to create geotiff from tiff and esri file
+		// if the image isn't a tif nothing happens
+		QProcess qproc;
+		char cmdtxt[filename.size() + rawFileName.size() + worldFileName.size() + 128];
+		sprintf(cmdtxt, "geotifcp -e %s %s %s", worldFileName.c_str(), rawFileName.c_str(), (filename + ".tif").c_str());
+		LOG("%s\n", cmdtxt);
+
+		qproc.start(cmdtxt);
+		// if geotifcp ever stops returning disable this
+		qproc.waitForFinished();
+		if (snapData != "") {
+			FILE* file = fopen((filename + ".csv").c_str(), "w");
+			if (file != NULL) {
+				fprintf(file, "%s", snapData.c_str());
 			}
-
-			fprintf(worldFile, "%s\n", geoData.c_str());
-
-			fflush(worldFile);
-			fclose(worldFile);
-
-			// Combine tif and worldfile into a geotiff file
-
-			// need to use an external process to create geotiff from tiff and esri file
-			// if the image isn't a tif nothing happens
-			QProcess qproc;
-			char cmdtxt[filename.size() + rawFileName.size() + worldFileName.size() + 128];
-			sprintf(cmdtxt, "geotifcp -e %s %s %s", worldFileName.c_str(), rawFileName.c_str(), (filename + ".tif").c_str());
-			LOG("%s\n", cmdtxt);
-
-			qproc.start(cmdtxt);
-			// if geotifcp ever stops returning disable this
-			qproc.waitForFinished();
-			if (snapData != "") {
-				FILE* file = fopen((filename + ".csv").c_str(), "w");
-				if (file != NULL) {
-					fprintf(file, "%s", snapData.c_str());
-				}
-				fflush(file);
-				fclose(file);
-			}
+			fflush(file);
+			fclose(file);
+		}
+		return true;
 	}
 
 	void run() {
+		lastSave = ros::Time::now();
 		while (operating) {
-			if (usleep(10000000) == -1) {
-//				LOG("Hello\n");
-				continue;
-			}
+			usleep(500000);
 
-			saveMap();
+			ros::Time now = ros::Time::now();
+			if ((now - lastSave).toSec() < 10 || !mapDirty)
+				continue;
+
+			if(saveMap())
+				lastSave = now;
 		}
 
 		saveMap();
