@@ -116,6 +116,11 @@ public:
 			voronoiConstraints.expand = voronoiCfg->getParamAsDouble("expand", voronoiConstraints.expand);
 			voronoiConstraints.orphanThreshold = voronoiCfg->getParamAsInt("orphan", voronoiConstraints.orphanThreshold);
 		}
+		ConfigElementPtr searchCfg = cfg->getChild("search");
+		if (searchCfg != NULL) {
+			search.searchDistance = searchCfg->getParamAsDouble("search", search.searchDistance);
+			search.searchAngle = searchCfg->getParamAsDouble("angle", search.searchAngle);
+		}
 		if (cfg != NULL) {
 		    drive.maxVel = cfg->getParamAsDouble("maxVel", drive.maxVel);
 		    drive.maxTurn = cfg->getParamAsDouble("maxTurn", drive.maxTurn);
