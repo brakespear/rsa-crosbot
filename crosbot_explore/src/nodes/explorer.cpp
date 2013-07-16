@@ -65,10 +65,11 @@ public:
 
     	tf::StampedTransform transform;
     	try {
-    		tfListener.waitForTransform(voronoi->frame, req.path.header.frame_id, ros::Time::now(), ros::Duration(DEFAULT_MAXWAIT4TRANSFORM));
-			tfListener.lookupTransform(voronoi->frame, req.path.header.frame_id, ros::Time::now(), transform);
+		ros::Time now = ros::Time::now();
+    		tfListener.waitForTransform(voronoi->frame, req.path.header.frame_id, now, ros::Duration(DEFAULT_MAXWAIT4TRANSFORM));
+			tfListener.lookupTransform(voronoi->frame, req.path.header.frame_id, now, transform);
 		} catch (tf::TransformException& ex) {
-			ERROR("localmap: Error getting transform. (%s)\n", ex.what());
+			ERROR("explorer: Error getting transform. (%s)\n", ex.what());
 			return false;
 		}
 
