@@ -200,8 +200,9 @@ public:
 	virtual ~Explorer();
 
 	virtual void shutdown();
-	virtual void pause() { paused = true; }
-	virtual void resume() { drive.setDriveTarget(Pose(INFINITY, INFINITY, INFINITY)); paused = false; }
+	virtual void pause() { paused = true; statusChanged("Paused"); }
+	virtual void resume() { drive.setDriveTarget(Pose(INFINITY, INFINITY, INFINITY)); paused = false; statusChanged("Running"); }
+	virtual void statusChanged(const std::string& status) {}
 
 	virtual VoronoiGridPtr getLatestVoronoi()=0;
 protected:

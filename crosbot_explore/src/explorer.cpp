@@ -305,6 +305,7 @@ Pose Explorer::findWaypointTarget(const VoronoiGrid& voronoi, const Pose& robot)
 				search.atDestination = true;
 				LOG("Explorer: Arrived at destination (%.2lf, %.2lf, %.2lf)\n",
 						destination.x, destination.y, destination.z);
+				statusChanged("Arrived");
 			}
 			search.waypoint = Point(INFINITY, INFINITY, INFINITY);
 			return Pose(INFINITY, INFINITY, INFINITY);
@@ -352,6 +353,7 @@ Pose Explorer::findWaypointTarget(const VoronoiGrid& voronoi, const Pose& robot)
 				search.waypoint.x, search.waypoint.y, search.waypoint.z);
 	}
 	search.pathBlocked = true;
+	statusChanged("Blocked");
 	return Pose(INFINITY, INFINITY, INFINITY);
 }
 

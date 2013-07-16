@@ -15,6 +15,7 @@
 #include <crosbot_explore/FollowPath.h>
 #include <crosbot_explore/SetMode.h>
 #include <geometry_msgs/Twist.h>
+#include <std_msgs/String.h>
 
 #include <crosbot/config.hpp>
 
@@ -29,10 +30,9 @@ protected:
 	std::string baseFrame;
 
 	ros::Subscriber gridSub, historySub;
-	ros::Publisher imagePub, velPub;
+	ros::Publisher imagePub, velPub, statusPub;
 	tf::TransformListener tfListener;
 	ros::ServiceServer waypointSrv, setModeSrv;
-
 
 	ReadWriteLock rosLock;
 	nav_msgs::OccupancyGridConstPtr latestMap;
@@ -130,6 +130,7 @@ public:
 		historySub = nh.subscribe("history", 1, &ExplorerNode::callbackHistory, this);
 		imagePub = nh.advertise<sensor_msgs::Image>("image", 1);
 		velPub = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
+		statusPub = nh.advertise<std_msgs::String>("status", 1);
 		waypointSrv = nh.advertiseService("/explore/follow_path", &ExplorerNode::callbackFollowPath, this);
 		setModeSrv = nh.advertiseService("/explore/set_mode", &ExplorerNode::callbackSetMode, this);
 	}
@@ -224,6 +225,12 @@ public:
 			}
 		}
 		velPub.publish(twist);
+	}
+
+	virtual void statusChanged(const std::string& status) {
+		std_msgs::String msg;
+		msg.data = status;
+		statusPub.publish(msg);
 	}
 };
 
