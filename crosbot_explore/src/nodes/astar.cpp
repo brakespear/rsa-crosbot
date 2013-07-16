@@ -9,6 +9,7 @@
 #include <crosbot_explore/astar.hpp>
 #include <crosbot/utils.hpp>
 #include <crosbot_map/voronoi.hpp>
+#include <crosbot/config.hpp>
 
 #include <tf/transform_listener.h>
 #include <nav_msgs/OccupancyGrid.h>
@@ -75,8 +76,10 @@ public:
 			}
     	}}
 
-    	if (voronoi == NULL)
+    	if (voronoi == NULL) {
+    		ERROR("AstarNode::GetPath(): No voronoi map available.\n");
     		return false;
+    	}
 
     	ImagePtr image;
     	if (imagePub.getNumSubscribers() > 0) {
@@ -94,7 +97,7 @@ public:
 
     	// return the plan
     	res.path.header.stamp = ros::Time::now();
-    	std::string frame_id = latestMap->header.frame_id;
+    	std::string frame_id = voronoi->frame;
     	res.path.header.frame_id = frame_id;
     	res.path.poses.resize(path.size());
     	for (size_t i = 0; i < path.size(); ++i) {
@@ -102,7 +105,7 @@ public:
     		pose.header.frame_id = frame_id;
     		pose.pose = path[i].toROS();
     	}
-
+    	LOG("AstarNode::GetPath(): Returning a path with %d poses.\n", path.size());
     	return true;
     }
 
@@ -110,8 +113,16 @@ public:
 		// read configuration/parameters
 		ros::NodeHandle paramNH("~");	// Because ROS's search order is buggered
 		paramNH.param<std::string>("base_frame", baseFrame, DEFAULT_BASEFRAME);
-
+		ConfigElementPtr cfg = new ROSConfigElement(paramNH);
+		
 		// TODO: read voronoi constraints
+		ConfigElementPtr voronoiCfg = cfg->getChild("voronoi");
+                if (voronoiCfg != NULL) {
+                        voronoiConstraints.restricted = voronoiCfg->getParamAsDouble("restrict", voronoiConstraints.restricted);
+                        voronoiConstraints.partial = voronoiCfg->getParamAsDouble("partial", voronoiConstraints.partial);
+                        voronoiConstraints.expand = voronoiCfg->getParamAsDouble("expand", voronoiConstraints.expand);
+                        voronoiConstraints.orphanThreshold = voronoiCfg->getParamAsInt("orphan", voronoiConstraints.orphanThreshold);
+                }
 
 		gridSub = nh.subscribe("map", 1, &AstarNode::callbackOccGrid, this);
 		historySub = nh.subscribe("history", 1, &AstarNode::callbackHistory, this);

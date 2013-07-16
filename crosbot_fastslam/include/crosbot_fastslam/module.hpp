@@ -113,8 +113,11 @@ public:
 
 		if (gridPub.getNumSubscribers() > 0) {
 			nav_msgs::OccupancyGridPtr grid = asOccupancyGrid(newMean);
-			if (grid != NULL)
+			if (grid != NULL) {
+				grid->header.frame_id = mapFrame;
+				grid->header.stamp = ros::Time::now();
 				gridPub.publish(grid);
+			}
 		}
 
 		// TODO: publish history
