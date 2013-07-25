@@ -175,6 +175,33 @@ Point Explorer::findWall(const VoronoiGrid& voronoi, const Pose& robot, double s
 		}
 	}
 
+	for (double rayAngle = 0; rayAngle < 2*M_PIl && !CELL_IS_VALID(wallCell, voronoi); rayAngle += search.angleStep) {
+		if (search.side == SearchParameters::Left) {
+			cosRay = cos(Y + startAngle - rayAngle);
+			sinRay = sin(Y + startAngle - rayAngle);
+		} else {
+			cosRay = cos(Y + startAngle + rayAngle);
+			sinRay = sin(Y + startAngle + rayAngle);
+		}
+
+		for (double ray = 0; ray <= (search.searchDistance / voronoi.resolution) &&
+								!CELL_IS_VALID(wallCell, voronoi); ray += search.rayStep) {
+			cell = Index2D(robotCell.x + ray * cosRay, robotCell.y + ray * sinRay);
+
+			if (!CELL_IS_VALID(cell, voronoi))
+				continue;
+
+			const VoronoiGrid::VoronoiCell& vCell = voronoi.getVoronoiCell(cell);
+			if (vCell.status & VoronoiGrid::VoronoiCell::Wall) {
+				wallCell = cell;
+			} else if ((vCell.status & VoronoiGrid::VoronoiCell::Restricted) ||
+					(vCell.status & VoronoiGrid::VoronoiCell::PatiallyRestricted) ||
+					(vCell.status & VoronoiGrid::VoronoiCell::Expansion)) {
+				wallCell = vCell.nearestWallCell;
+			}
+		}
+	}
+
 	if (CELL_IS_VALID(wallCell, voronoi)) {
 		return voronoi.getPosition(wallCell);
 	}
