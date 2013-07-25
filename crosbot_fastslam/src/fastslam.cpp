@@ -77,6 +77,8 @@ void FastSLAMMap::configure(ConfigElementPtr config) {
 	if (searchConfig->hasParam("pose")) {
 		parameters.searchPose = searchConfig->getParamAsPose("pose", parameters.searchPose);
 	}
+
+	parameters.addMotionCopy = searchConfig->getParamAsBool("add_motion_copy", parameters.addMotionCopy);
 }
 
 void FastSLAMMap::start() {
@@ -509,12 +511,18 @@ void FastSLAMMap::resample() {
 
 	newParticles.resize(parameters.numberOfParticles);
 	newPoses.resize(newParticles.size());
-	for (size_t i = 0; i < newParticles.size(); i++) {
+	size_t i = 0;
+	if (parameters.addMotionCopy) {
+		newParticles[i] = new Particle(motion);
+		++i;
+	}
+
+	for (; i < newParticles.size(); i++) {
 		double rand = ProbabilityTable.randxy(0, weightSum);
 		ParticlePtr p = particles[0];
 		double wCurrent = p->weight;
 		size_t j = 0;
-		for (j++; j < particles.size() && wCurrent <= rand; j++) {
+		for (++j; j < particles.size() && wCurrent <= rand; j++) {
 			p = particles[j];
 			wCurrent += p->weight;
 		}
@@ -572,12 +580,19 @@ void FastSLAMMap::resampleAndUpdate(MapCloudPtr cloud) {
 	updates.push_back(motionJob);
 	workers.addJob(motionJob);
 
-	for (size_t i = 0; i < parameters.numberOfParticles; i++) {
+	size_t i = 0;
+	if (parameters.addMotionCopy) {
+		ParticleCopyJob *copy = new ParticleCopyJob(motion, newParticles, newPoses, newParticleMutex);
+		copies.push_back(copy);
+		++i;
+	}
+
+	for (; i < parameters.numberOfParticles; ++i) {
 		double rand = ProbabilityTable.randxy(0, weightSum);
 		ParticlePtr p = particles[0];
 		double wCurrent = p->weight;
 		size_t j = 0;
-		for (j++; j < particles.size() && wCurrent <= rand; j++) {
+		for (++j; j < particles.size() && wCurrent <= rand; ++j) {
 			p = particles[j];
 			wCurrent += p->weight;
 		}

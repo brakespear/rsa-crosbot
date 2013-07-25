@@ -53,13 +53,14 @@ public:
 
 	double minDistanceBetweenSnaps;
 
-	Pose searchPose;
+	crosbot::Pose searchPose;
 	double searchDistance, searchFOV;
 	double maxSensorRange;
 
 	unsigned int mapRows, mapColumns, patchRows, patchColumns;
 
 	double maxHeight, minHeight;
+	bool addMotionCopy;
 
 	FastSLAMParameters() {
 		numberOfParticles = DEFAULT_NUMPARTICLES;
@@ -81,6 +82,7 @@ public:
 
 		minHeight = 0; maxHeight = INFINITY;
 		maxSensorRange = INFINITY;
+		addMotionCopy = false;
 	}
 };
 
