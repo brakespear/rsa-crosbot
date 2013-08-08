@@ -150,7 +150,8 @@ Point Explorer::findWall(const VoronoiGrid& voronoi, const Pose& robot, double s
 	Index2D robotCell = voronoi.findCell(robot.position), cell;
 	Index2D wallCell(-1,-1);
 
-	for (double rayAngle = 0; rayAngle < 2*M_PIl && !CELL_IS_VALID(wallCell, voronoi); rayAngle += search.angleStep) {
+	double rayAngle = 0;
+	for (; rayAngle < 2*M_PIl && !CELL_IS_VALID(wallCell, voronoi); rayAngle += search.angleStep) {
 		if (search.side == SearchParameters::Left) {
 			cosRay = cos(Y + startAngle - rayAngle);
 			sinRay = sin(Y + startAngle - rayAngle);
@@ -159,8 +160,7 @@ Point Explorer::findWall(const VoronoiGrid& voronoi, const Pose& robot, double s
 			sinRay = sin(Y + startAngle + rayAngle);
 		}
 
-		for (double ray = 0; ray <= (search.searchDistance / voronoi.resolution) &&
-								!CELL_IS_VALID(wallCell, voronoi); ray += search.rayStep) {
+		for (double ray = 0; ray <= (search.searchDistance / voronoi.resolution); ray += search.rayStep) {
 			cell = Index2D(robotCell.x + ray * cosRay, robotCell.y + ray * sinRay);
 
 			if (!CELL_IS_VALID(cell, voronoi))
@@ -169,13 +169,19 @@ Point Explorer::findWall(const VoronoiGrid& voronoi, const Pose& robot, double s
 			const VoronoiGrid::VoronoiCell& vCell = voronoi.getVoronoiCell(cell);
 			if (vCell.status & VoronoiGrid::VoronoiCell::Wall) {
 				wallCell = cell;
+				return voronoi.getPosition(wallCell);
 			} else if (vCell.status & VoronoiGrid::VoronoiCell::Restricted) {
+				wallCell = vCell.nearestWallCell;
+				return voronoi.getPosition(wallCell);
+			} else if ((vCell.status & VoronoiGrid::VoronoiCell::Restricted) ||
+					(vCell.status & VoronoiGrid::VoronoiCell::PatiallyRestricted) ||
+					(vCell.status & VoronoiGrid::VoronoiCell::Expansion)) {
 				wallCell = vCell.nearestWallCell;
 			}
 		}
 	}
 
-	for (double rayAngle = 0; rayAngle < 2*M_PIl && !CELL_IS_VALID(wallCell, voronoi); rayAngle += search.angleStep) {
+	for (; rayAngle < 2*M_PIl; rayAngle += search.angleStep) {
 		if (search.side == SearchParameters::Left) {
 			cosRay = cos(Y + startAngle - rayAngle);
 			sinRay = sin(Y + startAngle - rayAngle);
@@ -184,8 +190,7 @@ Point Explorer::findWall(const VoronoiGrid& voronoi, const Pose& robot, double s
 			sinRay = sin(Y + startAngle + rayAngle);
 		}
 
-		for (double ray = 0; ray <= (search.searchDistance / voronoi.resolution) &&
-								!CELL_IS_VALID(wallCell, voronoi); ray += search.rayStep) {
+		for (double ray = 0; ray <= (search.searchDistance / voronoi.resolution); ray += search.rayStep) {
 			cell = Index2D(robotCell.x + ray * cosRay, robotCell.y + ray * sinRay);
 
 			if (!CELL_IS_VALID(cell, voronoi))
@@ -194,10 +199,10 @@ Point Explorer::findWall(const VoronoiGrid& voronoi, const Pose& robot, double s
 			const VoronoiGrid::VoronoiCell& vCell = voronoi.getVoronoiCell(cell);
 			if (vCell.status & VoronoiGrid::VoronoiCell::Wall) {
 				wallCell = cell;
-			} else if ((vCell.status & VoronoiGrid::VoronoiCell::Restricted) ||
-					(vCell.status & VoronoiGrid::VoronoiCell::PatiallyRestricted) ||
-					(vCell.status & VoronoiGrid::VoronoiCell::Expansion)) {
+				return voronoi.getPosition(wallCell);
+			} else if (vCell.status & VoronoiGrid::VoronoiCell::Restricted) {
 				wallCell = vCell.nearestWallCell;
+				return voronoi.getPosition(wallCell);
 			}
 		}
 	}
