@@ -8,6 +8,8 @@
 #include <crosbot_explore/explorer.hpp>
 #include <crosbot/utils.hpp>
 
+#include <unistd.h>
+
 namespace crosbot {
 
 #define DEFAULT_SLEEP_TIME		50000

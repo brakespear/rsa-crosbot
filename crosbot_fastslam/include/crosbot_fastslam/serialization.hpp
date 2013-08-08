@@ -167,7 +167,7 @@ public:
 		uint32_t nonNulls = 0;
 		rval += serUInt32.read(nonNulls, stream);
 
-		for (uint32_t i = 0; i < nonNulls; i++) {
+		for (uint32_t n = 0; n < nonNulls; n++) {
 			uint32_t i, j;
 			rval += serUInt32.read(i, stream);
 			rval += serUInt32.read(j, stream);
