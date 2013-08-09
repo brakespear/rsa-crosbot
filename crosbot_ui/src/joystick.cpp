@@ -11,6 +11,8 @@
 #include <linux/joystick.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <unistd.h>
+#include <stdio.h>
 
 namespace crosbot {
 

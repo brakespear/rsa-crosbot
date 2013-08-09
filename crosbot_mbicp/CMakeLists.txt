@@ -45,7 +45,7 @@ find_package(catkin REQUIRED COMPONENTS crosbot roscpp tf sensor_msgs)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-   INCLUDE_DIRS include
+#   INCLUDE_DIRS include
 #  LIBRARIES crosbot_mbicp
 #  CATKIN_DEPENDS crosbot roscpp tf
 #  DEPENDS system_lib
