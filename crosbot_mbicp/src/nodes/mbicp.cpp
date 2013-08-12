@@ -21,6 +21,8 @@ using namespace crosbot;
 #define DEFAULT_ODOMFRAME			""
 #define DEFAULT_MAXWAIT4TRANSFORM	2.0			// [s]
 
+#define MAX_CONSECUTIVE_FAILURES	5
+
 class MBICPNode {
 	std::string icpFrame, baseFrame, odomFrame;
 
@@ -33,7 +35,7 @@ class MBICPNode {
 	bool useOdometry;
 
 	mbicp::MBICPStd mbicpStd;
-
+	unsigned int consecutiveFails;
 
 	// MBICP Parameters
 
@@ -52,7 +54,7 @@ public:
 	MBICPNode() :
 		icpFrame(DEFAULT_ICPFRAME), baseFrame(DEFAULT_BASEFRAME),
 		odomFrame(DEFAULT_ODOMFRAME), tfListener(ros::Duration(100000000,0)), useOdometry(false),
-		mbicpInitialized(false)
+		mbicpInitialized(false), consecutiveFails(0)
 	{
 
         maxAlignTheta = 0.4;        // MB: can't align cells further than this apart
@@ -232,9 +234,15 @@ public:
             } else {
                 ERROR("MBICP: MBICP failed(%d) ignoring current scan.\n", err);
             }
-            memcpy(&mbicpStd.ptosRef, &mbicpStd.ptosNew, sizeof(mbicp::Tscan));
+
+            if (consecutiveFails >= MAX_CONSECUTIVE_FAILURES) {
+                memcpy(&mbicpStd.ptosRef, &mbicpStd.ptosNew, sizeof(mbicp::Tscan));
+            }
+            consecutiveFails++;
+            return;
         }
 
+        consecutiveFails = 0;
         previousMove.position.x = x; previousMove.position.y = y; previousMove.position.z = 0;
         previousMove.orientation.setYPR(theta, 0, 0);
 
