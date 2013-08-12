@@ -66,14 +66,16 @@ public:
 				voronoi = latestVoronoi;
 				if (voronoi == NULL || voronoi->timestamp < Time(latestMap->header.stamp)) {
 					Pose robot(INFINITY,INFINITY,INFINITY);
+					std::string mapFrame = latestMap->header.frame_id;
+					ros::Time timestamp = latestMap->header.stamp;
 
 					if (baseFrame != "") {
 						try {
 							tf::StampedTransform transform;
-							tfListener.waitForTransform(voronoi->frame, baseFrame,
-									voronoi->timestamp.toROS(), ros::Duration(DEFAULT_MAXWAIT4TRANSFORM));
-							tfListener.lookupTransform(voronoi->frame,
-									baseFrame, voronoi->timestamp.toROS(), transform);
+							tfListener.waitForTransform(mapFrame, baseFrame,
+									timestamp, ros::Duration(DEFAULT_MAXWAIT4TRANSFORM));
+							tfListener.lookupTransform(mapFrame,
+									baseFrame, timestamp, transform);
 							robot = transform;
 						} catch (tf::TransformException& ex) {
 							ERROR("astar: Error getting current robot transform. (%s)\n", ex.what());
