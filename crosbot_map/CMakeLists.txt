@@ -79,7 +79,7 @@ add_executable(localmap src/nodes/localmap.cpp)
 ## Add dependencies to the executable
 # add_dependencies(crosbot_localmap_node ${PROJECT_NAME})
 add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_gencpp roscpp)
-add_dependencies(localmap ${PROJECT_NAME} roscpp crosbot_map_gencpp)
+add_dependencies(localmap ${PROJECT_NAME})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(localmap
