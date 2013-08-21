@@ -78,7 +78,7 @@ void FastSLAMMap::configure(ConfigElementPtr config) {
 		parameters.searchPose = searchConfig->getParamAsPose("pose", parameters.searchPose);
 	}
 
-	parameters.addMotionCopy = searchConfig->getParamAsBool("add_motion_copy", parameters.addMotionCopy);
+	parameters.addMotionCopy = config->getParamAsBool("add_motion_copy", parameters.addMotionCopy);
 }
 
 void FastSLAMMap::start() {

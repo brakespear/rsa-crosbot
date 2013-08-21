@@ -75,6 +75,7 @@ add_executable(astar src/nodes/astar.cpp)
 add_executable(explorer src/nodes/explorer.cpp)
 
 ## Add dependencies to the executable
+add_dependencies(crosbot_explore ${PROJECT_NAME}_gencpp)
 add_dependencies(astar ${PROJECT_NAME} crosbot_explore)
 add_dependencies(explorer ${PROJECT_NAME} crosbot_explore)
 

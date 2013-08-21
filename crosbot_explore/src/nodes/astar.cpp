@@ -65,7 +65,24 @@ public:
 			if (latestMap != NULL) {
 				voronoi = latestVoronoi;
 				if (voronoi == NULL || voronoi->timestamp < Time(latestMap->header.stamp)) {
-					voronoi = new VoronoiGrid(*latestMap, voronoiConstraints);  // TODO: add robot pose
+					Pose robot(INFINITY,INFINITY,INFINITY);
+					std::string mapFrame = latestMap->header.frame_id;
+					ros::Time timestamp = latestMap->header.stamp;
+
+					if (baseFrame != "") {
+						try {
+							tf::StampedTransform transform;
+							tfListener.waitForTransform(mapFrame, baseFrame,
+									timestamp, ros::Duration(DEFAULT_MAXWAIT4TRANSFORM));
+							tfListener.lookupTransform(mapFrame,
+									baseFrame, timestamp, transform);
+							robot = transform;
+						} catch (tf::TransformException& ex) {
+							ERROR("astar: Error getting current robot transform. (%s)\n", ex.what());
+							robot = Pose(INFINITY,INFINITY,INFINITY);
+						}
+					}
+					voronoi = new VoronoiGrid(*latestMap, voronoiConstraints, robot);
 					lock.unlock();
 
 					Lock lock2(voronoiLock, true);
@@ -105,7 +122,7 @@ public:
     		pose.header.frame_id = frame_id;
     		pose.pose = path[i].toROS();
     	}
-    	LOG("AstarNode::GetPath(): Returning a path with %d poses.\n", path.size());
+    	LOG("AstarNode::GetPath(): Returning a path with %Zd poses.\n", path.size());
     	return true;
     }
 
