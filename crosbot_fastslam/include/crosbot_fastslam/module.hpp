@@ -132,7 +132,6 @@ public:
 	}
 
 	void initialize(ros::NodeHandle& nh) {
-		// TODO: read configuration/parameters
 		ros::NodeHandle paramNH("~");	// Because ROS's search order is buggered
 		paramNH.param<std::string>("map_frame", mapFrame, DEFAULT_MAPFRAME);
 		paramNH.param<std::string>("odom_frame", odomFrame, DEFAULT_ODOMFRAME);
@@ -142,6 +141,10 @@ public:
 		snapSub = nh.subscribe("snap", 1000, &FastSLAMModule::callbackSnap, this);
 		gridPub = nh.advertise<nav_msgs::OccupancyGrid>("map", 1);
 		historyPub = nh.advertise<nav_msgs::Path>("history", 1);
+
+		// read configuration/parameters
+		ConfigElementPtr config = new ROSConfigElement(paramNH);
+		configure(config);
 
 		start();
 	}

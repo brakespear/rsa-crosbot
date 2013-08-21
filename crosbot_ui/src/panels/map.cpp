@@ -11,14 +11,14 @@
 
 #include <typeinfo>
 
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QInputDialog>
-#include <QMessageBox>
-#include <QKeyEvent>
-#include <QTimer>
-#include <QProcess>
-#include <QCommonStyle>
+#include <QtGui/QVBoxLayout>
+#include <QtGui/QHBoxLayout>
+#include <QtGui/QInputDialog>
+#include <QtGui/QMessageBox>
+#include <QtGui/QKeyEvent>
+#include <QtCore/QTimer>
+#include <QtCore/QProcess>
+#include <QtGui/QCommonStyle>
 
 namespace crosbot {
 
@@ -150,6 +150,7 @@ MapPanelControl::MapPanelControl(MapView *mapView) :
 	connect(&newMapBtn, SIGNAL(clicked()),this,SLOT(newMap()));
 
 	showGeoTiff.setTristate(true);
+	showGeoTiff.setCheckState(Qt::PartiallyChecked);
 	showPointclouds.setTristate(true);
 
 	vlayout = new QVBoxLayout();

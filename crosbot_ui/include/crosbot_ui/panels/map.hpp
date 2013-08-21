@@ -15,13 +15,13 @@
 #include <crosbot_ui/panels/wasdmouse.hpp>
 
 #include <QtOpenGL/QGLWidget>
-#include <QGroupBox>
-#include <QCheckBox>
-#include <QPushButton>
-#include <QTreeWidget>
-#include <QSpinBox>
-#include <QComboBox>
-#include <QFileDialog>
+#include <QtGui/QGroupBox>
+#include <QtGui/QCheckBox>
+#include <QtGui/QPushButton>
+#include <QtGui/QTreeWidget>
+#include <QtGui/QSpinBox>
+#include <QtGui/QComboBox>
+#include <QtGui/QFileDialog>
 
 namespace crosbot {
 

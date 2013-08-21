@@ -100,6 +100,8 @@ add_executable(geo_logger src/nodes/geo_logger.cpp)
 
 ## Add dependencies to the executable
 # add_dependencies(crosbot_ui_node ${PROJECT_NAME})
+add_dependencies(gui crosbot_ui)
+add_dependencies(geo_logger crosbot_ui)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(crosbot_ui
@@ -126,11 +128,11 @@ target_link_libraries(geo_logger
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS crosbot_ui crosbot_ui_node
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+install(TARGETS crosbot_ui gui geo_logger
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 ## Mark cpp header files for installation
 # install(DIRECTORY include/${PROJECT_NAME}/
