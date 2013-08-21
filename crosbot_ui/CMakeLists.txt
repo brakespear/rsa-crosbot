@@ -105,7 +105,9 @@ add_dependencies(geo_logger crosbot_ui)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(crosbot_ui
-  ${catkin_LIBRARIES} crosbot crosbot_map crosbot_fastslam ${QT_LIBRARIES} glut GLU phonon
+  ${catkin_LIBRARIES} crosbot crosbot_map crosbot_fastslam ${QT_LIBRARIES} glut GLU
+# To play sounds install libphonon and enable following link
+# phonon
 )
 
 target_link_libraries(gui
