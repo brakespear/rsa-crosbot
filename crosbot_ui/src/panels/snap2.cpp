@@ -18,10 +18,14 @@
 #include <QtGui/QLabel>
 #include <QtGui/QSound>
 
+#ifdef USE_PHONON
+
 #include <phonon/audiooutput.h>
 #include <phonon/mediaobject.h>
 #include <phonon/mediasource.h>
 #include <phonon/videowidget.h>
+
+#endif
 
 //#include <QVBoxLayout>
 //#include <QLabel>
@@ -419,8 +423,12 @@ void SnapViewWidget2::listSnaps(Map::TagListPtr tags) {
     }
 }
 
+#ifdef USE_PHONON
+
 Phonon::AudioOutput *audio = NULL;
 Phonon::MediaObject obj;
+
+#endif
 
 void SnapViewWidget2::start() {
 	snapTree.clearSelection();
@@ -432,9 +440,13 @@ void SnapViewWidget2::start() {
 	getSrv = nh.serviceClient<crosbot_map::GetSnap>("/snaps/get", false);
 	modifySrv = nh.serviceClient<crosbot_map::ModifySnap>("/snaps/update", false);
 
+#ifdef USE_PHONON
+
 	audio = new Phonon::AudioOutput( this );
 	if (audio != NULL)
 		Phonon::createPath( &obj, audio );
+
+#endif
 
 //	if (mapName != "") {
 //		map = Gui::maps.getMap(mapName);
@@ -510,6 +522,7 @@ void SnapViewWidget2::stop() {
 //}
 
 void SnapViewWidget2::playSound(std::string file) {
+#ifdef USE_PHONON
 	if (audio == NULL)
 		return;
 	const QUrl url = QUrl( QLatin1String( file.c_str() ) );
@@ -520,6 +533,7 @@ void SnapViewWidget2::playSound(std::string file) {
 //		Phonon::createPath( &obj, &video );
 	obj.play();
 //	obj.state();
+#endif
 }
 
 void SnapViewWidget2::handleSnapConfirmation() {
