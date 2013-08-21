@@ -150,7 +150,6 @@ MapPanelControl::MapPanelControl(MapView *mapView) :
 	connect(&newMapBtn, SIGNAL(clicked()),this,SLOT(newMap()));
 
 	showGeoTiff.setTristate(true);
-	showGeoTiff.setCheckState(Qt::PartiallyChecked);
 	showPointclouds.setTristate(true);
 
 	vlayout = new QVBoxLayout();
@@ -183,6 +182,7 @@ MapPanelControl::MapPanelControl(MapView *mapView) :
 	showTags.setChecked(true);
 	showPointclouds.setChecked(false);
 	showGeoTiff.setChecked(false);
+	showGeoTiff.setCheckState(Qt::PartiallyChecked);
 
 	vlayout = new QVBoxLayout();
 	vlayout->addWidget(&loadBtn);
