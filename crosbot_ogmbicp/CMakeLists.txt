@@ -66,15 +66,15 @@ include_directories(include
 # )
 
 ## Declare a cpp executable
-# add_executable(crosbot_ogmbicp_node src/crosbot_ogmbicp_node.cpp)
+add_executable(crosbot_ogmbicp src/main.cpp src/OgmbicpNode.cpp src/Ogmbicp.cpp)
 
 ## Add dependencies to the executable
 # add_dependencies(crosbot_ogmbicp_node ${PROJECT_NAME})
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(crosbot_ogmbicp_node
-#   ${catkin_LIBRARIES}
-# )
+ target_link_libraries(crosbot_ogmbicp
+   ${catkin_LIBRARIES}
+ )
 
 #############
 ## Install ##
@@ -95,11 +95,11 @@ include_directories(include
 # )
 
 ## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
+ install(DIRECTORY include/${PROJECT_NAME}/
+   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+   FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+   PATTERN ".svn" EXCLUDE
+ )
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES
@@ -107,6 +107,12 @@ include_directories(include
 #   # myfile2
 #   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 # )
+install(DIRECTORY launch
+   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+   FILES_MATCHING PATTERN "*.launch"
+   PATTERN ".svn" EXCLUDE
+ )
+
 
 #############
 ## Testing ##
