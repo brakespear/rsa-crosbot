@@ -46,8 +46,8 @@ find_package(catkin REQUIRED COMPONENTS crosbot crosbot_map nav_msgs roscpp sens
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
    INCLUDE_DIRS include
-#  LIBRARIES crosbot_ogmbicp
-#  CATKIN_DEPENDS crosbot crosbot_map nav_msgs roscpp sensor_msgs tf
+   LIBRARIES ogmbicp
+   CATKIN_DEPENDS crosbot crosbot_map nav_msgs roscpp sensor_msgs tf
 #  DEPENDS system_lib
 )
 
@@ -60,10 +60,10 @@ include_directories(include
   ${catkin_INCLUDE_DIRS}
 )
 
-## Declare a cpp library
-# add_library(crosbot_ogmbicp
-#   src/${PROJECT_NAME}/crosbot_ogmbicp.cpp
-# )
+# Declare a cpp library
+ add_library(ogmbicp
+    src/OgmbicpNode.cpp
+ )
 
 ## Declare a cpp executable
 add_executable(crosbot_ogmbicp src/main.cpp src/OgmbicpNode.cpp src/Ogmbicp.cpp)
@@ -72,8 +72,12 @@ add_executable(crosbot_ogmbicp src/main.cpp src/OgmbicpNode.cpp src/Ogmbicp.cpp)
 # add_dependencies(crosbot_ogmbicp_node ${PROJECT_NAME})
 
 ## Specify libraries to link a library or executable target against
- target_link_libraries(crosbot_ogmbicp
+ target_link_libraries(crosbot_ogmbicp ogmbicp
    ${catkin_LIBRARIES}
+ )
+
+target_link_libraries(ogmbicp
+   ${catkin_LIBRARIES} 
  )
 
 #############
@@ -88,11 +92,11 @@ add_executable(crosbot_ogmbicp src/main.cpp src/OgmbicpNode.cpp src/Ogmbicp.cpp)
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS crosbot_ogmbicp crosbot_ogmbicp_node
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+ install(TARGETS ogmbicp
+   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+ )
 
 ## Mark cpp header files for installation
  install(DIRECTORY include/${PROJECT_NAME}/
