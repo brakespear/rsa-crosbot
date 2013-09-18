@@ -63,10 +63,11 @@ include_directories(include
 # Declare a cpp library
  add_library(ogmbicp
     src/OgmbicpNode.cpp
+    src/Ogmbicp.cpp
  )
 
 ## Declare a cpp executable
-add_executable(crosbot_ogmbicp src/main.cpp src/OgmbicpNode.cpp src/Ogmbicp.cpp)
+add_executable(crosbot_ogmbicp src/main.cpp src/OgmbicpNode.cpp src/Ogmbicp.cpp src/PointMap3D.cpp src/OgmbicpCPU.cpp)
 
 ## Add dependencies to the executable
 # add_dependencies(crosbot_ogmbicp_node ${PROJECT_NAME})

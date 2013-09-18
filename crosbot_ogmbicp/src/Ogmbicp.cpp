@@ -8,21 +8,10 @@
 #include <crosbot_ogmbicp/Ogmbicp.hpp>
 
 void Ogmbicp::initialise(ros::NodeHandle &nh) {
-}
-
-void Ogmbicp::start() {
-   cout << "starting ogmbicp" << endl;
-}
-
-void Ogmbicp::stop() {
-   cout << "stopping ogmbicp" << endl;
+   ros::NodeHandle paramNH("~");
+   paramNH.param<double>("MapSize", MapSize, 10);
+   paramNH.param<double>("CellSize", CellSize, 0.05);
+   paramNH.param<double>("CellHeight", CellHeight, 0.05);
 
 }
 
-void Ogmbicp::initialiseTrack(Pose sensorPose, PointCloudPtr cloud) {
-   cout << "ogmbicp: initialise track" << endl;
-}
-
-void Ogmbicp::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
-   cout << "ogmbicp: update track" << endl;
-}

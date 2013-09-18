@@ -19,32 +19,43 @@ using namespace crosbot;
 using namespace std;
 
 class Ogmbicp {
+protected:
+   /*
+    * Config attributes for ogmbicp
+    */
+   //total width and length of the local map in metres
+   double MapSize;
+   //width and length of a 2D local map cell in metres
+   double CellSize;
+   //height of a 3D map cell in metres
+   double CellHeight;
+
 public:
    /*
     * Initialise the position tracker
     */
-   void initialise(ros::NodeHandle &nh);
+   virtual void initialise(ros::NodeHandle &nh);
 
    /*
     * Start the position tracker. After this is called, the position
     * tracker is ready to take scans
     */
-   void start();
+   virtual void start() = 0;
 
    /*
     * Stop the position tracker
     */
-   void stop();
+   virtual void stop() = 0;
 
    /*
     * Called for processing the first scan
     */
-   void initialiseTrack(Pose sensorPose, PointCloudPtr cloud);
+   virtual void initialiseTrack(Pose sensorPose, PointCloudPtr cloud) = 0;
 
    /*
     * Update the position tracker with the lastest scan
     */
-   void updateTrack(Pose sensorPose, PointCloudPtr cloud);
+   virtual void updateTrack(Pose sensorPose, PointCloudPtr cloud) = 0;
 
 };
 
