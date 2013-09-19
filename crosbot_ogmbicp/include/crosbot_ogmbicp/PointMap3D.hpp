@@ -33,6 +33,20 @@ public:
 };
 
 /*
+ * A list of laser points stored during an iteration of ogmbicp
+ */
+class _LaserPoints : public HandledObject {
+public:
+   _LaserPoints(PointCloudPtr p, double maxSegLen);
+
+   //Transform the points by dx, dy, dth, dz
+   void transformPoints(double dx, double dy, double dz, double dth, Pose offset);
+
+   vector<LaserPoint> points;
+};
+typedef Handle<_LaserPoints> LaserPoints;
+
+/*
  * A single 3D cell in the local map
  */
 class Cell3D {
@@ -53,14 +67,20 @@ public:
  */
 class PointMap3D {
 public:
-   PointMap3D(double mapSize, double cellSize, double cellHeight);   
+   PointMap3D(double mapSize, double cellSize, double cellHeight);
+
+   PointCloudPtr centerPointCloud(PointCloud &p, Pose curPose, Pose sensorPose, Pose *laserOffset);
 
 private:
    double const MapSize;
    double const CellSize;
    double const CellHeight;
 
+   //Number of cells in a row and column of the map
    int numWidth;
+   //current x and y pose of the robot rounded to the nearest cell
+   double pos_x;
+   double pos_y;
 
    deque<deque<Cell3DColumn *> *> grid;
 };

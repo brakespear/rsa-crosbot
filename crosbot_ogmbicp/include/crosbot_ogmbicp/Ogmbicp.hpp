@@ -29,6 +29,19 @@ protected:
    double CellSize;
    //height of a 3D map cell in metres
    double CellHeight;
+   //Maximum distancew two adjacent laser points can be away from each other to be included in the match
+   double MaxSegLen;
+
+   /*
+    * Other fields
+    */
+   //Current position of the robot
+   Pose curPose;
+
+   /*
+    * Absolute pose of the laser
+    */
+   Pose laserPose;
 
 public:
    /*
