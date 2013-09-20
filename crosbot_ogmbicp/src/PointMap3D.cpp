@@ -9,22 +9,39 @@ LaserPoint::LaserPoint() {
    pointNxt = Point3D(NAN, NAN, NAN);
 }
 
-_LaserPoints::_LaserPoints(PointCloudPtr p, double maxSegLen) {
-   int i;
+_LaserPoints::_LaserPoints(PointCloudPtr p, double MaxSegLen, bool IgnoreZValues,
+      double FloorHeight, double MinAddHeight, double MaxAddHeight) {
+   int i, j;
    double dx, dy, dz;
    points.resize(p->cloud.size());
    for (i = 0; i < p->cloud.size(); i++) {
-      points[i].point = p->cloud[i];
+      if (IgnoreZValues && (p->cloud[i].z < MinAddHeight || p->cloud[i].z > MaxAddHeight)) {
+         continue;
+      } else if (p->cloud[i].z < FloorHeight) {
+         continue;
+      }
+      points[j].point = p->cloud[i];
+      if (IgnoreZValues) {
+         points[j].point.z = (MaxAddHeight + MinAddHeight)/ 2.0;
+      }
       if (i < p->cloud.size() - 1) {
          dx = p->cloud[i + 1].x - p->cloud[i].x;
          dy = p->cloud[i + 1].y - p->cloud[i].y;
          dz = p->cloud[i + 1].z - p->cloud[i].z;
+         if(IgnoreZValues) {
+            dz = 0;
+         }
          dx = dx * dx + dy * dy + dz * dz;
-         if (dx < maxSegLen) {
-            points[i].pointNxt = p->cloud[i + 1];
+         if (dx < MaxSegLen) {
+            points[j].pointNxt = p->cloud[i + 1];
+            if (IgnoreZValues) {
+               points[j].pointNxt.z = (MaxAddHeight + MinAddHeight) / 2.0;
+            }
          }
       }
+      j++;
    }
+   points.resize(j);
 }
 
 void _LaserPoints::transformPoints(double dx, double dy, double dz, double dth, Pose offset) {

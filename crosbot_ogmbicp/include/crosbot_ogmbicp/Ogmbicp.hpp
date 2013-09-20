@@ -29,8 +29,35 @@ protected:
    double CellSize;
    //height of a 3D map cell in metres
    double CellHeight;
-   //Maximum distancew two adjacent laser points can be away from each other to be included in the match
+   //maximum number of iterations to align a scan
+   int MaxIterations;
+   //maximum errors in an iteration of icp permitted for it to stop
+   double MaxErrorTh;
+   double MaxErrorXY;
+   double MaxErrorZ;
+   //Minimum and maximum heights relative to the robot a laser point can have to be 
+   //added into the mapand used for alignment
+   double MinAddHeight;
+   double MaxAddHeight;
+   //Height of the floor. Points between Floor Height and MinAddHeight are considered
+   //floor obstacles
+   double FloorHeight;
+   //Minimum distance a laser point can be from the robot to used for alignment and
+   //added into the map
+   double LaserMinDist;
+   //Should z values of laser points be ignored?
+   bool IgnoreZValues;
+
+   //--- Probably no need to change these
+
+   //Maximum distance two adjacent laser points can be away from each other to be included in the match
    double MaxSegLen;
+   //Maximum distance of a laser point away from the robot for it to be used in alignment. < 0 means no limit
+   double LaserMaxAlign;
+   //Use a variable value for L
+   bool UseVariableL;
+   //Value used in distance weighting
+   double AlignmentDFix;
 
    /*
     * Other fields

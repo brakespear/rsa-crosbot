@@ -13,6 +13,13 @@
 
 class OgmbicpCPU : public Ogmbicp {
 public:
+   /*
+    * Config attributes for CPU version of ogmbicp
+    */
+   //Every LaserSkip(th) laser point will be used in the alignment
+   //eg. LaserSkip = 1 will use every laser point from a scan
+   int LaserSkip;
+
    //Inherited methods from ogmbicp.hpp
    void initialise(ros::NodeHandle &nh);
    void start();
@@ -28,6 +35,7 @@ private:
    //Offset of laser from center of point cloud
    Pose laserOffset;
 
+   bool getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth);
    //Remove the laser offset from a point
    Point3D removeLaserOffset(Point3D p1);
    //Put the laser offset back onto the value of a point

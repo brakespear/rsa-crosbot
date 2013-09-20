@@ -14,6 +14,18 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("CellHeight", CellHeight, 0.05);
    paramNH.param<double>("MagSegLen", MaxSegLen, 0.1);
    MaxSegLen *= MaxSegLen;
+   paramNH.param<int>("MaxIterations", MaxIterations, 200);
+   paramNH.param<double>("MaxErrorXY", MaxErrorXY, 0.0001);
+   paramNH.param<double>("MaxErrorTh", MaxErrorTh, 0.01);
+   paramNH.param<double>("MaxErrorZ", MaxErrorZ, 0.001);
+   paramNH.param<double>("MinAddHeight", MinAddHeight, 1.2);
+   paramNH.param<double>("MaxAddHeight", MaxAddHeight, 3);
+   paramNH.param<double>("FloorHeight", FloorHeight, 1);
+   paramNH.param<double>("LaserMinDist", LaserMinDist, 0.4);
+   paramNH.param<bool>("IgnoreZValues", IgnoreZValues, false);
+   paramNH.param<double>("LaserMaxAlign", LaserMaxAlign, -1);
+   paramNH.param<bool>("UseVariableL", UseVariableL, true);
+   paramNH.param<double>("AlignmentDFix", AlignmentDFix, 7.0);
 
 }
 

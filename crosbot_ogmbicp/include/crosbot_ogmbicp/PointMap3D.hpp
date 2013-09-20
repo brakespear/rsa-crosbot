@@ -37,7 +37,8 @@ public:
  */
 class _LaserPoints : public HandledObject {
 public:
-   _LaserPoints(PointCloudPtr p, double maxSegLen);
+   _LaserPoints(PointCloudPtr p, double MaxSegLen, bool IgnoreZValues,
+         double FloorHeight, double MinAddHeight, double MaxAddHeight);
 
    //Transform the points by dx, dy, dth, dz
    void transformPoints(double dx, double dy, double dz, double dth, Pose offset);
