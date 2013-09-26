@@ -15,6 +15,9 @@ namespace crosbot {
 namespace gui {
 
 #define RENDER_PRESET	"preset"
+#define RENDER_EMU		"emu"
+
+#define VALID_PRESET(P)		((P) != INFINITY && (P) != -INFINITY && (P) != NAN)
 
 class PresetRender : public RobotRender {
 public:
@@ -30,6 +33,20 @@ protected:
 	int layout;
 
 	std::vector< std::vector<float> > presets;
+};
+
+class EmuRender : public PresetRender {
+protected:
+	GLuint displayLists;
+	bool displayListsSet;
+public:
+	EmuRender(RobotPanel& panel, ConfigElementPtr config);
+	void start() {}
+	void stop() {}
+
+	void renderRobot(std::string label, std::vector<float> configuration, bool renderGoals = false);
+	std::vector<float> getConfiguration();
+	void setConfiguration(std::vector<float>);
 };
 
 } // namespace gui

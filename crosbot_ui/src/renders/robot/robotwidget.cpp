@@ -8,11 +8,11 @@
 //#include <ros/ros.h>
 #include <crosbot_ui/renders/robot/robotwidget.hpp>
 #include <crosbot_ui/panels/robot.hpp>
+#include <crosbot_ui/renders/robot/jointcontrol.hpp>
 
-#include <QTimer>
-#include <QKeyEvent>
+#include <QtCore/QTimer>
+#include <QtGui/QKeyEvent>
 #include <std_msgs/String.h>
-#include <sensor_msgs/JointState.h>
 
 #include <crosbot/utils.hpp>
 
@@ -20,114 +20,6 @@ namespace crosbot {
 
 namespace gui {
 using namespace std;
-
-class JointController {
-protected:
-	ros::Subscriber jointSub;
-	ros::Publisher jointPub;
-	bool connected;
-
-	class Joint {
-	public:
-		std::string name;
-		double pos, desiredPos;
-		Joint(const std::string& name) : name(name), pos(NAN), desiredPos(NAN) {}
-	};
-
-
-	Joint& getJoint();
-	ReadWriteLock jLock;
-	std::vector< Joint > joints;
-public:
-	JointController() : connected(false) {}
-
-	void shutdown() {
-		jointPub.shutdown();
-		jointSub.shutdown();
-		connected = false;
-	}
-
-	Joint *findJoint(const std::string& joint) {
-		Lock lock(jLock);
-		for (size_t i = 0; i < joints.size(); ++i) {
-			if (joints[i].name == joint) {
-				return &joints[i];
-			}
-		}
-		return NULL;
-	}
-
-	void callbackJoints(const sensor_msgs::JointStateConstPtr& state) {
-		for (size_t i = 0; i < state->name.size(); ++i) {
-			Joint *joint = findJoint(state->name[i]);
-
-			{{
-				Lock lock(jLock, true);
-				if (joint == NULL) {
-					joints.push_back(Joint(state->name[i]));
-					joint = &joints[joints.size() - 1];
-				}
-				joint->pos = state->position[i];
-			}}
-		}
-	}
-
-	void connect() {
-		if (connected)
-			return;
-
-		ros::NodeHandle nh;
-		jointSub = nh.subscribe("/joint_states", 2, &JointController::callbackJoints, this);
-		jointPub = nh.advertise< sensor_msgs::JointState >("/joint_control", 1);
-	}
-
-	double getPos(const std::string& joint) {
-		Lock lock(jLock);
-		for (size_t i = 0; i < joints.size(); ++i) {
-			Joint& j = joints[i];
-			if (j.name == joint)
-				return j.pos;
-		}
-
-		return NAN;
-	}
-
-	void setPos(const std::string& joint, double pos) {
-		if (jointPub.getNumSubscribers() == 0)
-			return;
-
-		Joint *j = findJoint(joint);
-		sensor_msgs::JointState state;
-		state.header.stamp = ros::Time::now();
-		state.name.push_back(joint);
-		state.position.push_back(pos);
-
-		if (j != NULL) {
-			j->desiredPos = pos;
-		}
-
-		jointPub.publish(state);
-	}
-
-	void zero(const std::vector< std::string >& joints) {
-		if (joints.size() == 0 || jointPub.getNumSubscribers() == 0)
-			return;
-
-		sensor_msgs::JointState state;
-		state.header.stamp = ros::Time::now();
-		for (size_t i = 0; i < joints.size(); ++i) {
-			Joint *j = findJoint(joints[i]);
-			if (j == NULL)
-				continue;
-			state.name.push_back(j->name);
-			state.position.push_back(0);
-			j->desiredPos = 0;
-		}
-
-		jointPub.publish(state);
-	}
-};
-JointController joints;
 
 RobotWidget::RobotWidget(RobotPanel& panel) : panel(panel) {
 	aspectRatio = 1.0;
@@ -498,10 +390,10 @@ public:
 
 	bool keyPressEvent(QKeyEvent *e) {
 		if (up == e->key()) {
-			joints.setPos(joint, joints.getPos(joint) + step);
+			JointController::setPos(joint, JointController::getPos(joint) + step);
 			return true;
 		} else if (down == e->key()) {
-			joints.setPos(joint, joints.getPos(joint) - step);
+			JointController::setPos(joint, JointController::getPos(joint) - step);
 			return true;
 		}
 		return false;
@@ -543,7 +435,7 @@ public:
 
 	bool keyPressEvent(QKeyEvent *e) {
 		if (key == e->key()) {
-			joints.zero(jointsToZero);
+			JointController::zero(jointsToZero);
 			return true;
 		}
 		return false;
@@ -556,7 +448,7 @@ void RobotWidget::addInputListener(ConfigElementPtr cfg) {
 	if (strcasecmp(cfg->name.c_str(), ELEMENT_KEY) == 0) {
 		listeners.push_back(new TopicMessageKey(cfg));
 	} else if (strcasecmp(cfg->name.c_str(), ELEMENT_JOINT) == 0) {
-		joints.connect();
+		JointController::connect();
 		if (cfg->getParamAsBool("zero", false)) {
 			listeners.push_back(new JointZeroKey(cfg));
 		} else {
@@ -573,7 +465,7 @@ JointRender::JointRender(RobotPanel& panel, ConfigElementPtr config) :
 {}
 
 void JointRender::start() {
-	joints.connect();
+	JointController::connect();
 }
 
 void JointRender::stop() {}
@@ -588,8 +480,8 @@ void JointRender::render() {
 
     char ascii[4096];
     sprintf(ascii, "b: %3.0lf  s: %3.0lf  e: %3.0lf  t: %3.0lf  p: %3.0lf",
-    		RAD2DEG(joints.getPos("arm_base")), RAD2DEG(joints.getPos("arm_shoulder")), RAD2DEG(joints.getPos("arm_elbow")),
-    		RAD2DEG(joints.getPos("neck_tilt")), RAD2DEG(joints.getPos("neck_pan")));
+    		RAD2DEG(JointController::getPos("arm_base")), RAD2DEG(JointController::getPos("arm_shoulder")), RAD2DEG(JointController::getPos("arm_elbow")),
+    		RAD2DEG(JointController::getPos("neck_tilt")), RAD2DEG(JointController::getPos("neck_pan")));
     QString label("");
     label.append(ascii);
 
