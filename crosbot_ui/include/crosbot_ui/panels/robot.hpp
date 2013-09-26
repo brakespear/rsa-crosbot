@@ -90,6 +90,8 @@ protected:
 	ros::Publisher* drivePub;
 
 	float pan, tilt, zoom, desiredPan, desiredTilt, desiredZoom;
+public:
+	RobotWidget& getRobotWidget() { return widget; }
 };
 
 } // namespace gui
