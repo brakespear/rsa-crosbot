@@ -46,8 +46,8 @@ find_package(catkin REQUIRED COMPONENTS crosbot crosbot_map nav_msgs roscpp sens
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
    INCLUDE_DIRS include
-#  LIBRARIES crosbot_ogmbicp
-#  CATKIN_DEPENDS crosbot crosbot_map nav_msgs roscpp sensor_msgs tf
+   LIBRARIES ogmbicp
+   CATKIN_DEPENDS crosbot crosbot_map nav_msgs roscpp sensor_msgs tf
 #  DEPENDS system_lib
 )
 
@@ -60,21 +60,25 @@ include_directories(include
   ${catkin_INCLUDE_DIRS}
 )
 
-## Declare a cpp library
-# add_library(crosbot_ogmbicp
-#   src/${PROJECT_NAME}/crosbot_ogmbicp.cpp
-# )
+# Declare a cpp library
+ add_library(ogmbicp
+    src/OgmbicpNode.cpp
+ )
 
 ## Declare a cpp executable
-# add_executable(crosbot_ogmbicp_node src/crosbot_ogmbicp_node.cpp)
+add_executable(crosbot_ogmbicp src/main.cpp src/OgmbicpNode.cpp src/Ogmbicp.cpp)
 
 ## Add dependencies to the executable
 # add_dependencies(crosbot_ogmbicp_node ${PROJECT_NAME})
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(crosbot_ogmbicp_node
-#   ${catkin_LIBRARIES}
-# )
+ target_link_libraries(crosbot_ogmbicp ogmbicp
+   ${catkin_LIBRARIES}
+ )
+
+target_link_libraries(ogmbicp
+   ${catkin_LIBRARIES} 
+ )
 
 #############
 ## Install ##
@@ -88,18 +92,18 @@ include_directories(include
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS crosbot_ogmbicp crosbot_ogmbicp_node
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+ install(TARGETS ogmbicp
+   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+ )
 
 ## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
+ install(DIRECTORY include/${PROJECT_NAME}/
+   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+   FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+   PATTERN ".svn" EXCLUDE
+ )
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES
@@ -107,6 +111,12 @@ include_directories(include
 #   # myfile2
 #   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 # )
+install(DIRECTORY launch
+   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+   FILES_MATCHING PATTERN "*.launch"
+   PATTERN ".svn" EXCLUDE
+ )
+
 
 #############
 ## Testing ##
