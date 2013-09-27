@@ -61,6 +61,9 @@ public:
 class Cell3DColumn {
 public:
    list<Cell3D *> cells;
+
+   //The number of times a laser point in the column has been observed
+   int obsCount;
 };
 
 /*
@@ -71,6 +74,9 @@ public:
    PointMap3D(double mapSize, double cellSize, double cellHeight);
 
    PointCloudPtr centerPointCloud(PointCloud &p, Pose curPose, Pose sensorPose, Pose *laserOffset);
+
+   //Returns the Cell3DColumn at x,y metres from the robot
+   Cell3DColumn *columnAtXY(double x, double y);
 
 private:
    double const MapSize;

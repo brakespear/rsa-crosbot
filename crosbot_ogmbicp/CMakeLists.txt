@@ -75,6 +75,7 @@ add_executable(crosbot_ogmbicp src/main.cpp src/OgmbicpNode.cpp src/Ogmbicp.cpp 
 ## Specify libraries to link a library or executable target against
  target_link_libraries(crosbot_ogmbicp ogmbicp
    ${catkin_LIBRARIES}
+   newmat
  )
 
 target_link_libraries(ogmbicp

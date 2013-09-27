@@ -45,8 +45,11 @@ protected:
    //Minimum distance a laser point can be from the robot to used for alignment and
    //added into the map
    double LaserMinDist;
+   double LaserMaxDistance;
    //Should z values of laser points be ignored?
    bool IgnoreZValues;
+   //Minimum number of laser points needed to match in each iteration of ogmbicp
+   int MinGoodCount;
 
    //--- Probably no need to change these
 
@@ -58,6 +61,18 @@ protected:
    bool UseVariableL;
    //Value used in distance weighting
    double AlignmentDFix;
+   //L used in ogmbicp metric
+   double LValue;
+   ///Minimum number of laser points required to be in a column to it to be used in alignment
+   int MinCellCount;
+   //Wegith matches acccording to distance and observation count
+   bool UseFactor;
+   //Use simpler calculations for H and ignore movement in z
+   bool UseSimpleH;
+   //Maximum number of laser points stored in a cell
+   int MaxObservations;
+   //Minimum factor possible when UseFactor is true
+   double MinFactor;
 
    /*
     * Other fields

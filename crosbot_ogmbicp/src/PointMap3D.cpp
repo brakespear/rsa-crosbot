@@ -102,6 +102,10 @@ PointCloudPtr PointMap3D::centerPointCloud(PointCloud &p, Pose curPose, Pose sen
 
 }
 
+Cell3DColumn *PointMap3D::columnAtXY(double x, double y) {
+   return NULL;
+}
+
 
 
 

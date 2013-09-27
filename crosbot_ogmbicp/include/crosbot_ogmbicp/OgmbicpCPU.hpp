@@ -35,7 +35,11 @@ private:
    //Offset of laser from center of point cloud
    Pose laserOffset;
 
+   //Get the offset from an iteration of ogmbicp
    bool getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth);
+   //Find the best matching point (mPoint) to scanPoint
+   //Returns the matching score. INFINITY if no matching point was found
+   double findMatchingPoint(Point scanPoint, Point &mPoint, double lVal);
    //Remove the laser offset from a point
    Point3D removeLaserOffset(Point3D p1);
    //Put the laser offset back onto the value of a point
