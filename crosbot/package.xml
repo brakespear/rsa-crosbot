@@ -46,16 +46,16 @@
   <build_depend>tf</build_depend>
   <build_depend>geometry_msgs</build_depend>
   <build_depend>sensor_msgs</build_depend>
-  <build_depend>jpeg</build_depend>
-  <build_depend>xml2</build_depend>
+  <!--build_depend>jpeg</build_depend>
+  <build_depend>xml2</build_depend-->
   
   <run_depend>roscpp</run_depend>
   <run_depend>bullet</run_depend>
   <run_depend>tf</run_depend>
   <run_depend>geometry_msgs</run_depend>
   <run_depend>sensor_msgs</run_depend>
-  <run_depend>jpeg</run_depend>
-  <run_depend>xml2</run_depend>
+  <!--run_depend>jpeg</run_depend>
+  <run_depend>xml2</run_depend-->
 
 
   <!-- The export tag contains other, unspecified, tags -->
