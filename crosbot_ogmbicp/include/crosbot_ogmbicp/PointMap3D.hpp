@@ -53,6 +53,8 @@ typedef Handle<_LaserPoints> LaserPoints;
 class Cell3D {
 public:
    deque<LaserPoint> points;
+
+   double zVal;
 };
 
 /*
@@ -64,6 +66,9 @@ public:
 
    //The number of times a laser point in the column has been observed
    int obsCount;
+
+   //Returns the nearest 3D cell in height to the given z value
+   Cell3D *getNearestCell(double z);
 };
 
 /*
@@ -77,6 +82,12 @@ public:
 
    //Returns the Cell3DColumn at x,y metres from the robot
    Cell3DColumn *columnAtXY(double x, double y);
+   //Returns the Cell3DColumn at index i,j
+   Cell3DColumn *columnAtIJ(int i, int j);
+   //Gets the index i,j corresponding to the coordinates x,y
+   void getIJ(double x, double y, int *i, int *j);
+   //Returns the x,y coords of the center of the column at index i,j
+   void getXY(int i, int j, double *x, double *y);
 
 private:
    double const MapSize;

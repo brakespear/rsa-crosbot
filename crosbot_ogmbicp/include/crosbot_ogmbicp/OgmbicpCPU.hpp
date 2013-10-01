@@ -19,6 +19,9 @@ public:
    //Every LaserSkip(th) laser point will be used in the alignment
    //eg. LaserSkip = 1 will use every laser point from a scan
    int LaserSkip;
+   //Number of cells around the laser point that will be searched
+   // to find the matching point
+   int CellSearchDistance;
 
    //Inherited methods from ogmbicp.hpp
    void initialise(ros::NodeHandle &nh);
@@ -40,6 +43,15 @@ private:
    //Find the best matching point (mPoint) to scanPoint
    //Returns the matching score. INFINITY if no matching point was found
    double findMatchingPoint(Point scanPoint, Point &mPoint, double lVal);
+   //Calculates the match score between scan point and a laser point. 
+   //Laser points are stored relative to the center of their map cell,
+   //so centerX, centerY offsets them by the center of the cell.
+   //matchPoint is the matching point as scanPoint is matched to the line
+   //between mapPoint.point and mapPoint.pointNxt
+   double getHValue(Point scanPoint, LaserPoint mapPoint, double centerX, 
+         double centerY, Point &matchPoint, double lVale);
+   //Calculate the match score for scanPoint to mPoint
+   double calculateHValue(Point scanPoint, Point mPoint, double lVal);
    //Remove the laser offset from a point
    Point3D removeLaserOffset(Point3D p1);
    //Put the laser offset back onto the value of a point

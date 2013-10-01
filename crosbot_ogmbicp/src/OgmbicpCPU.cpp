@@ -22,6 +22,7 @@ void OgmbicpCPU::initialise(ros::NodeHandle &nh) {
 
    ros::NodeHandle paramNH("~");
    paramNH.param<int>("LaserSkip", LaserSkip, 4);
+   paramNH.param<int>("CellSearchDistance", CellSearchDistance, 3);
 
    localMap = new PointMap3D(MapSize, CellSize, CellHeight);
 
@@ -110,7 +111,7 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
 
    double a11, a12, a13, a14, a22, a23, a24, a33, a34, a44;
    double b1, b2, b3, b4;
-   a11 = a12 = a13 = a14 = a22 = a23 = a24 = a33 = a34 = a44 = 0;.0;
+   a11 = a12 = a13 = a14 = a22 = a23 = a24 = a33 = a34 = a44 = 0.0;
    b1 = b2 = b3 = b4 = 0;
 
 
@@ -271,7 +272,156 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
 }
 
 double OgmbicpCPU::findMatchingPoint(Point scanPoint, Point &mPoint, double lVal) {
-   return 0;
+   int besti[FullSearchSize];
+   int bestj[FullSearchSize];
+   double besth[FullSearchSize];
+   Cell3D *bestCell[FullSearchSize];
+
+   double centerX, centerY;
+
+   int i,j,k, m, n;
+   for(k = 0; k < FullSearchSize; k++) {
+      besti[k] = 0;
+      bestj[k] = 0;
+      besth[k] = INFINITY;
+      bestCell[k] = NULL;
+   }
+   Point3D scanPointOnGrid = addLaserOffset(scanPoint);
+   localMap->getIJ(scanPointOnGrid.x, scanPointOnGrid.y, &i, &j);
+   Cell3DColumn *col = localMap->columnAtIJ(i, j);
+   if (col == NULL) {
+      return INFINITY;
+   }
+
+   for (m = -CellSearchDistance; m < CellSearchDistance; m++) {
+      for (n = -CellSearchDistance; n < CellSearchDistance; n++) {
+         col = localMap->columnAtIJ(i+m, i+n);
+         if (col == NULL) {
+            continue;
+         }
+         if (col->obsCount < MinCellCount) {
+            continue;
+         }
+         Cell3D *cell = col->getNearestCell(scanPointOnGrid.z);
+         if (cell == NULL) {
+            continue;
+         }
+         if (cell->points.size() == 0) {
+            continue;
+         }
+         localMap->getXY(i+m, j+n, &centerX, &centerY);
+         Point centerPoint(centerX, centerY, cell->zVal);
+         //Calculate the match score of the scan point to the center of the cell
+         double h = calculateHValue(scanPoint, centerPoint, lVal);
+         if (NearestAlgorithm == 1) {
+            h = h * ((double) MaxObservations / (double)col->obsCount);
+         } else if (NearestAlgorithm == 2) {
+            h = h * (1.1 - ((double)col->obsCount / (double) MaxObservations));
+         }
+         k = FullSearchSize - 1;
+         if (h < besth[k]) {
+            besth[k] = h;
+            besti[k] = i+m;
+            bestj[k] = j+n;
+            bestCell[k] = cell;
+         }
+         k -= 1;
+         while (k >= 0 && besth[k] > besth[k+1]) {
+            double htmp = besth[k];
+            int itmp = besti[k];
+            int jtmp = bestj[k];
+            Cell3D *celltmp = bestCell[k];
+            besth[k] = besth[k+1];
+            besti[k] = besti[k+1];
+            bestj[k] = bestj[k+1];
+            bestCell[k] = bestCell[k+1];
+            besth[k+1] = htmp;
+            besti[k+1] = itmp;
+            bestj[k+1] = jtmp;
+            bestCell[k+1] = celltmp;
+            k -= 1;
+         }
+      }
+   }
+   double hMin = INFINITY;
+   for(i = 0; i < FullSearchSize; i++) {
+      if (besth[i] == INFINITY) {
+         continue;
+      }
+      localMap->getXY(besti[i], bestj[i], &centerX, &centerY);
+      Cell3D *cell = bestCell[i];
+      Point tmpPoint;
+      for(k = 0; k < cell->points.size(); k++) {
+         double h = getHValue(scanPoint, cell->points.at(k), centerX, centerY, tmpPoint, lVal);
+         if (h < hMin) {
+            hMin = h;
+            mPoint = tmpPoint;
+         }
+      }
+   }
+
+   return hMin;
+}
+
+double OgmbicpCPU::getHValue(Point scanPoint, LaserPoint mapPoint, double centerX,
+      double centerY, Point &matchPoint, double lVal) {
+   Point p1 = removeLaserOffset(mapPoint.point);
+   p1.x += centerX;
+   p1.y += centerY;
+   Point p2 = removeLaserOffset(mapPoint.pointNxt);
+   p2.x += centerX;
+   p2.y += centerY;
+
+   if (isnan(p2.x)) {
+      matchPoint = p1;
+      return calculateHValue(scanPoint, p1, lVal);
+   } else if (isnan(p1.x)) {
+      matchPoint = p2;
+      return calculateHValue(scanPoint, p2, lVal);
+   }
+
+   double dx, dy, ux, uy, a, b, c, d, lambda;
+   ux = p1.x - p2.x;
+   uy = p1.y - p2.y;
+   dx = p1.x - scanPoint.x;
+   dy = p1.y - scanPoint.y;
+   a = 1/(SQ(scanPoint.x) + SQ(scanPoint.y)+lVal);
+   b = 1 - a * SQ(scanPoint.y);
+   c = 1 - a * SQ(scanPoint.x);
+   d = a*scanPoint.x*scanPoint.y;
+   lambda = (d*(ux*dy + uy*dx) + b*ux*dx + c * uy * dy) / (b*ux*ux + c*uy*uy + 2.0*c*ux*uy);
+   if (lambda <= 0.0) {
+      matchPoint = p1;
+   } else if (lambda >= 1.0) {
+      matchPoint = p2;
+   } else {
+      matchPoint = p1;
+      matchPoint.x = p1.x + lambda * ux;
+      matchPoint.y = p1.y + lambda * uy;
+   }
+   return calculateHValue(scanPoint, matchPoint, lVal);
+}
+
+
+double OgmbicpCPU::calculateHValue(Point scanPoint, Point mPoint, double lVal) {
+   double dx, dy, dz;
+
+   dx = mPoint.x - scanPoint.x;
+   dy = mPoint.y - scanPoint.y;
+   dz = mPoint.z - scanPoint.z;
+
+   if (SQ(dx) + SQ(dy) + SQ(dz) > MaxAlignDistance) {
+      return INFINITY;
+   }
+
+   if (UseSimpleH) {
+      return dx*dx + dy*dy - (SQ(dx*scanPoint.y - dy*scanPoint.x)) / 
+            (SQ(scanPoint.x) + SQ(scanPoint.y) + lVal);
+   } else {
+      return dx*dx + dy*dy + dz*dz - (SQ(dy*scanPoint.z - dz*scanPoint.y) +
+            SQ(dz*scanPoint.x - dx*scanPoint.z) + SQ(dx*scanPoint.y - dy*scanPoint.x)) /
+            (SQ(scanPoint.x) + SQ(scanPoint.y) + SQ(scanPoint.z) + lVal);
+   }
 }
 
 Point3D OgmbicpCPU::removeLaserOffset(Point3D p1) {

@@ -73,6 +73,12 @@ protected:
    int MaxObservations;
    //Minimum factor possible when UseFactor is true
    double MinFactor;
+   //Number of matching grid cells examined in more detail during ICP
+   int FullSearchSize;
+   //Algorithm used for weighting nearby points in ICP
+   int NearestAlgorithm;
+   //Furthest away a match will be aligned
+   double MaxAlignDistance;
 
    /*
     * Other fields

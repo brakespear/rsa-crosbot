@@ -33,6 +33,10 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("MaxObservations", MaxObservations, 1000);
    paramNH.param<double>("MinFactor", MinFactor, 0.2);
    paramNH.param<int>("MinGoodCount", MinGoodCount, 5);
+   paramNH.param<int>("FullSearchSize", FullSearchSize, 4);
+   paramNH.param<int>("NearestAlgorithm", NearestAlgorithm, 1);
+   paramNH.param<double>("MaxAlignDistance", MaxAlignDistance, 0.3);
+   MaxAlignDistance *= MaxAlignDistance;
 
 }
 

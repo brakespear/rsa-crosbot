@@ -67,6 +67,11 @@ void _LaserPoints::transformPoints(double dx, double dy, double dz, double dth, 
    }
 }
 
+//TODO
+Cell3D *Cell3DColumn::getNearestCell(double z) {
+   return NULL;
+}
+
 PointMap3D::PointMap3D(double mapSize, double cellSize, double cellHeight): 
    MapSize(mapSize), CellSize(cellSize), CellHeight(cellHeight)
 {
@@ -102,8 +107,23 @@ PointCloudPtr PointMap3D::centerPointCloud(PointCloud &p, Pose curPose, Pose sen
 
 }
 
+
+//TODO
 Cell3DColumn *PointMap3D::columnAtXY(double x, double y) {
    return NULL;
+}
+
+//TODO
+Cell3DColumn *PointMap3D::columnAtIJ(int i, int j) {
+   return NULL;
+}
+
+//TODO
+void PointMap3D::getIJ(double x, double y, int *i, int *j) {
+}
+
+//TODO
+void PointMap3D::getXY(int i, int j, double *x, double *y) {
 }
 
 
