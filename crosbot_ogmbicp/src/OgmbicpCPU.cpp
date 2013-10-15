@@ -14,6 +14,9 @@
 using namespace NEWMAT;
 
 OgmbicpCPU::OgmbicpCPU() {
+   failCount = 0;
+   scanSkip = 0;
+   addSkip = 0;
 }
 
 void OgmbicpCPU::initialise(ros::NodeHandle &nh) {
@@ -29,16 +32,14 @@ void OgmbicpCPU::initialise(ros::NodeHandle &nh) {
 }
 
 void OgmbicpCPU::start() {
-   cout << "starting ogmbicp" << endl;
 }
 
 void OgmbicpCPU::stop() {
-   cout << "stopping ogmbicp" << endl;
-
 }
 
 void OgmbicpCPU::initialiseTrack(Pose sensorPose, PointCloudPtr cloud) {
-   cout << "ogmbicp: initialise track" << endl;
+   curPose.position.z = 0;
+   px = py = pz = pth = 0;
 }
 
 void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
@@ -60,23 +61,31 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    LaserPoints scan = new _LaserPoints(worldPoints, MaxSegLen, IgnoreZValues,
          FloorHeight, MinAddHeight, MaxAddHeight);
 
+   if (InitialScans > 0) {
+      localMap->addScan(scan, MaxObservations, LifeRatio, true);
+      InitialScans--;
+      return;
+   }
+
    //Updates each iteration
    double dx, dy, dz, dth;
-   dx = 0;
-   dy = 0;
-   dz = 0;
-   dth = 0;
+   dx = px;
+   dy = py;
+   dz = pz;
+   dth = pth;
    //Total move for the laser scan
    double gx, gy, gz, gth;
-   gx = 0;
-   gy = 0;
-   gz = 0;
-   gth = 0;
+   gx = px;
+   gy = py;
+   gz = pz;
+   gth = pth;
+
    //TODO: put the initial transform stuff here
    
    scan->transformPoints(dx, dy, dz, dth, laserOffset);
 
    int iterCount = 0;
+   bool alignedScan = false;
    while (iterCount < MaxIterations && getOffset(scan, dx, dy, dz, dth)) {
       scan->transformPoints(dx, dy, dz, dth, laserOffset);
 
@@ -90,9 +99,57 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
 
       if (fabs(dx) < MaxErrorXY && fabs(dy) < MaxErrorXY && fabs(dz) < MaxErrorZ
             && fabs(dth) < MaxErrorTh) {
+         alignedScan = true;
          break;
       }
       iterCount++;
+   }
+
+   if (isnan(gx) || isnan(gy) || isnan(gz) || isnan(gth) || fabs(gx) > MaxMoveXYZ ||
+         fabs(gy) > MaxMoveXYZ || fabs(gz) > MaxMoveXYZ || fabs(gth) > MaxMoveTh) {
+      failCount++;
+      if (failCount < MaxFail) {
+         return;
+      } else {
+         addSkip = AddSkipCount + 1;
+      }
+   }
+   failCount = 0;
+
+   transformToRobot(gx, gy, gz, gth);
+   ANGNORM(gth);
+
+   if (alignedScan && scanSkip >= MaxScanSkip) {
+      scanSkip = 0;
+      localMap->updateActiveCells();
+      if (addSkip > AddSkipCount) {
+         addSkip = 0;
+         localMap->addScan(scan, MaxObservations, LifeRatio, true);
+      } else {
+         localMap->addScan(scan, MaxObservations, LifeRatio, false);
+      }
+      addSkip++;
+   }
+   scanSkip++;
+   localMap->shift(gx,gy,gz);
+
+   curPose.position.x += gx;
+   curPose.position.y += gy;
+   curPose.position.z = InitHeight + gz;
+
+   double roll, pitch, yaw;
+   curPose.getYPR(yaw, pitch, roll);
+   yaw += gth;
+   ANGNORM(yaw);
+   curPose.setYPR(yaw, pitch, roll);
+
+   if (UsePriorMove) {
+      px = gx;
+      py = gy;
+      pz = 0;
+      pth = gth;
+   } else {
+      px = py = pz = pth = 0;
    }
 }
 
@@ -116,6 +173,7 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
 
 
    for (i = 0; i < scan->points.size(); i += LaserSkip) {
+      //TODO: deal with z values properly
       if (scan->points[i].point.z < MinAddHeight || scan->points[i].point.z > MaxAddHeight) {
          continue;
       }
@@ -442,4 +500,46 @@ Point3D OgmbicpCPU::addLaserOffset(Point3D p1) {
 
 OgmbicpCPU::~OgmbicpCPU() {
    delete localMap;
+}
+
+void OgmbicpCPU::getLocalMap(LocalMapPtr curMap) {
+   double lifeScale = curMap->maxHits / (LifeRatio * MaxObservations);
+   int x,y;
+   for (y = 0; y < curMap->height; y++) {
+      LocalMap::Cell *cellsP = &(curMap->cells[y][0]);
+      for (x = 0; x < curMap->width; x++) {
+         cellsP->current = false;
+         cellsP->hits = 0;
+         cellsP++;
+      }
+   }
+   curMap->origin.position.x = curPose.position.x - 
+      (curMap->width * curMap->resolution) / 2;
+   curMap->origin.position.y = curPose.position.y - 
+      (curMap->height * curMap->resolution) / 2;
+   int mapWidth = MapSize / CellSize;
+   double off = (mapWidth * CellSize) / 2.0 - CellSize / 2.0;
+   int k;
+   for (k = 0; k < localMap->activeColumns.size(); k++) {
+      double xd, yd;
+      xd = localMap->activeColumns[k].i * CellSize - off;
+      yd = localMap->activeColumns[k].j * CellSize - off;
+      int i,j;
+      i = curMap->width/2 - xd / curMap->resolution;
+      j = curMap->height/2 - yd / curMap->resolution;
+      if (i >= 0 && i < curMap->width && j >= 0 && j < curMap->height) {
+         LocalMap::Cell *cellsP = &(curMap->cells[curMap->height - j - 1][i]);
+
+         Cell3DColumn *col = localMap->columnAtIJ(localMap->activeColumns[k].i,
+               localMap->activeColumns[k].j);
+         if (col->current) {
+            cellsP->hits = curMap->maxHits;
+            cellsP->current = true;
+         } else {
+            //cellsP->hits = lifeScale * col->lifeCount;
+            cellsP->hits = curMap->maxHits;
+         }
+         //TODO: put in the flobsticle stuff here as well
+      }
+   }
 }

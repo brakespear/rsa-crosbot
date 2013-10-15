@@ -13,9 +13,11 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 #include <sensor_msgs/LaserScan.h>
+#include <geometry_msgs/PoseStamped.h>
 
 #include <crosbot/data.hpp>
 #include <crosbot/utils.hpp>
+#include <crosbot_map/localmap.hpp>
 
 #include <crosbot_ogmbicp/Ogmbicp.hpp>
 
@@ -48,6 +50,7 @@ private:
     */
    string icp_frame, base_frame, odom_frame;
    string scan_sub;
+   string local_map_image_pub, local_map_pub;
 
 
    /*
@@ -55,15 +58,25 @@ private:
     */
    ros::Subscriber scanSubscriber;
    tf::TransformListener tfListener;
+   tf::TransformBroadcaster tfPub;
+   ros::Publisher imagePub;
+   ros::Publisher localMapPub;
 
    Ogmbicp &pos_tracker;
    //Is it the initial scan?
    bool isInit;
+   LocalMapPtr localMap;
 
    /*
     * Main callback for position tracker. Processes a new scan
     */
    void callbackScan(const sensor_msgs::LaserScanConstPtr& lastestScan);
+
+   /*
+    * Gets a transform from a pose
+    */
+   geometry_msgs::TransformStamped getTransform(const Pose& pose, std::string childFrame, 
+                           std::string frameName, ros::Time stamp = ros::Time::now());
 
 };
 

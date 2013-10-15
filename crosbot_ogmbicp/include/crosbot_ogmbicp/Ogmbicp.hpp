@@ -11,6 +11,7 @@
 #include <ros/ros.h>
 #include <crosbot/utils.hpp>
 #include <crosbot/data.hpp>
+#include <crosbot_map/localmap.hpp>
 #include <sensor_msgs/LaserScan.h>
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
@@ -19,7 +20,8 @@ using namespace crosbot;
 using namespace std;
 
 class Ogmbicp {
-protected:
+
+public:
    /*
     * Config attributes for ogmbicp
     */
@@ -27,6 +29,7 @@ protected:
    double MapSize;
    //width and length of a 2D local map cell in metres
    double CellSize;
+protected:
    //height of a 3D map cell in metres
    double CellHeight;
    //maximum number of iterations to align a scan
@@ -50,6 +53,10 @@ protected:
    bool IgnoreZValues;
    //Minimum number of laser points needed to match in each iteration of ogmbicp
    int MinGoodCount;
+   //Speed at which points disappear from map. Larger value and they will stay longer
+   double LifeRatio;
+   //Initial height of the robot
+   double InitHeight;
 
    //--- Probably no need to change these
 
@@ -65,7 +72,7 @@ protected:
    double LValue;
    ///Minimum number of laser points required to be in a column to it to be used in alignment
    int MinCellCount;
-   //Wegith matches acccording to distance and observation count
+   //Weigh matches acccording to distance and observation count
    bool UseFactor;
    //Use simpler calculations for H and ignore movement in z
    bool UseSimpleH;
@@ -79,19 +86,49 @@ protected:
    int NearestAlgorithm;
    //Furthest away a match will be aligned
    double MaxAlignDistance;
+   //The number of scans to add to the map before alignment is started
+   int InitialScans;
+   //Maximum move possible for a scan
+   double MaxMoveXYZ;
+   double MaxMoveTh;
+   //Every MaxScanSkip scan is added to the map
+   int MaxScanSkip;
+   //Every AddSkipCount scan replaces laser points in relevant cell
+   int AddSkipCount;
+   //Maximum number of times scans can fail to align in a row until cells are reset
+   int MaxFail;
+   //Use previous move as a starting guess for the next move
+   bool UsePriorMove;
+   //Time in us between transfers of local map images
+   int ImgTransmitTime;
+
+
 
    /*
     * Other fields
     */
-   //Current position of the robot
-   Pose curPose;
-
    /*
     * Absolute pose of the laser
     */
    Pose laserPose;
+   /*
+    * The last time an image was grabbed from the position tracker
+    */
+   Time lastImgTime;
+
+   /*
+    * Transforms the displacement to robot relative movement
+    */
+   void transformToRobot(double &dx, double &dy, double &dz, double &dth);
+
+   /*
+    * Gets the current local map of the robot in the standard crosbot format
+    */
+   virtual void getLocalMap(LocalMapPtr curMap) = 0;
 
 public:
+   //Current position of the robot
+   Pose curPose;
    /*
     * Initialise the position tracker
     */
@@ -117,6 +154,11 @@ public:
     * Update the position tracker with the lastest scan
     */
    virtual void updateTrack(Pose sensorPose, PointCloudPtr cloud) = 0;
+
+   /*
+    * Grabs the current local map
+    */
+   crosbot::ImagePtr drawMap(LocalMapPtr localMap);
 
 };
 

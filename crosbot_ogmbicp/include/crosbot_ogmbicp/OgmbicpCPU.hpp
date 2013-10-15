@@ -32,11 +32,20 @@ public:
 
    OgmbicpCPU();
    ~OgmbicpCPU();
+protected:
+   void getLocalMap(LocalMapPtr curMap);
 private:
    PointMap3D *localMap;
 
    //Offset of laser from center of point cloud
    Pose laserOffset;
+
+   int failCount;
+   int scanSkip;
+   int addSkip;
+
+   //Previous move
+   double px, py, pz, pth;
 
    //Get the offset from an iteration of ogmbicp
    bool getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth);
