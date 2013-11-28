@@ -1,8 +1,9 @@
 
 #include <crosbot_ogmbicp/PointMap3D.hpp>
+#include <iostream>
 
-using namespace crosbot;
 using namespace std;
+using namespace crosbot;
 
 LaserPoint::LaserPoint() {
    point = Point3D(NAN, NAN, NAN);
@@ -11,10 +12,13 @@ LaserPoint::LaserPoint() {
 
 _LaserPoints::_LaserPoints(PointCloudPtr p, double MaxSegLen, bool IgnoreZValues,
       double FloorHeight, double MinAddHeight, double MaxAddHeight) {
+
    int i, j;
    double dx, dy, dz;
+
    points.resize(p->cloud.size());
-   for (i = 0; i < p->cloud.size(); i++) {
+
+   for (i = 0, j = 0; i < p->cloud.size(); i++) {
       if (IgnoreZValues && (p->cloud[i].z < MinAddHeight || p->cloud[i].z > MaxAddHeight)) {
          continue;
       } else if (p->cloud[i].z < FloorHeight) {
@@ -42,6 +46,7 @@ _LaserPoints::_LaserPoints(PointCloudPtr p, double MaxSegLen, bool IgnoreZValues
       j++;
    }
    points.resize(j);
+
 }
 
 void _LaserPoints::transformPoints(double dx, double dy, double dz, double dth, Pose offset) {
@@ -254,6 +259,7 @@ void PointMap3D::addScan(LaserPoints scan, int maxObservations, double lifeRatio
       if (point.pointNxt.hasNAN()) {
          continue;
       }
+
       //TODO: deal with z values properly
       //See update and add functions in localmap3d
 
@@ -267,14 +273,15 @@ void PointMap3D::addScan(LaserPoints scan, int maxObservations, double lifeRatio
       point.pointNxt.y -= centerY;
       Cell3DColumn *col = columnAtIJ(i,j);
       if (col == NULL) {
+         cout << "col is null " << point.point.x << " " << point.point.y << " " << i << " " << j << endl;
          continue;
       }
       if (col->lifeCount == 0) {
          activeColumns.push_back(ActiveColumn(i, j));
       }
+      cout << "Adding point" << endl;
       col->addLaserPoint(point, maxObservations, lifeRatio, resetCells);
    }
-
    Cell3D::unmarkCells();
 }
 

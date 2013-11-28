@@ -19,8 +19,9 @@
 
 namespace std {
 using namespace crosbot;
+
 /*
- * Wrapper for Point3D to alos store the adjacent point in the 
+ * Wrapper for Point3D to also store the adjacent point in the 
  * laser scan as needed for the point matching in ogmbicp
  */
 class LaserPoint {

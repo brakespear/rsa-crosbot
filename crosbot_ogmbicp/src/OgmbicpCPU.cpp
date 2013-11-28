@@ -38,7 +38,7 @@ void OgmbicpCPU::stop() {
 }
 
 void OgmbicpCPU::initialiseTrack(Pose sensorPose, PointCloudPtr cloud) {
-   curPose.position.z = 0;
+   curPose.position.z = InitHeight;
    px = py = pz = pth = 0;
 }
 
@@ -66,6 +66,8 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
       InitialScans--;
       return;
    }
+
+   cout << "Initial scans finished" << endl;
 
    //Updates each iteration
    double dx, dy, dz, dth;
@@ -503,6 +505,9 @@ OgmbicpCPU::~OgmbicpCPU() {
 }
 
 void OgmbicpCPU::getLocalMap(LocalMapPtr curMap) {
+
+   cout << "in get local map " << curMap->height << " " << curMap->width << " " << localMap->activeColumns.size() << endl;
+
    double lifeScale = curMap->maxHits / (LifeRatio * MaxObservations);
    int x,y;
    for (y = 0; y < curMap->height; y++) {
