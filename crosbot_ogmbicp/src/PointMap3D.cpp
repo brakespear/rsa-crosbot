@@ -197,7 +197,7 @@ PointMap3D::PointMap3D(double mapSize, double cellSize, double cellHeight):
    offsetX = 0;
    offsetY = 0;
    numWidth = mapSize / cellSize;
-   mapOffset = -(numWidth * mapSize) / 2.0;
+   mapOffset = -(numWidth * cellSize) / 2.0;
 
    grid.resize(numWidth);
    int i, j;
@@ -273,13 +273,11 @@ void PointMap3D::addScan(LaserPoints scan, int maxObservations, double lifeRatio
       point.pointNxt.y -= centerY;
       Cell3DColumn *col = columnAtIJ(i,j);
       if (col == NULL) {
-         cout << "col is null " << point.point.x << " " << point.point.y << " " << i << " " << j << endl;
          continue;
       }
       if (col->lifeCount == 0) {
          activeColumns.push_back(ActiveColumn(i, j));
       }
-      cout << "Adding point" << endl;
       col->addLaserPoint(point, maxObservations, lifeRatio, resetCells);
    }
    Cell3D::unmarkCells();

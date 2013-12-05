@@ -67,8 +67,6 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
       return;
    }
 
-   cout << "Initial scans finished" << endl;
-
    //Updates each iteration
    double dx, dy, dz, dth;
    dx = px;
@@ -102,14 +100,17 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
       if (fabs(dx) < MaxErrorXY && fabs(dy) < MaxErrorXY && fabs(dz) < MaxErrorZ
             && fabs(dth) < MaxErrorTh) {
          alignedScan = true;
+         cout << "Scan aligned" << endl;
          break;
       }
       iterCount++;
    }
+   cout << "iter count is " << iterCount << endl;
 
    if (isnan(gx) || isnan(gy) || isnan(gz) || isnan(gth) || fabs(gx) > MaxMoveXYZ ||
          fabs(gy) > MaxMoveXYZ || fabs(gz) > MaxMoveXYZ || fabs(gth) > MaxMoveTh) {
       failCount++;
+      cout << "Failed scan" << endl;
       if (failCount < MaxFail) {
          return;
       } else {
@@ -123,6 +124,7 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
 
    if (alignedScan && scanSkip >= MaxScanSkip) {
       scanSkip = 0;
+      cout << "update map" << endl;
       localMap->updateActiveCells();
       if (addSkip > AddSkipCount) {
          addSkip = 0;
@@ -177,14 +179,17 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
    for (i = 0; i < scan->points.size(); i += LaserSkip) {
       //TODO: deal with z values properly
       if (scan->points[i].point.z < MinAddHeight || scan->points[i].point.z > MaxAddHeight) {
+         cout << "points have the wrong height" << endl;
          continue;
       }
       if (scan->points[i].pointNxt.hasNAN()) {
+         cout << "points have nan" << endl;
          continue;
       }
       scanPoint = removeLaserOffset(scan->points[i].point);
       double d = sqrt(SQ(scanPoint.x) + SQ(scanPoint.y));
       if (LaserMaxAlign > 0 && d > LaserMaxAlign) {
+         cout << "laser max align failing" << endl;
          continue;
       }
       double lValue2 = LValue;
@@ -196,12 +201,14 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
       }
       double h = findMatchingPoint(scanPoint, mPoint, lValue2);
       if (h == INFINITY) {
+         cout << "no matching point found" << endl;
          continue;
       }
       Point3D mPointMap = addLaserOffset(mPoint);
 
       Cell3DColumn *colCell = localMap->columnAtXY(mPointMap.x, mPointMap.y);
       if (colCell->obsCount < MinCellCount) {
+         cout << "min cell count failed" << endl;
          continue;
       }
       double fac = 1;
@@ -273,6 +280,7 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
    }
    if (count < MinGoodCount) {
       dx = dy = dz = dth = 0.0;
+      cout << "min good count failed " << count << endl;
       return false;
    }
    if (UseSimpleH) {
@@ -373,6 +381,7 @@ double OgmbicpCPU::findMatchingPoint(Point scanPoint, Point &mPoint, double lVal
          Point centerPoint(centerX, centerY, cell->zVal);
          //Calculate the match score of the scan point to the center of the cell
          double h = calculateHValue(scanPoint, centerPoint, lVal);
+         cout << "found a possibility " << h << endl;
          if (NearestAlgorithm == 1) {
             h = h * ((double) MaxObservations / (double)col->obsCount);
          } else if (NearestAlgorithm == 2) {
@@ -471,6 +480,7 @@ double OgmbicpCPU::calculateHValue(Point scanPoint, Point mPoint, double lVal) {
    dz = mPoint.z - scanPoint.z;
 
    if (SQ(dx) + SQ(dy) + SQ(dz) > MaxAlignDistance) {
+      cout << mPoint.z << " " << scanPoint.z << endl;
       return INFINITY;
    }
 
