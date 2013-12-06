@@ -59,14 +59,14 @@ void _LaserPoints::transformPoints(double dx, double dy, double dz, double dth, 
       p1.x -= offset.position.x;
       p1.y -= offset.position.y;
       points[i].point.x = (p1.x * cth - p1.y * sth + dx) + offset.position.x;
-      points[i].point.y = (p1.x * sth + p1.y * cth + dx) + offset.position.y;
+      points[i].point.y = (p1.x * sth + p1.y * cth + dy) + offset.position.y;
       points[i].point.z = p1.z + dz;
       if (points[i].pointNxt.x != NAN) {
          p1 = points[i].pointNxt;
          p1.x -= offset.position.x;
          p1.y -= offset.position.y;
          points[i].pointNxt.x = (p1.x * cth - p1.y * sth + dx) + offset.position.x;
-         points[i].pointNxt.y = (p1.x * sth + p1.y * cth + dx) + offset.position.y;
+         points[i].pointNxt.y = (p1.x * sth + p1.y * cth + dy) + offset.position.y;
          points[i].pointNxt.z = p1.z + dz;
       }
    }
@@ -151,7 +151,9 @@ Cell3D *Cell3DColumn::getNearestCell(double z, bool nearest) {
 void Cell3DColumn::addLaserPoint(LaserPoint point, int maxObservations, double lifeRatio, 
       bool resetCell) {
    Cell3D *cell;
+   cout << "Adding point" << endl;
    cell = getNearestCell(point.point.z, false);
+   cout << "Finished adding point" << endl;
    if (cell == NULL) {
       cell = addNewCell(point.point.z);
       (*lastIndex)->points.push_back(point);
@@ -253,7 +255,9 @@ void PointMap3D::getXY(int i, int j, double *x, double *y) {
 
 void PointMap3D::addScan(LaserPoints scan, int maxObservations, double lifeRatio,
       bool resetCells) {
+   cout << "Adding scan " << grid.size() << " " << numWidth << endl;
    int k;
+
    for(k = 0; k < scan->points.size(); k++) {
       LaserPoint point = scan->points[k];
       if (point.pointNxt.hasNAN()) {
@@ -280,7 +284,9 @@ void PointMap3D::addScan(LaserPoints scan, int maxObservations, double lifeRatio
       }
       col->addLaserPoint(point, maxObservations, lifeRatio, resetCells);
    }
+   cout << "Almost finished adding scan" << endl;
    Cell3D::unmarkCells();
+   cout << "Finished adding scan" << endl;
 }
 
 void PointMap3D::updateActiveCells() {
