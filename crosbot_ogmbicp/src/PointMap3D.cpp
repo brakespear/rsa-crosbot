@@ -114,6 +114,7 @@ Cell3D *Cell3DColumn::getNearestCell(double z, bool nearest) {
       //Already at correct height
       return *lastIndex;
    } else if (z > (*lastIndex)->zVal) {
+      //return *lastIndex;
       while ((lastIndex != cells.begin()) && z > (*lastIndex)->zVal + CellHeight) {
          prev = lastIndex;
          lastIndex--;
@@ -122,6 +123,7 @@ Cell3D *Cell3DColumn::getNearestCell(double z, bool nearest) {
          return *lastIndex;
       } 
    } else {  //Cell is too high
+      //return *lastIndex;
       while (lastIndex != cells.end() && z < (*lastIndex)->zVal - CellHeight) {
          prev = lastIndex;
          lastIndex++;
@@ -151,9 +153,7 @@ Cell3D *Cell3DColumn::getNearestCell(double z, bool nearest) {
 void Cell3DColumn::addLaserPoint(LaserPoint point, int maxObservations, double lifeRatio, 
       bool resetCell) {
    Cell3D *cell;
-   cout << "Adding point" << endl;
    cell = getNearestCell(point.point.z, false);
-   cout << "Finished adding point" << endl;
    if (cell == NULL) {
       cell = addNewCell(point.point.z);
       (*lastIndex)->points.push_back(point);
@@ -189,6 +189,7 @@ void Cell3DColumn::reset() {
    lifeCount = 0;
    obsCount = 0;
    cells.clear();
+   lastIndex = cells.begin();
 }
 
 PointMap3D::PointMap3D(double mapSize, double cellSize, double cellHeight): 
@@ -255,7 +256,6 @@ void PointMap3D::getXY(int i, int j, double *x, double *y) {
 
 void PointMap3D::addScan(LaserPoints scan, int maxObservations, double lifeRatio,
       bool resetCells) {
-   cout << "Adding scan " << grid.size() << " " << numWidth << endl;
    int k;
 
    for(k = 0; k < scan->points.size(); k++) {
@@ -284,9 +284,7 @@ void PointMap3D::addScan(LaserPoints scan, int maxObservations, double lifeRatio
       }
       col->addLaserPoint(point, maxObservations, lifeRatio, resetCells);
    }
-   cout << "Almost finished adding scan" << endl;
    Cell3D::unmarkCells();
-   cout << "Finished adding scan" << endl;
 }
 
 void PointMap3D::updateActiveCells() {

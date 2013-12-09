@@ -100,12 +100,11 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
       if (fabs(dx) < MaxErrorXY && fabs(dy) < MaxErrorXY && fabs(dz) < MaxErrorZ
             && fabs(dth) < MaxErrorTh) {
          alignedScan = true;
-         cout << "Scan aligned" << endl;
          break;
       }
       iterCount++;
    }
-   cout << "iter count is " << iterCount << endl;
+   //cout << "iter count is " << iterCount << endl;
 
    if (isnan(gx) || isnan(gy) || isnan(gz) || isnan(gth) || fabs(gx) > MaxMoveXYZ ||
          fabs(gy) > MaxMoveXYZ || fabs(gz) > MaxMoveXYZ || fabs(gth) > MaxMoveTh) {
@@ -124,22 +123,17 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
 
    if (alignedScan && scanSkip >= MaxScanSkip) {
       scanSkip = 0;
-      cout << "update map" << endl;
       localMap->updateActiveCells();
-      cout << "after updating active cells" << endl;
       if (addSkip > AddSkipCount) {
          addSkip = 0;
          localMap->addScan(scan, MaxObservations, LifeRatio, true);
       } else {
          localMap->addScan(scan, MaxObservations, LifeRatio, false);
       }
-      cout << "after adding scan" << endl;
       addSkip++;
    }
-   cout << "before shift" << endl;
    scanSkip++;
    localMap->shift(gx,gy,gz);
-   cout << "after shift" << endl;
 
    curPose.position.x += gx;
    curPose.position.y += gy;
@@ -180,16 +174,10 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
    b1 = b2 = b3 = b4 = 0;
 
 
-   int cellC = 0;
-   int noMatch = 0;
-   int heightC = 0;
-   int total = 0;
    for (i = 0; i < scan->points.size(); i += LaserSkip) {
-      total++;
       //TODO: deal with z values properly
       if (scan->points[i].point.z < MinAddHeight || scan->points[i].point.z > MaxAddHeight) {
          //cout << "points have the wrong height" << endl;
-         heightC++;
          continue;
       }
       if (scan->points[i].pointNxt.hasNAN()) {
@@ -213,16 +201,17 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
       double h = findMatchingPoint(scanPoint, mPoint, lValue2);
       if (h == INFINITY) {
          //cout << "no matching point found" << endl;
-         noMatch++;
          continue;
       }
       //cout << "matching point found" << endl;
       Point3D mPointMap = addLaserOffset(mPoint);
 
       Cell3DColumn *colCell = localMap->columnAtXY(mPointMap.x, mPointMap.y);
+      if (colCell == NULL) {
+         continue;
+      }
       if (colCell->obsCount < MinCellCount) {
          //cout << "min cell count failed" << endl;
-         cellC++;
          continue;
       }
       double fac = 1;
@@ -292,10 +281,8 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
       }
       count++;
    }
-   //cout << "good count is: " << count  << " " << cellC << " " << noMatch << " " << heightC << " " << total << endl;
    if (count < MinGoodCount) {
       dx = dy = dz = dth = 0.0;
-      //cout << "min good count failed " << count << endl;
       return false;
    }
    if (UseSimpleH) {
