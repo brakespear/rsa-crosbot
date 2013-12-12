@@ -3,6 +3,8 @@
  *
  * Created on: 12/9/2013
  *     Author: adrianr
+ *
+ * Interface of Ogmbicp algorithm with ROS
  */
 
 #include <crosbot_ogmbicp/OgmbicpNode.hpp>

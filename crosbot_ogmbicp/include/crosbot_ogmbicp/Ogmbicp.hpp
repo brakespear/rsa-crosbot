@@ -101,6 +101,8 @@ protected:
    bool UsePriorMove;
    //Time in us between transfers of local map images
    int ImgTransmitTime;
+   //Number of seconds of history recent scans are stored for
+   double ScanListTime;
 
 
 
@@ -115,6 +117,11 @@ protected:
     * The last time an image was grabbed from the position tracker
     */
    Time lastImgTime;
+
+   /*
+    * List of recent scans from the laser aligned according to the position tracker
+    */
+   deque<PointCloudPtr> recentScans;
 
    /*
     * Transforms the displacement to robot relative movement
@@ -159,6 +166,8 @@ public:
     * Grabs the current local map
     */
    crosbot::ImagePtr drawMap(LocalMapPtr localMap);
+
+   void getRecentScans(deque<PointCloudPtr> &recent);
 
 };
 

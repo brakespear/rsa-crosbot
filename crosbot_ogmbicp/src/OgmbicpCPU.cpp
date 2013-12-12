@@ -3,6 +3,8 @@
  *
  * Created on: 17/9/2013
  *     Author: adrianr
+ *
+ * CPU version of ogmbicp
  */
 
 #include <newmat/newmat.h>
@@ -152,6 +154,16 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
       pth = gth;
    } else {
       px = py = pz = pth = 0;
+   }
+
+   Pose3D newPose;
+   newPose = curPose;
+   PointCloudPtr hist = new PointCloud("/icp", *cloud, newPose);
+   hist->timestamp = ros::Time::now();
+   recentScans.push_back(hist);
+   while((recentScans.back()->timestamp - 
+            recentScans.front()->timestamp).toSec() > ScanListTime) {
+      recentScans.pop_front();
    }
 }
 

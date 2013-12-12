@@ -20,6 +20,7 @@
 #include <crosbot_map/localmap.hpp>
 
 #include <crosbot_ogmbicp/Ogmbicp.hpp>
+#include <crosbot_ogmbicp/GetRecentScans.h>
 
 #define DEFAULT_ICPFRAME "/icp"
 #define DEFAULT_BASEFRAME "/base_link"

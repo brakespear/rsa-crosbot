@@ -3,6 +3,8 @@
  *
  * Created on: 16/9/2013
  *     Author: adrianr
+ *
+ * Common code for all ogmbicp methods    
  */
 
 #include <newmat/newmat.h>
@@ -51,6 +53,7 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("MaxFail", MaxFail, 5);
    paramNH.param<bool>("UsePriorMove", UsePriorMove, true);
    paramNH.param<int>("ImgTransmitTime", ImgTransmitTime, 2000000);
+   paramNH.param<double>("ScanListTime", ScanListTime, 20);
 
 }
 
@@ -199,5 +202,9 @@ crosbot::ImagePtr Ogmbicp::drawMap(LocalMapPtr localMap) {
    } else {
       return NULL;
    }
+}
+
+void Ogmbicp::getRecentScans(deque<PointCloudPtr> &recent) {
+   recent = recentScans;
 }
 
