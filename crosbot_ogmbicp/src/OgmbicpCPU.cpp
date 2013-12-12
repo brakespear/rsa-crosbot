@@ -19,6 +19,7 @@ OgmbicpCPU::OgmbicpCPU() {
    failCount = 0;
    scanSkip = 0;
    addSkip = 0;
+   finishedSetup = false;
 }
 
 void OgmbicpCPU::initialise(ros::NodeHandle &nh) {
@@ -156,6 +157,7 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
       px = py = pz = pth = 0;
    }
 
+   finishedSetup = true;
    Pose3D newPose;
    newPose = curPose;
    PointCloudPtr hist = new PointCloud("/icp", *cloud, newPose);

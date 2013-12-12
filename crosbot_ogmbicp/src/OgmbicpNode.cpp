@@ -29,6 +29,7 @@ void OgmbicpNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("scan_sub", scan_sub, "scan");
    paramNH.param<std::string>("local_map_image_pub", local_map_image_pub, "localImage");
    paramNH.param<std::string>("local_map_pub", local_map_pub, "localGrid");
+   paramNH.param<std::string>("recent_scans_srv", recent_scans_srv, "icpRecentScans");
 
    pos_tracker.initialise(nh);
    pos_tracker.start();
@@ -36,6 +37,7 @@ void OgmbicpNode::initialise(ros::NodeHandle &nh) {
    scanSubscriber = nh.subscribe(scan_sub, 1, &OgmbicpNode::callbackScan, this);
    imagePub = nh.advertise<sensor_msgs::Image>(local_map_image_pub, 1);
    localMapPub = nh.advertise<nav_msgs::OccupancyGrid>(local_map_pub, 1);
+   recentScansServer = nh.advertiseService(recent_scans_srv, &OgmbicpNode::getRecentScans, this);
 
 }
 
@@ -43,6 +45,56 @@ void OgmbicpNode::shutdown() {
    scanSubscriber.shutdown();
    pos_tracker.stop();
 
+}
+
+bool OgmbicpNode::getRecentScans(crosbot_ogmbicp::GetRecentScans::Request& req,
+         crosbot_ogmbicp::GetRecentScans::Response& res) {
+   deque<PointCloudPtr> recent;
+   if (!pos_tracker.finishedSetup) {
+      return false;
+   }
+   pos_tracker.getRecentScans(recent);
+   sensor_msgs::PointCloud2& pc = res.scans;
+   //sensor_msgs::PointCloud2 *pc = new sensor_msgs::PointCloud2();
+   pc.header.stamp = recent.back()->timestamp.toROS();
+   pc.header.frame_id = icp_frame;
+   pc.is_dense = true;
+   pc.is_bigendian = false;
+   pc.height = recent.size();
+   uint32_t width = recent.back()->cloud.size();
+
+   pc.width = width;
+   pc.point_step = sizeof(float) * 3;
+   pc.row_step = pc.point_step * width;
+   pc.fields.resize(3);
+   pc.fields[0].name = "x";
+   pc.fields[1].name = "y";
+   pc.fields[2].name = "z";
+   for (int i = 0; i < 3; i++) {
+      pc.fields[i].offset = i * sizeof(float);
+      pc.fields[i].datatype = 7;
+      pc.fields[i].count = 1;
+   }
+   pc.data.resize(pc.point_step * width * pc.height);
+   for (uint64_t i = 0; i < pc.height; i++) {
+      uint64_t off = i * pc.point_step * recent.back()->cloud.size();
+      std::vector<Point> cur = recent.at(i)->cloud;
+      uint64_t j = 0;
+      for (; j < width && j < cur.size(); j++) {
+         uint64_t localOff = j * pc.point_step;
+         float arr[3];
+         arr[0] = cur[j].x;
+         arr[1] = cur[j].y;
+         arr[2] = cur[j].z;
+         memcpy(&(pc.data[off + localOff]), arr, pc.point_step);
+      }
+      for (; j < width; j++) {
+         uint64_t localOff = j * pc.point_step;
+         memset(&(pc.data[off + localOff]), 0, pc.point_step);
+      }
+   }
+
+   return true;
 }
 
 void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan) {

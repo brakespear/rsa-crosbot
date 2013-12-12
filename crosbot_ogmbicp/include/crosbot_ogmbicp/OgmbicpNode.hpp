@@ -52,6 +52,7 @@ private:
    string icp_frame, base_frame, odom_frame;
    string scan_sub;
    string local_map_image_pub, local_map_pub;
+   string recent_scans_srv;
 
 
    /*
@@ -62,11 +63,15 @@ private:
    tf::TransformBroadcaster tfPub;
    ros::Publisher imagePub;
    ros::Publisher localMapPub;
+   ros::ServiceServer recentScansServer;
 
    Ogmbicp &pos_tracker;
    //Is it the initial scan?
    bool isInit;
    LocalMapPtr localMap;
+
+   bool getRecentScans(crosbot_ogmbicp::GetRecentScans::Request& req,
+         crosbot_ogmbicp::GetRecentScans::Response& res);
 
    /*
     * Main callback for position tracker. Processes a new scan

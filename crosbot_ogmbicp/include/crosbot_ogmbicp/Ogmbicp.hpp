@@ -136,6 +136,9 @@ protected:
 public:
    //Current position of the robot
    Pose curPose;
+   //True if the code has finished initialising
+   bool finishedSetup;
+
    /*
     * Initialise the position tracker
     */
