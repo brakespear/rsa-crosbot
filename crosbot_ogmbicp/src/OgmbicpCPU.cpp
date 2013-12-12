@@ -116,6 +116,8 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
       if (failCount < MaxFail) {
          return;
       } else {
+         cout << "Setting move to 0" << endl;
+         gx = gy = gz = gth = 0;
          addSkip = AddSkipCount + 1;
       }
    }
@@ -540,7 +542,7 @@ OgmbicpCPU::~OgmbicpCPU() {
 
 void OgmbicpCPU::getLocalMap(LocalMapPtr curMap) {
 
-   cout << "in get local map " << curMap->height << " " << curMap->width << " " << localMap->activeColumns.size() << endl;
+   //cout << "in get local map " << curMap->height << " " << curMap->width << " " << localMap->activeColumns.size() << endl;
 
    double lifeScale = curMap->maxHits / (LifeRatio * MaxObservations);
    int x,y;
