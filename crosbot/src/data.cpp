@@ -6,6 +6,8 @@
  */
 
 #include <ros/ros.h>
+#include <tf/tf.h>
+
 #include <crosbot/data.hpp>
 #include "image.hpp"
 #include <crosbot/utils.hpp>
@@ -13,7 +15,22 @@
 #include <sys/time.h>
 #include <string.h>
 
+#include <tf/transform_datatypes.h>
+
 namespace crosbot {
+
+
+
+void Quaternion::setYPR(const double& yaw, const double& pitch, const double& roll) {
+	tf::Quaternion q;
+	q.setEuler(yaw, pitch, roll);
+	*this = q;
+}
+
+void Quaternion::getYPR(double& yaw, double& pitch, double& roll) const {
+	tf::Matrix3x3 mat(toTF());
+	mat.getEulerYPR(yaw, pitch, roll);
+}
 
 Time Time::now() {
 	timeval time;
@@ -257,11 +274,10 @@ PointCloud::PointCloud(std::string frameID, const PointCloud& c, Pose correction
 		Data(c.timestamp), frameID(frameID)
 {
 	cloud.resize(c.cloud.size());
-
-	btTransform trans = correction.getTransform();
+	tf::Transform trans = correction.toTF();
 
 	for (size_t i = 0; i < cloud.size(); ++i) {
-		cloud[i] = trans * c.cloud[i].getVector();
+		cloud[i] = trans * c.cloud[i].toTF();
 	}
 	colours = c.colours;
 }

@@ -10,8 +10,8 @@
 #ifndef CROSBOT_RENDER_FASTSLAM_HPP_
 #define CROSBOT_RENDER_FASTSLAM_HPP_
 
-#include <crosbot_ui/renders/map/map.hpp>
 #include <crosbot_fastslam/fastslam.hpp>
+#include <crosbot_ui/renders/map/map.hpp>
 
 namespace crosbot {
 

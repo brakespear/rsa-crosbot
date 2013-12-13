@@ -58,7 +58,7 @@ public:
     	}
 
     	PointCloud pc(latestScan);
-    	newPointCloud(new PointCloud(baseFrame, pc, sensorPose.getTransform()), robotPose, sensorPose);
+    	newPointCloud(new PointCloud(baseFrame, pc, sensorPose.toTF()), robotPose, sensorPose);
 	}
 
 	void callbackSnap(const crosbot_map::SnapMsgConstPtr& snap) {
@@ -83,7 +83,7 @@ public:
 		ts.header.frame_id = mapFrame;
 		ts.child_frame_id = odomFrame;
 
-		Pose pose = robot.getTransform() * odometry.getTransform().inverse();
+		Pose pose = robot.toTF() * odometry.toTF().inverse();
 
 		ts.transform.translation.x = pose.position.x;
 		ts.transform.translation.y = pose.position.y;

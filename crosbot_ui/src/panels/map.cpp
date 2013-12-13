@@ -5,6 +5,8 @@
  *      Author: rescue
  */
 
+#include <ros/ros.h>
+
 #include <crosbot_ui/panels/map.hpp>
 #include <crosbot_ui/opengl.hpp>
 #include <crosbot_ui/crosbotgui.hpp>

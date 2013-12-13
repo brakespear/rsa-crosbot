@@ -61,7 +61,8 @@ public:
         maxAlignDist = 0.3;         // MB: can't align cells further than this apart
         l = 2.0;
         laserSkip = 4;              // MB: iteration value for laser readings for fine alignment
-        maxIterations = 200;
+//        maxIterations = 200;
+        maxIterations = 100;
         useProjectionFilter = false;
         iterSmoothCount = 2;
 
@@ -200,9 +201,9 @@ public:
     	double roll, pitch, yaw;
     	if (useOdometry) {
     		// odometry change estimate
-    		btTransform prevOdomTInv, odomT;
-    		prevOdomTInv = previousOdom.getTransform().inverse();
-    		odomT = odomPose.getTransform();
+    		tf::Transform prevOdomTInv, odomT;
+    		prevOdomTInv = previousOdom.toTF().inverse();
+    		odomT = odomPose.toTF();
 
     		odomT = prevOdomTInv * odomT;
 
@@ -246,16 +247,15 @@ public:
         previousMove.position.x = x; previousMove.position.y = y; previousMove.position.z = 0;
         previousMove.orientation.setYPR(theta, 0, 0);
 
-        btTransform poseTransform, moveTransform;
-        previousMove.getTransform(moveTransform);
-        previousPose.getTransform(poseTransform);
+        tf::Transform poseTransform = previousPose.toTF(),
+        		moveTransform = previousMove.toTF();
         poseTransform *= moveTransform;
         previousPose = poseTransform;
 
 
         if (haveOdometry) {
             LOG("Publishing correction to odometry.\n");
-        	Pose p = previousPose.getTransform() * odomPose.getTransform().inverse();
+        	Pose p = previousPose.toTF() * odomPose.toTF().inverse();
         	publishPose(p, odomFrame, latestScan->header.stamp);
         } else {
             LOG("Publishing pose.\n");

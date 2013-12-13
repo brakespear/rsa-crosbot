@@ -8,8 +8,8 @@
 #ifndef CROSBOT_FASTSLAM_HPP_
 #define CROSBOT_FASTSLAM_HPP_
 
-#include <crosbot_map/map.hpp>
 #include <crosbot_fastslam/particle.hpp>
+#include <crosbot_map/map.hpp>
 #include <crosbot/thread.hpp>
 
 namespace crosbot {
@@ -220,7 +220,7 @@ protected:
 			}
 
 			randomMotion.setYPR(yaw, pitch, roll);
-			particle->applyMotion(randomMotion.getTransform(), cloud, calculateWeight, gain);
+			particle->applyMotion(randomMotion.toTF(), cloud, calculateWeight, gain);
 			pose = particle->pose;
 		}
 	};

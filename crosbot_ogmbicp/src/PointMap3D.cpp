@@ -1,4 +1,4 @@
-
+#include <ros/ros.h>
 #include <crosbot_ogmbicp/PointMap3D.hpp>
 #include <iostream>
 
@@ -221,7 +221,7 @@ PointCloudPtr PointMap3D::centerPointCloud(PointCloud &p, Pose curPose, Pose sen
 
    PointCloudPtr rval = new PointCloud("/world", p, newPose);
 
-   Pose absSensorPose = newPose.getTransform() * sensorPose.getTransform();
+   Pose absSensorPose = newPose.toTF() * sensorPose.toTF();
    laserOffset->position.x = absSensorPose.position.x;
    laserOffset->position.y = absSensorPose.position.y;
    laserOffset->position.z = absSensorPose.position.z;

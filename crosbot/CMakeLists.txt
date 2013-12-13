@@ -14,9 +14,6 @@ find_package(catkin REQUIRED COMPONENTS geometry_msgs sensor_msgs)
 ## modules and scripts declared therein get installed
 # catkin_python_setup()
 
-
-## TODO: Fix references to bullet when it is catkinized
-
 #######################################
 ## Declare ROS messages and services ##
 #######################################
@@ -54,8 +51,8 @@ generate_messages(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-   INCLUDE_DIRS include /opt/ros/groovy/stacks/bullet/include
-   LIBRARIES crosbot /opt/ros/groovy/stacks/bullet/lib/libLinearMath.so
+   INCLUDE_DIRS include
+   LIBRARIES crosbot
    CATKIN_DEPENDS roscpp tf geometry_msgs sensor_msgs
 #  DEPENDS system_lib
 )
@@ -68,7 +65,6 @@ catkin_package(
 include_directories(include
   ${catkin_INCLUDE_DIRS}
   
-  /opt/ros/groovy/stacks/bullet/include
   /usr/include/libxml2
 )
 
@@ -92,7 +88,7 @@ add_dependencies(crosbot ${PROJECT_NAME} crosbot_gencpp)
 #   ${catkin_LIBRARIES}
 # )
 
-target_link_libraries(crosbot /opt/ros/groovy/stacks/bullet/lib/libLinearMath.so jpeg xml2)
+target_link_libraries(crosbot jpeg xml2)
 
 #############
 ## Install ##

@@ -348,7 +348,7 @@ namespace serialization {
 const uint16_t Serializer<Particle>::version = 3;
 const uint16_t Serializer<Particle>::subVersion = 1;
 
-btTransform CASRobotPoseCorrection = Pose(0,0,0,DEG2RAD(90),0,0).getTransform();
+tf::Transform CASRobotPoseCorrection = Pose(0,0,0,DEG2RAD(90),0,0).toTF();
 
 size_t Serializer_gets(char* dest, InputStream& stream, unsigned int maxLen) {
 	char c = ' ';
@@ -448,7 +448,7 @@ size_t Serializer<Particle>::readPreviousVersion(Particle& p, InputStream& strea
 	p.tags = new Map::TagList();
 	p.history.clear();
 
-	p.poseTransform = p.pose.getTransform();
+	p.poseTransform = p.pose.toTF();
 	p.weight = 1;
 	p.motionCloud = NULL;
 
@@ -461,7 +461,7 @@ size_t Serializer<Particle>::readPreviousVersion(Particle& p, InputStream& strea
 		ERROR("FastSLAMMap: Unable to read current robot position.\n");
 		goto PARSE_ERROR;
 	}
-	p.pose = Pose(x, y, z, yaw, pitch, roll).getTransform() * CASRobotPoseCorrection;
+	p.pose = Pose(x, y, z, yaw, pitch, roll).toTF() * CASRobotPoseCorrection;
 
 	rval += Serializer_gets(line, stream, FASTSLAMMAP_LINELEN_MAX);
 	c = sscanf(line, "HMM : offx=%lfm offy=%lfm cols=%u rows=%u\n",
@@ -530,7 +530,7 @@ size_t Serializer<Particle>::readPreviousVersion(Particle& p, InputStream& strea
 				&ch, &x, &y, &z, &roll, &pitch, &yaw)) == 7) {
 			Particle::History hist(Pose(x, y, z, yaw, pitch, roll));
 			hist.restart = tolower(ch) == 'y';
-			hist.pose = hist.pose.getTransform() * CASRobotPoseCorrection;
+			hist.pose = hist.pose.toTF() * CASRobotPoseCorrection;
 
 			rval += Serializer_gets(line, stream, FASTSLAMMAP_LINELEN_MAX);
 			while (sscanf(line, "cloud: (%lu)", &lng) == 1) {

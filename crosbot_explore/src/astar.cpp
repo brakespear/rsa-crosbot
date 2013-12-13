@@ -5,6 +5,7 @@
  *      Author: mmcgill
  */
 
+#include <ros/ros.h>
 #include <crosbot_explore/astar.hpp>
 #include <crosbot/utils.hpp>
 
@@ -15,9 +16,9 @@ Plan PathPlanner::getPath(VoronoiGridPtr voronoi, Pose start, Pose goal, ImagePt
 	Index2D startCell, endCell;
 
 
-	btTransform trans = voronoi->origin.getTransform().inverse();
-	start = trans * start.getTransform();
-	goal = trans * goal.getTransform();
+	tf::Transform trans = voronoi->origin.toTF().inverse();
+	start = trans * start.toTF();
+	goal = trans * goal.toTF();
 
 //	LOG("Start location (%.3f, %.3f) and goal (%.3f, %.3f)\n",
 //			start.x, start.y, goal.x, goal.y);
@@ -49,11 +50,11 @@ Plan PathPlanner::getPath(VoronoiGridPtr voronoi, Pose start, Pose goal, ImagePt
 	CellPath cells = getCellPath(voronoi, startCell, endCell, image);
 
 	// turn cells into points
-	trans = voronoi->origin.getTransform();
+	trans = voronoi->origin.toTF();
 	for (uint32_t i = 0; i < cells.size(); ++i) {
 		Index2D cell = cells[i];
 		Pose p = Pose((cell.x+0.5)*voronoi->resolution,(cell.y+0.5)*voronoi->resolution,0);
-		p = trans * p.getTransform();
+		p = trans * p.toTF();
 		rval.push_back(p);
 	}
 
