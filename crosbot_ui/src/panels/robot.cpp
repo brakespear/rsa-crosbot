@@ -7,11 +7,11 @@
 #include <crosbot_ui/panels/robot.hpp>
 #include <string.h>
 
-#include <QEvent>
-#include <QKeyEvent>
-#include <QMouseEvent>
-#include <QWheelEvent>
-#include <QInputDialog>
+#include <QtCore/QEvent>
+#include <QtGui/QKeyEvent>
+#include <QtGui/QMouseEvent>
+#include <QtGui/QWheelEvent>
+#include <QtGui/QInputDialog>
 
 #include <math.h>
 #include <ctype.h>
@@ -19,6 +19,7 @@
 #include <crosbot_ui/renders/robot/simple.hpp>
 #include <crosbot_ui/renders/robot/image.hpp>
 #include <crosbot_ui/renders/robot/joystick.hpp>
+#include <crosbot_ui/renders/robot/preset.hpp>
 #include <crosbot/utils.hpp>
 
 #include <geometry_msgs/Twist.h>
@@ -105,6 +106,8 @@ RobotRender *RobotPanel::getRender(ConfigElementPtr config, RobotPanel& panel) {
 		} else if (strcasecmp(config->name.c_str(), "junk") == 0) {
 			rval = new JointRender(panel, config);
 #endif
+		} else if (strcasecmp(config->name.c_str(), "emu") == 0) {
+			rval = new EmuRender(panel, config);
 		}
 	}
 

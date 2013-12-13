@@ -13,11 +13,14 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 #include <sensor_msgs/LaserScan.h>
+#include <geometry_msgs/PoseStamped.h>
 
 #include <crosbot/data.hpp>
 #include <crosbot/utils.hpp>
+#include <crosbot_map/localmap.hpp>
 
 #include <crosbot_ogmbicp/Ogmbicp.hpp>
+#include <crosbot_ogmbicp/GetRecentScans.h>
 
 #define DEFAULT_ICPFRAME "/icp"
 #define DEFAULT_BASEFRAME "/base_link"
@@ -47,23 +50,45 @@ private:
     * ROS config params for position tracking
     */
    string icp_frame, base_frame, odom_frame;
-   string scan_sub;
+   string scan_sub, orientation_sub;
+   string local_map_image_pub, local_map_pub;
+   string recent_scans_srv;
 
 
    /*
     * ROS connections
     */
    ros::Subscriber scanSubscriber;
+   ros::Subscriber orientationSubscriber;
    tf::TransformListener tfListener;
+   tf::TransformBroadcaster tfPub;
+   ros::Publisher imagePub;
+   ros::Publisher localMapPub;
+   ros::ServiceServer recentScansServer;
 
    Ogmbicp &pos_tracker;
    //Is it the initial scan?
    bool isInit;
+   LocalMapPtr localMap;
+
+   bool getRecentScans(crosbot_ogmbicp::GetRecentScans::Request& req,
+         crosbot_ogmbicp::GetRecentScans::Response& res);
 
    /*
     * Main callback for position tracker. Processes a new scan
     */
    void callbackScan(const sensor_msgs::LaserScanConstPtr& lastestScan);
+
+   /*
+    * Callback for the orientation from the IMU
+    */
+   void callbackOrientation(const geometry_msgs::Quaternion& quat);
+
+   /*
+    * Gets a transform from a pose
+    */
+   geometry_msgs::TransformStamped getTransform(const Pose& pose, std::string childFrame, 
+                           std::string frameName, ros::Time stamp = ros::Time::now());
 
 };
 

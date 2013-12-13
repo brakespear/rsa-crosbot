@@ -5,24 +5,33 @@
  *     Author: adrianr
  */
 
-#include <crosbot_ogmbicp/Ogmbicp.hpp>
+#include <crosbot_ogmbicp_gpu/OgmbicpGPU.hpp>
 
-void Ogmbicp::initialise(ros::NodeHandle &nh) {
+OgmbicpGPU::OgmbicpGPU() {
 }
 
-void Ogmbicp::start() {
+OgmbicpGPU::~OgmbicpGPU() {
+}
+
+void OgmbicpGPU::initialise(ros::NodeHandle &nh) {
+}
+
+void OgmbicpGPU::start() {
    cout << "starting ogmbicp_gpu" << endl;
 }
 
-void Ogmbicp::stop() {
+void OgmbicpGPU::stop() {
    cout << "stopping ogmbicp_gpu" << endl;
 
 }
 
-void Ogmbicp::initialiseTrack(Pose sensorPose, PointCloudPtr cloud) {
+void OgmbicpGPU::initialiseTrack(Pose sensorPose, PointCloudPtr cloud) {
    cout << "ogmbicp_gpu: initialise track" << endl;
 }
 
-void Ogmbicp::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
+void OgmbicpGPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    cout << "ogmbicp_gpu: update track" << endl;
+}
+
+void OgmbicpGPU::getLocalMap(LocalMapPtr curMap) {
 }

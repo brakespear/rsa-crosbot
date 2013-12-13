@@ -90,6 +90,7 @@ add_library(crosbot_ui
   src/renders/robot/image.cpp
   src/renders/robot/joystick.cpp
   src/renders/robot/preset.cpp
+  src/renders/robot/jointcontrol.cpp
    
   ${QT_MOC_HPP} ${QT_RESOURCES_CPP}
 )

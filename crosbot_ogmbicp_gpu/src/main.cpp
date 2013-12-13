@@ -8,14 +8,14 @@
 #include <ros/ros.h>
 
 #include <crosbot_ogmbicp/OgmbicpNode.hpp>
-#include <crosbot_ogmbicp/Ogmbicp.hpp>
+#include <crosbot_ogmbicp_gpu/OgmbicpGPU.hpp>
 
 int main(int argc, char **argv) {
    ros::init(argc, argv, "ogmbicp_gpu");
 
    ros::NodeHandle nh;
 
-   Ogmbicp posTracker;
+   OgmbicpGPU posTracker;
    OgmbicpNode node(posTracker);
    node.initialise(nh);
 

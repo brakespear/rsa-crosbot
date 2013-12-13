@@ -80,6 +80,7 @@ add_executable(crosbot_ogmbicp_gpu src/main.cpp src/OgmbicpGPU.cpp)
 ## Specify libraries to link a library or executable target against
  target_link_libraries(crosbot_ogmbicp_gpu
    ${catkin_LIBRARIES}
+   newmat
  )
 
 #############

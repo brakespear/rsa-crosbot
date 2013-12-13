@@ -4,7 +4,7 @@ project(crosbot_ogmbicp)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS crosbot crosbot_map nav_msgs roscpp sensor_msgs tf)
+find_package(catkin REQUIRED COMPONENTS crosbot crosbot_map nav_msgs roscpp sensor_msgs tf message_generation)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -25,17 +25,17 @@ find_package(catkin REQUIRED COMPONENTS crosbot crosbot_map nav_msgs roscpp sens
 # )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+add_service_files(
+   FILES
+   GetRecentScans.srv
+)
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   nav_msgs#   sensor_msgs
-# )
+ generate_messages(
+   DEPENDENCIES
+   nav_msgs#   sensor_msgs
+   crosbot_map
+ )
 
 ###################################################
 ## Declare things to be passed to other projects ##
@@ -63,10 +63,11 @@ include_directories(include
 # Declare a cpp library
  add_library(ogmbicp
     src/OgmbicpNode.cpp
+    src/Ogmbicp.cpp
  )
 
 ## Declare a cpp executable
-add_executable(crosbot_ogmbicp src/main.cpp src/OgmbicpNode.cpp src/Ogmbicp.cpp)
+add_executable(crosbot_ogmbicp src/main.cpp src/OgmbicpNode.cpp src/Ogmbicp.cpp src/PointMap3D.cpp src/OgmbicpCPU.cpp)
 
 ## Add dependencies to the executable
 # add_dependencies(crosbot_ogmbicp_node ${PROJECT_NAME})
@@ -74,6 +75,11 @@ add_executable(crosbot_ogmbicp src/main.cpp src/OgmbicpNode.cpp src/Ogmbicp.cpp)
 ## Specify libraries to link a library or executable target against
  target_link_libraries(crosbot_ogmbicp ogmbicp
    ${catkin_LIBRARIES}
+   newmat
+ )
+
+target_link_libraries(ogmbicp
+   ${catkin_LIBRARIES} 
  )
 
 target_link_libraries(ogmbicp
