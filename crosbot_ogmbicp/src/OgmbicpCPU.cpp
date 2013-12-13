@@ -20,6 +20,10 @@ OgmbicpCPU::OgmbicpCPU() {
    scanSkip = 0;
    addSkip = 0;
    finishedSetup = false;
+
+   //imuYaw = 0;
+   //isOrientationValid = false;
+   discardScan = false;
 }
 
 void OgmbicpCPU::initialise(ros::NodeHandle &nh) {
@@ -46,6 +50,11 @@ void OgmbicpCPU::initialiseTrack(Pose sensorPose, PointCloudPtr cloud) {
 }
 
 void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
+
+   if (discardScan) {
+      cout << "Ignoring scan" << endl;
+      return;
+   }
 
    //Filter out points that are too close to the robot
    vector<Point> newCloud;
@@ -76,12 +85,20 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    dy = py;
    dz = pz;
    dth = pth;
+   /*if (isOrientationValid) {
+      double roll, pitch, yaw;
+      curPose.getYPR(yaw, pitch, roll);
+      cout << imuYaw << " " << yaw << " " << dth << endl;
+      dth = imuYaw - yaw;
+      ANGNORM(dth);
+   }*/
    //Total move for the laser scan
    double gx, gy, gz, gth;
    gx = px;
    gy = py;
    gz = pz;
    gth = pth;
+
 
    //TODO: put the initial transform stuff here
    
@@ -301,6 +318,7 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
       dx = dy = dz = dth = 0.0;
       return false;
    }
+
    if (UseSimpleH) {
       ASimple(1,1) = a11;
       ASimple(2,1) = a12;
@@ -354,7 +372,6 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
 	   dz = Q(3);
    	dth = Q(4);
    }
-   //cout << dx << " " << dy << " " << dz << " " << dth << endl;
    return true;
 }
 

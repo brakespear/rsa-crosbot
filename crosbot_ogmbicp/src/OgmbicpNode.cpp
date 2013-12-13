@@ -17,7 +17,7 @@ OgmbicpNode::OgmbicpNode(Ogmbicp &posTracker): icp_frame(DEFAULT_ICPFRAME),
                             odom_frame(DEFAULT_ODOMFRAME),
                             pos_tracker(posTracker)
 {
-   pos_tracker = posTracker;
+   //pos_tracker = posTracker;
    isInit = false;
 }
 
@@ -30,11 +30,13 @@ void OgmbicpNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("local_map_image_pub", local_map_image_pub, "localImage");
    paramNH.param<std::string>("local_map_pub", local_map_pub, "localGrid");
    paramNH.param<std::string>("recent_scans_srv", recent_scans_srv, "icpRecentScans");
+   paramNH.param<std::string>("orientation_sub", orientation_sub, "orientation");
 
    pos_tracker.initialise(nh);
    pos_tracker.start();
 
    scanSubscriber = nh.subscribe(scan_sub, 1, &OgmbicpNode::callbackScan, this);
+   orientationSubscriber = nh.subscribe(orientation_sub, 1, &OgmbicpNode::callbackOrientation, this);
    imagePub = nh.advertise<sensor_msgs::Image>(local_map_image_pub, 1);
    localMapPub = nh.advertise<nav_msgs::OccupancyGrid>(local_map_pub, 1);
    recentScansServer = nh.advertiseService(recent_scans_srv, &OgmbicpNode::getRecentScans, this);
@@ -97,6 +99,7 @@ bool OgmbicpNode::getRecentScans(crosbot_ogmbicp::GetRecentScans::Request& req,
    return true;
 }
 
+
 void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan) {
    Pose odomPose, sensorPose;
   	tf::StampedTransform laser2Base, base2Odom;
@@ -137,6 +140,10 @@ void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan)
    Pose icpPose = pos_tracker.curPose;
    geometry_msgs::TransformStamped icpTs = getTransform(icpPose, base_frame, icp_frame);
    tfPub.sendTransform(icpTs);
+}
+
+void OgmbicpNode::callbackOrientation(const geometry_msgs::Quaternion& quat) {
+   pos_tracker.processImuOrientation(quat);
 }
 
 geometry_msgs::TransformStamped OgmbicpNode::getTransform(const Pose& pose, std::string childFrame, 

@@ -103,6 +103,12 @@ protected:
    int ImgTransmitTime;
    //Number of seconds of history recent scans are stored for
    double ScanListTime;
+   //Use the orientation from the IMU as the starting point for the optimisation
+   //bool UseIMUOrientation;
+   //Discard scans when pitch and roll exceed certain allowances
+   bool DiscardScansOrientation;
+   //Threshold of pitch and roll for discarding scans!s!=
+   double DiscardThreshold;
 
 
 
@@ -122,6 +128,19 @@ protected:
     * List of recent scans from the laser aligned according to the position tracker
     */
    deque<PointCloudPtr> recentScans;
+
+   /*
+    * Checks to make sure orientation values from IMU are being received
+    */
+   //bool isOrientationValid;
+   /*
+    * Current yaw from IMU
+    */
+   //double imuYaw;
+   /*
+    * should the next scan be discarded
+    */
+   bool discardScan;
 
    /*
     * Transforms the displacement to robot relative movement
@@ -170,7 +189,17 @@ public:
     */
    crosbot::ImagePtr drawMap(LocalMapPtr localMap);
 
+   /*
+    * Generates a list of the most recent laser scans aligned according to the icp frame
+    */
    void getRecentScans(deque<PointCloudPtr> &recent);
+
+   /*
+    * Reads the orientation data from the imu
+    */
+   void processImuOrientation(const geometry_msgs::Quaternion& quat); 
+private:
+   //double yawOffset;
 
 };
 

@@ -50,7 +50,7 @@ private:
     * ROS config params for position tracking
     */
    string icp_frame, base_frame, odom_frame;
-   string scan_sub;
+   string scan_sub, orientation_sub;
    string local_map_image_pub, local_map_pub;
    string recent_scans_srv;
 
@@ -59,6 +59,7 @@ private:
     * ROS connections
     */
    ros::Subscriber scanSubscriber;
+   ros::Subscriber orientationSubscriber;
    tf::TransformListener tfListener;
    tf::TransformBroadcaster tfPub;
    ros::Publisher imagePub;
@@ -77,6 +78,11 @@ private:
     * Main callback for position tracker. Processes a new scan
     */
    void callbackScan(const sensor_msgs::LaserScanConstPtr& lastestScan);
+
+   /*
+    * Callback for the orientation from the IMU
+    */
+   void callbackOrientation(const geometry_msgs::Quaternion& quat);
 
    /*
     * Gets a transform from a pose

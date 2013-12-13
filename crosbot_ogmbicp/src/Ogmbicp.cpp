@@ -27,6 +27,7 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("MaxAddHeight", MaxAddHeight, 3);
    paramNH.param<double>("FloorHeight", FloorHeight, 1);
    paramNH.param<double>("LaserMinDist", LaserMinDist, 0.4);
+   paramNH.param<double>("LaserMaxDistance", LaserMaxDistance, 10.0);
    paramNH.param<bool>("IgnoreZValues", IgnoreZValues, false);
    paramNH.param<double>("LaserMaxAlign", LaserMaxAlign, -1);
    paramNH.param<bool>("UseVariableL", UseVariableL, true);
@@ -54,6 +55,9 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<bool>("UsePriorMove", UsePriorMove, true);
    paramNH.param<int>("ImgTransmitTime", ImgTransmitTime, 2000000);
    paramNH.param<double>("ScanListTime", ScanListTime, 20);
+   //paramNH.param<bool>("UseIMUOrientation", UseIMUOrientation, true);
+   paramNH.param<bool>("DiscardScansOrientation", DiscardScansOrientation, true);
+   paramNH.param<double>("DiscardThreshold", DiscardThreshold, 0.6);
 
 }
 
@@ -206,5 +210,28 @@ crosbot::ImagePtr Ogmbicp::drawMap(LocalMapPtr localMap) {
 
 void Ogmbicp::getRecentScans(deque<PointCloudPtr> &recent) {
    recent = recentScans;
+}
+
+void Ogmbicp::processImuOrientation(const geometry_msgs::Quaternion& quat) {
+   tf::Quaternion q(quat.x, quat.y, quat.z, quat.w);
+   tf::Matrix3x3 m(q);
+   double roll, pitch, yaw;
+   m.getRPY(roll, pitch, yaw);
+   /*if (UseIMUOrientation) {
+      if (!isOrientationValid) {
+         double r, p, y;
+         curPose.getYPR(y, p, r);
+         yawOffset = yaw - y;
+      }
+      isOrientationValid = true;
+      imuYaw = yaw - yawOffset;
+   }*/
+   if (DiscardScansOrientation) {
+      if (fabs(roll) > DiscardThreshold || fabs(pitch) > DiscardThreshold) {
+         discardScan = true;
+      } else {
+         discardScan = false;
+      }
+   }
 }
 
