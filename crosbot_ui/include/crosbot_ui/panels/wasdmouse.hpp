@@ -8,6 +8,7 @@
 #ifndef CROSBOT_PANEL_WASDMOUSE_HPP_
 #define CROSBOT_PANEL_WASDMOUSE_HPP_
 
+#include <ros/ros.h>
 #include <tf/tf.h>
 #include <crosbot_ui/panels/panel.hpp>
 
