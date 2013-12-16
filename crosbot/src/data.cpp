@@ -23,7 +23,7 @@ namespace crosbot {
 
 void Quaternion::setYPR(const double& yaw, const double& pitch, const double& roll) {
 	tf::Quaternion q;
-	q.setEuler(yaw, pitch, roll);
+	q.setEulerZYX(yaw, pitch, roll);
 	*this = q;
 }
 
