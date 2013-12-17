@@ -8,6 +8,7 @@
 #ifndef CROSBOT_PANEL_POINTCLOUD_HPP_
 #define CROSBOT_PANEL_POINTCLOUD_HPP_
 
+#include <ros/ros.h>
 #include <crosbot_ui/panels/panel.hpp>
 #include <crosbot_ui/panels/wasdmouse.hpp>
 #include <ros/ros.h>

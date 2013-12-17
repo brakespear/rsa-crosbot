@@ -55,13 +55,9 @@ namespace crosbot {
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Transform.h>
 #include <nav_msgs/Odometry.h>
-#include <tf/transform_datatypes.h>
+#include <tf/tf.h>
 
 #endif
-
-#include <LinearMath/btQuaternion.h>
-#include <LinearMath/btMatrix3x3.h>
-#include <LinearMath/btTransform.h>
 
 #include <cmath>
 #include <ostream>
@@ -199,15 +195,9 @@ public:
 	Point3D() : x(0), y(0), z(0) {}
 	Point3D(const double& x, const double& y, const double& z) : x(x), y(y), z(z) {}
 	Point3D(const Point3D& p) : x(p.x), y(p.y), z(p.z) {}
-	Point3D(const btVector3& v) : x(v.x()), y(v.y()), z(v.z()) {}
 
 	inline Point3D& operator=(const Point3D& p) {
 		x = p.x; y = p.y; z = p.z;
-		return *this;
-	}
-
-	inline Point3D& operator=(const btVector3& v) {
-		x = v.x(); y = v.y(); z = v.z();
 		return *this;
 	}
 
@@ -313,10 +303,6 @@ public:
     	return Point3D(x,y,z);
     }
 
-    inline btVector3 getVector() const {
-    	return btVector3(x,y,z);
-    }
-
 #ifdef ROS_VERSION
 
 	Point3D(const geometry_msgs::Point& p) : x(p.x), y(p.y), z(p.z) {}
@@ -384,15 +370,9 @@ public:
 		setYPR(yaw, pitch, roll);
 	}
 	Quaternion(const Quaternion& q) : x(q.x), y(q.y), z(q.z), w(q.w) {}
-	Quaternion(const btQuaternion& q) : x(q.x()), y(q.y()), z(q.z()), w(q.w()) {}
 
 	inline Quaternion& operator=(const Quaternion& q) {
 		x = q.x; y = q.y; z = q.z; w = q.w;
-		return *this;
-	}
-
-	inline Quaternion& operator=(const btQuaternion& q) {
-		x = q.x(); y = q.y(); z = q.z(); w = q.w();
 		return *this;
 	}
 
@@ -420,23 +400,9 @@ public:
 				w >= q.w - CROSBOT_MATH_ERROR && w <= q.w + CROSBOT_MATH_ERROR;
 	}
 
-	inline void setYPR(const double& yaw, const double& pitch, const double& roll) {
-		btQuaternion btq;
-		btMatrix3x3 btm;
-		btm.setEulerYPR(yaw, pitch, roll);
-		btm.getRotation(btq);
+	void setYPR(const double& yaw, const double& pitch, const double& roll);
 
-		x = btq.x(); y = btq.y(); z = btq.z(); w = btq.w();
-	}
-
-	inline void getYPR(double& yaw, double& pitch, double& roll) const {
-		btQuaternion btq(x, y, z, w);
-		btMatrix3x3(btq).getEulerYPR(yaw, pitch, roll);
-	}
-
-	inline btQuaternion getBullet() const {
-		return btQuaternion(x, y, z, w);
-	}
+	void getYPR(double& yaw, double& pitch, double& roll) const;
 
     inline static Quaternion parse(std::string str) {
     	double x,y,z,w;
@@ -569,18 +535,12 @@ public:
 	Pose3D(const Point3D& position, const Quaternion& orientation) :
 		position(position), orientation(orientation) {}
 	Pose3D(const Pose3D& p) : position(p.position), orientation(p.orientation) {}
-	Pose3D(const btTransform& t) : position(t.getOrigin()), orientation(t.getRotation()) {}
 	Pose3D(double x, double y, double z) : position(x,y,z) {}
 	Pose3D(double x, double y, double z, double yaw, double pitch, double roll) :
 		position(x,y,z), orientation(yaw, pitch, roll) {}
 
 	inline Pose3D& operator=(const Pose3D& p) {
 		position = p.position; orientation = p.orientation;
-		return *this;
-	}
-
-	inline Pose3D& operator=(const btTransform& t) {
-		position = t.getOrigin(); orientation = t.getRotation();
 		return *this;
 	}
 
@@ -610,26 +570,6 @@ public:
 
 	inline void getYPR(double& yaw, double& pitch, double& roll) const {
 		orientation.getYPR(yaw, pitch, roll);
-	}
-
-
-	inline void fromTransform(const btTransform& trans) {
-	    position = trans.getOrigin();
-	    orientation =  trans.getRotation();
-	}
-
-	inline void getTransform(btTransform& trans) const {
-	    btVector3 pos(position.x, position.y, position.z);
-	    trans.setOrigin(pos);
-	    btQuaternion q(orientation.x, orientation.y, orientation.z, orientation.w);
-	    trans.setRotation(q);
-	}
-
-	inline btTransform getTransform() const {
-	    btVector3 pos(position.x, position.y, position.z);
-	    btQuaternion q(orientation.x, orientation.y, orientation.z, orientation.w);
-
-	    return btTransform(q, pos);
 	}
 
     inline static Pose3D parse(std::string str) {

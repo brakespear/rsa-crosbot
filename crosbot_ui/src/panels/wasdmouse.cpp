@@ -4,6 +4,8 @@
  *  Created on: 28/09/2010
  *      Author: amilstein
  */
+
+#include <ros/ros.h>
 #include <crosbot_ui/panels/wasdmouse.hpp>
 #include <crosbot/utils.hpp>
 
@@ -161,18 +163,18 @@ void WASDMouseView::paintGL() {
 			glPopMatrix();
 
 			if (textQueue.size() > 0) {
-				btTransform invView, labelMat;
+				tf::Transform invView, labelMat;
 //				Matrix invView(4,4), labelMat(4,4);
 //				getMatFromTrans(viewer, invView);
 //				transInverse(invView);
-				invView = viewer.getTransform().inverse();
+				invView = viewer.toTF().inverse();
 
 				for (unsigned int i = 0; i < textQueue.size(); i++) {
 					GLLabel label = textQueue[i];
 					Pose labelPos(Point(label.x, label.y, label.z),
 							Quaternion(0 , 0, 0)), relLabel;
 //					getMatFromTrans(labelPos, labelMat);
-					labelMat = labelPos.getTransform();
+					labelMat = labelPos.toTF();
 					labelMat = invView*labelMat;
 //					getTransFromMat(relLabel, labelMat);
 					relLabel = labelMat;
@@ -246,7 +248,7 @@ void WASDMouseView::mousePressEvent(QMouseEvent *e) {
 
 	dragOriginalView = viewer;
 	dragOriginalX = e->x(); dragOriginalY = e->y();
-	dragOriginalViewMat = dragOriginalView.getTransform();
+	dragOriginalViewMat = dragOriginalView.toTF();
 //	getMatFromTrans(dragOriginalView, dragOriginalViewMat);
 	draggingView = true;
 
@@ -288,7 +290,7 @@ void WASDMouseView::mouseMoveEvent(QMouseEvent *e) {
 
 //	Matrix motionMat(4,4);
 //	getMatFromTrans(motion, motionMat);
-	btTransform motionMat = motion.getTransform();
+	tf::Transform motionMat = motion.toTF();
 
 	motionMat = dragOriginalViewMat*motionMat;
 
@@ -316,7 +318,7 @@ void WASDMouseView::wheelEvent(QWheelEvent *e) {
 //	Matrix viewerMat(4,4), motionMat(4,4);
 //	getMatFromTrans(viewer, viewerMat);
 //	getMatFromTrans(motion, motionMat);
-	btTransform viewerMat = viewer.getTransform(), motionMat = motion.getTransform();
+	tf::Transform viewerMat = viewer.toTF(), motionMat = motion.toTF();
 
 	viewerMat = viewerMat*motionMat;
 //	getTransFromMat(viewer, viewerMat);
@@ -361,8 +363,8 @@ void WASDMouseView::keyPressEvent(QKeyEvent *e) {
 //			Matrix viewerMat(4,4), motionMat(4,4);
 //			getMatFromTrans(viewer, viewerMat);
 //			getMatFromTrans(motion, motionMat);
-			btTransform viewerMat = viewer.getTransform(),
-					motionMat = motion.getTransform();
+			tf::Transform viewerMat = viewer.toTF(),
+					motionMat = motion.toTF();
 
 			viewerMat = viewerMat*motionMat;
 //			getTransFromMat(viewer, viewerMat);
@@ -407,8 +409,8 @@ void WASDMouseView::keyPressEvent(QKeyEvent *e) {
 //				Matrix viewerMat(4,4), motionMat(4,4);
 //				getMatFromTrans(viewer, viewerMat);
 //				getMatFromTrans(motion, motionMat);
-				btTransform viewerMat = viewer.getTransform(),
-						motionMat = motion.getTransform();
+				tf::Transform viewerMat = viewer.toTF(),
+						motionMat = motion.toTF();
 
 				viewerMat = viewerMat*motionMat;
 //				getTransFromMat(viewer, viewerMat);

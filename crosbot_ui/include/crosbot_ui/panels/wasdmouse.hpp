@@ -8,6 +8,8 @@
 #ifndef CROSBOT_PANEL_WASDMOUSE_HPP_
 #define CROSBOT_PANEL_WASDMOUSE_HPP_
 
+#include <ros/ros.h>
+#include <tf/tf.h>
 #include <crosbot_ui/panels/panel.hpp>
 
 #include <QtOpenGL/QGLWidget>
@@ -60,7 +62,7 @@ class WASDMouseView : public QGLWidget {
 
 		bool draggingView;
 		Pose dragOriginalView;
-		btTransform dragOriginalViewMat;
+		tf::Transform dragOriginalViewMat;
 		int dragOriginalX, dragOriginalY;
 
 		// OpenGL stuff

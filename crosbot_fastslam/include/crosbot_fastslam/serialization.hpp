@@ -358,7 +358,7 @@ public:
 		Serializer<HeightMultiMap> serHMM;
 		rval += serPose.read(p.pose, stream);
 		rval += serPose.read(p.trackerPose, stream);
-		p.pose.getTransform(p.poseTransform);
+		p.poseTransform = p.pose.toTF();
 
 		rval += serParams.read(p.parameters, stream);
 		if (p.map == NULL) {

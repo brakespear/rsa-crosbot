@@ -371,7 +371,7 @@ void FastSLAMMap::moveAndUpdate(MapCloudPtr cloud) {
 			newMean = new Particle(parameters);
 		newMean->trackerPose = cloud->odometry;
 		newMean->history.push_back(Particle::History(newMean->pose, cloud, true));
-		newMean->pose.getTransform(newMean->poseTransform);
+		newMean->poseTransform = newMean->pose.toTF();
 
 		if (slamUpdating) {
 //			double Y,P,R;
@@ -403,9 +403,10 @@ void FastSLAMMap::moveAndUpdate(MapCloudPtr cloud) {
 	motion->trackerPose.getYPR(yaw, pitch, roll);
 
 	Pose motionPose;
-	btTransform motionTransform, trackerTransform;
-	cloud->odometry.getTransform(trackerTransform);
-	motionTransform = motion->trackerPose.getTransform().inverse() * trackerTransform;
+	tf::Transform motionTransform,
+		trackerTransform = cloud->odometry.toTF();
+
+	motionTransform = motion->trackerPose.toTF().inverse() * trackerTransform;
 	motionPose = motionTransform;
 
 	motionPose.getYPR(yaw, pitch, roll);
@@ -442,7 +443,7 @@ void FastSLAMMap::moveAndUpdate(MapCloudPtr cloud) {
 
 
 void FastSLAMMap::moveParticles(Pose relativeMotion, MapCloudPtr cloud, bool calculateWeight) {
-	btTransform motionTransform = relativeMotion.getTransform();
+	tf::Transform motionTransform = relativeMotion.toTF();
 	std::vector<ParticleMotionJob *> jobs;
 	std::vector<Pose> newPoses(particles.size());
 	for (size_t i = 0; i < particles.size(); i++) {

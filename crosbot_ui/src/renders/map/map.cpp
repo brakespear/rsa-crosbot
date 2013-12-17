@@ -1,3 +1,4 @@
+#include <ros/ros.h>
 #include <crosbot_ui/renders/map/map.hpp>
 #include <crosbot_ui/renders/map/fastslam.hpp>
 

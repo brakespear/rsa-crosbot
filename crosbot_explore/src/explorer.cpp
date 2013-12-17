@@ -5,6 +5,7 @@
  *      Author: mmcgill
  */
 
+#include <ros/ros.h>
 #include <crosbot_explore/explorer.hpp>
 #include <crosbot/utils.hpp>
 
@@ -56,7 +57,7 @@ void Explorer::driveThread() {
 
 		if (!paused && target.position.isFinite()) {
 			// send motion
-			Pose relative = pose.getTransform().inverse() * target.getTransform();
+			Pose relative = pose.toTF().inverse() * target.toTF();
 			driveTo(relative);
 		} else if (!stopSent) {
 			// send stop
@@ -441,8 +442,8 @@ ImagePtr Explorer::getPlanImage(const VoronoiGrid& voronoi, const Pose& robot, c
 
 			uint8_t* pxl = CELL_PXL(rayCell);
 
-			pxl[0] = 127;
-			pxl[1] = 127;
+			pxl[0] = 196;
+			pxl[1] = 196;
 			pxl[2] = 255;
 		}
 

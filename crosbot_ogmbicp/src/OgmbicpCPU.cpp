@@ -24,6 +24,9 @@ OgmbicpCPU::OgmbicpCPU() {
    //imuYaw = 0;
    //isOrientationValid = false;
    discardScan = false;
+
+   numIterations = 0;
+   avNumIts = 0;
 }
 
 void OgmbicpCPU::initialise(ros::NodeHandle &nh) {
@@ -55,6 +58,8 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
       cout << "Ignoring scan" << endl;
       return;
    }
+
+   ros::WallTime t1 = ros::WallTime::now();
 
    //Filter out points that are too close to the robot
    vector<Point> newCloud;
@@ -117,6 +122,8 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
       gth += dth;
       ANGNORM(gth);
 
+      avNumIts++;
+
       if (fabs(dx) < MaxErrorXY && fabs(dy) < MaxErrorXY && fabs(dz) < MaxErrorZ
             && fabs(dth) < MaxErrorTh) {
          alignedScan = true;
@@ -174,6 +181,15 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
       pth = gth;
    } else {
       px = py = pz = pth = 0;
+   }
+
+   ros::WallTime t2 = ros::WallTime::now();
+   totalTime += t2 - t1;
+   numIterations++;
+   if (numIterations % 100 == 0) {
+      cout << totalTime.toSec() * 1000.0f / (double) numIterations << "ms "
+         << curPose.position.x << " " << curPose.position.y << " " <<
+         yaw << " " << (float) avNumIts / numIterations << endl;
    }
 
    finishedSetup = true;

@@ -8,8 +8,8 @@
 #ifndef CROSBOT_FASTSLAM_PARTICLE_HPP_
 #define CROSBOT_FASTSLAM_PARTICLE_HPP_
 
-#include <crosbot_map/map.hpp>
 #include <crosbot_fastslam/heightmap.hpp>
+#include <crosbot_map/map.hpp>
 
 namespace crosbot {
 
@@ -40,7 +40,7 @@ protected:
 
 	ReadWriteLock rwLock;
 
-	btTransform poseTransform;
+	tf::Transform poseTransform;
 	double weight;
 	MapCloudPtr motionCloud;
 
@@ -51,7 +51,7 @@ public:
 
 	void addTag(TagPtr tag, bool checkForDuplicate = false);
 
-	void applyMotion(btTransform motion, MapCloudPtr cloud, bool calculateWeight = true, double gain = DEFAULT_GAINVALUE);
+	void applyMotion(tf::Transform motion, MapCloudPtr cloud, bool calculateWeight = true, double gain = DEFAULT_GAINVALUE);
 	void update(MapCloudPtr cloud);
 	MapCloudPtr getLatestUpdate() { return motionCloud; }
 

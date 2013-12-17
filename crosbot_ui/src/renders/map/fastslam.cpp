@@ -5,6 +5,8 @@
  *      Author: rescue
  */
 
+#include <ros/ros.h>
+
 #include <crosbot_ui/renders/map/fastslam.hpp>
 #include <crosbot_ui/renders/map/geotiff.hpp>
 #include <crosbot_fastslam/serialization.hpp>
@@ -481,10 +483,10 @@ void FastSLAMRender::renderPointClouds(GLTextQueue& textQueue) {
 		if (snap == NULL)
 			continue;
 
-		btTransform correction = tag.robot.getTransform() *
-				snap->robot.getTransform().inverse();
+		tf::Transform correction = tag.robot.toTF() *
+				snap->robot.toTF().inverse();
 
-		Pose robotPose = correction * snap->robot.getTransform();
+		Pose robotPose = correction * snap->robot.toTF();
 		if (snap->status != Snap::REJECTED && snap->status != Snap::DUPLICATE) {
 			for (size_t c = 0; c < snap->clouds.size(); c++) {
 				renderCloud(snap->clouds[c], robotPose, textQueue);

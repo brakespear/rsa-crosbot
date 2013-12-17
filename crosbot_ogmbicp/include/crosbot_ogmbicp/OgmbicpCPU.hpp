@@ -47,6 +47,11 @@ private:
    //Previous move
    double px, py, pz, pth;
 
+   //debugging for timings
+   ros::WallDuration totalTime;
+   int numIterations;
+   int avNumIts;
+
    //Get the offset from an iteration of ogmbicp
    bool getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth);
    //Find the best matching point (mPoint) to scanPoint

@@ -8,6 +8,7 @@
 #ifndef CROSBOT_FASTSLAM_HEIGHTMAP_HPP_
 #define CROSBOT_FASTSLAM_HEIGHTMAP_HPP_
 
+#include <ros/ros.h>
 #include <crosbot_fastslam/probtable.hpp>
 #include <crosbot/data.hpp>
 #include <crosbot/utils.hpp>
@@ -37,7 +38,7 @@ struct MapCloud : public PointCloud {
 	{}
 
 	inline Pose getAbsoluteSensorPose() {
-		Pose rval = robot.getTransform() * sensor.getTransform();
+		Pose rval = robot.toTF() * sensor.toTF();
 		return rval;
 	}
 };

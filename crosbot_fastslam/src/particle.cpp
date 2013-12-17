@@ -45,11 +45,11 @@ void Particle::addTag(TagPtr tag, bool checkForDuplicate) {
 	Pose tagPose;
 
 	// Calculate tag & robot poses
-	btTransform robotTrans =
-			pose.getTransform() * trackerPose.getTransform().inverse() *
-			tag->robot.getTransform();
+	tf::Transform robotTrans =
+			pose.toTF() * trackerPose.toTF().inverse() *
+			tag->robot.toTF();
 	robotPose = robotTrans;
-	tagPose = robotTrans * tag->pose.getTransform();
+	tagPose = robotTrans * tag->pose.toTF();
 
 	if (checkForDuplicate) {
 		// check if the tag is a duplicate snap
@@ -80,7 +80,7 @@ void Particle::addTag(TagPtr tag, bool checkForDuplicate) {
 	tags->tags.push_back(Map::TagLocation(tag, robotPose, tagPose));
 }
 
-void Particle::applyMotion(btTransform motion, MapCloudPtr cloud, bool calculateWeight, double gain) {
+void Particle::applyMotion(tf::Transform motion, MapCloudPtr cloud, bool calculateWeight, double gain) {
 	{
 		Lock lock(rwLock, true);
 		// update particle pose
@@ -113,7 +113,7 @@ void Particle::update(MapCloudPtr cloud) {
 	search.maxDist = parameters.searchDistance;
 	search.fov = parameters.searchFOV;
 	if (search.maxDist > 0) {
-		Pose sPose = pose.getTransform() * parameters.searchPose.getTransform();
+		Pose sPose = pose.toTF() * parameters.searchPose.toTF();
 		double yaw, pitch, roll;
 		sPose.getYPR(yaw, pitch, roll);
 		search.sensor = Pose2D(sPose.position.x, sPose.position.y, yaw);
