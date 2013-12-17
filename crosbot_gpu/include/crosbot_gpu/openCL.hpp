@@ -1,6 +1,6 @@
 
-#ifndef OPENCL_H_
-#define OPENCL_H_
+#ifndef OPENCL_HPP_
+#define OPENCL_HPP_
 
 #include <string>
 #include <CL/cl.h>
@@ -68,7 +68,8 @@ public:
     */
    void compileProgram(std::string rootDir,
                        const std::string *fileNames, int numFiles,
-                       const std::string *kernelNames, int numKernels, std::string buildOptions);
+                       const std::string *kernelNames, int numKernels, 
+                       std::string buildOptions, std::string headerFile);
    
    /* set ptr as a kernel arg
     */
@@ -88,7 +89,9 @@ private:
    cl_program program;
    int nKernels;
 
-   char *readFile(std::string rootDir, std::string fileName);
+   static const string common_opencl_file;
+
+   char *readFile(std::string rootDir, std::string fileName, std::string headerFile);
    void compileError();
 
 };

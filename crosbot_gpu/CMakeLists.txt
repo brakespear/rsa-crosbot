@@ -62,12 +62,14 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(include
   ${catkin_INCLUDE_DIRS}
+  #/opt/AMDAPP/include
+  /usr/local/cuda/include
 )
 
 ## Declare a cpp library
-# add_library(crosbot_gpu
-#   src/${PROJECT_NAME}/crosbot_gpu.cpp
-# )
+ add_library(crosbot_gpu
+   src/openCL.cpp
+ )
 
 ## Declare a cpp executable
 # add_executable(crosbot_gpu_node src/crosbot_gpu_node.cpp)
@@ -77,9 +79,10 @@ include_directories(include
 # add_dependencies(crosbot_gpu_node crosbot_gpu_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(crosbot_gpu_node
-#   ${catkin_LIBRARIES}
-# )
+ target_link_libraries(crosbot_gpu
+   ${catkin_LIBRARIES}
+   OpenCL
+ )
 
 #############
 ## Install ##
@@ -96,18 +99,18 @@ include_directories(include
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS crosbot_gpu crosbot_gpu_node
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+ install(TARGETS crosbot_gpu
+   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+ )
 
 ## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
+ install(DIRECTORY include/${PROJECT_NAME}/
+   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+   FILES_MATCHING PATTERN "*.h"
+   PATTERN ".svn" EXCLUDE
+ )
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES

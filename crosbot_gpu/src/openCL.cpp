@@ -9,10 +9,13 @@
 
 //#include <casrobot/logger.h>
 
-#include "graphSlam/openCL.h"
+#include "crosbot_gpu/openCL.hpp"
 //#include "exception.h"
 
 using namespace std;
+
+
+const string OpenCLTask::common_opencl_file = "/src/opencl/openclCommon.cl";
 
 /*
  * callback function for any error's that occur during the execution
@@ -133,8 +136,6 @@ void OpenCLManager::deviceRelease(cl_mem memObj) {
 
 
 
-
-
 OpenCLTask::OpenCLTask(OpenCLManager *openCLManager) {
    manager = openCLManager;
    manager->addTask(this);
@@ -151,12 +152,21 @@ OpenCLTask::~OpenCLTask() {
 }
 
 void OpenCLTask::compileProgram(string rootDir, const string *fileNames, int numFiles, const string *kernelNames, int numKernels,
-      string buildOptions) {
+      string buildOptions, string headerFile) {
    //Read the files
    int i;
-   char *programSource[numFiles];
+   char *programSource[numFiles + 1];
+
+   //First read the common file
+   FILE *f = popen("rospack find crosbot_gpu", "r");
+   char buffer[200];
+   fscanf(f, "%199s", buffer);
+   pclose(f);
+   programSource[0] = readFile(buffer, common_opencl_file, headerFile);
+
+   //Now read the rest of the files
    for (i = 0; i < numFiles; i++) {
-      programSource[i] = readFile(rootDir, fileNames[i]);
+      programSource[i + 1] = readFile(rootDir, fileNames[i], headerFile);
    }
 
    //Create the opencl program
@@ -194,7 +204,7 @@ void OpenCLTask::compileProgram(string rootDir, const string *fileNames, int num
 
 }
 
-char *OpenCLTask::readFile(string rootDir, string fileName) {
+char *OpenCLTask::readFile(string rootDir, string fileName, string headerFile) {
    string file = rootDir + fileName;
    ifstream kernelFile(file.c_str(), ios::in);
    if (!kernelFile.is_open()) {
@@ -205,7 +215,7 @@ char *OpenCLTask::readFile(string rootDir, string fileName) {
    }
    //Get the file in a C type string
    ostringstream oss;
-   oss << "#include \"" << rootDir << "/include/graphSlam/openclCommon.h\"\n";
+   oss << "#include \"" << rootDir << headerFile << "\"\n";
    oss << kernelFile.rdbuf();
    string srcString = oss.str();
    char *cString = (char *) malloc(sizeof(char) * (srcString.size() + 1));
