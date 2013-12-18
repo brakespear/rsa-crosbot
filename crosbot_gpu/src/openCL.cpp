@@ -162,15 +162,15 @@ void OpenCLTask::compileProgram(string rootDir, const string *fileNames, int num
    char buffer[200];
    fscanf(f, "%199s", buffer);
    pclose(f);
-   programSource[0] = readFile(buffer, common_opencl_file, headerFile);
+   programSource[0] = readFile(buffer, common_opencl_file, rootDir + headerFile);
 
    //Now read the rest of the files
    for (i = 0; i < numFiles; i++) {
-      programSource[i + 1] = readFile(rootDir, fileNames[i], headerFile);
+      programSource[i + 1] = readFile(rootDir, fileNames[i], rootDir + headerFile);
    }
 
    //Create the opencl program
-   program = clCreateProgramWithSource(manager->getContext(), numFiles, (const char **)programSource, 0, 0);
+   program = clCreateProgramWithSource(manager->getContext(), numFiles + 1, (const char **)programSource, 0, 0);
    if (!program) {
       stringstream ss;
       ss << "Couldn't create opencl program";
@@ -209,13 +209,13 @@ char *OpenCLTask::readFile(string rootDir, string fileName, string headerFile) {
    ifstream kernelFile(file.c_str(), ios::in);
    if (!kernelFile.is_open()) {
       stringstream ss;
-      ss << "Failed to open file " << fileName << endl;
+      ss << "Failed to open file " << file << endl;
       //throw OpenCLException(ss.str(), "openCl.cpp");
       cout << ss.str();
    }
    //Get the file in a C type string
    ostringstream oss;
-   oss << "#include \"" << rootDir << headerFile << "\"\n";
+   oss << "#include \"" << headerFile << "\"\n";
    oss << kernelFile.rdbuf();
    string srcString = oss.str();
    char *cString = (char *) malloc(sizeof(char) * (srcString.size() + 1));
@@ -224,6 +224,7 @@ char *OpenCLTask::readFile(string rootDir, string fileName, string headerFile) {
 }
 
 void OpenCLTask::compileError() {
+   cout << "There has been a compile error: " << endl;
    size_t len;
    char buff[100000];
    clGetProgramBuildInfo(program, manager->getDeviceId(), CL_PROGRAM_BUILD_LOG, sizeof(char) * 100000, buff, &len);

@@ -49,8 +49,8 @@ find_package(catkin REQUIRED COMPONENTS roscpp)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
    INCLUDE_DIRS include
-#  LIBRARIES crosbot_gpu
-#  CATKIN_DEPENDS roscpp
+  LIBRARIES crosbot_gpu
+  CATKIN_DEPENDS roscpp
 #  DEPENDS system_lib
 )
 

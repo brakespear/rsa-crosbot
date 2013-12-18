@@ -17,6 +17,7 @@
 	</node-->
 	
 	<node pkg="image_view" type="image_view" name="localmap_view">
+      <remap from="image" to="localImage" />
 		<!--remap from="image" to="/mbicp/image" /-->
 	</node>
 

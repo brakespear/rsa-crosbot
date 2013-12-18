@@ -4,7 +4,7 @@ project(crosbot_ogmbicp_gpu)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS crosbot crosbot_map crosbot_ogmbicp nav_msgs roscpp sensor_msgs tf)
+find_package(catkin REQUIRED COMPONENTS crosbot crosbot_map crosbot_ogmbicp crosbot_gpu nav_msgs roscpp sensor_msgs tf)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -63,6 +63,8 @@ catkin_package(
 # include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 include_directories(include
    ${catkin_INCLUDE_DIRS}
+   #/opt/AMDAPP/include
+   /usr/local/cuda/include
 )
 
 ## Declare a cpp library
