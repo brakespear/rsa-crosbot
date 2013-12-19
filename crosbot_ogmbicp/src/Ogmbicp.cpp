@@ -24,8 +24,8 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("MaxErrorTh", MaxErrorTh, 0.01);
    paramNH.param<double>("MaxErrorZ", MaxErrorZ, 0.001);
    paramNH.param<double>("MinAddHeight", MinAddHeight, 1.2);
-   paramNH.param<double>("MaxAddHeight", MaxAddHeight, 3);
-   paramNH.param<double>("FloorHeight", FloorHeight, 1);
+   paramNH.param<double>("MaxAddHeight", MaxAddHeight, 3.0);
+   paramNH.param<double>("FloorHeight", FloorHeight, 1.0);
    paramNH.param<double>("LaserMinDist", LaserMinDist, 0.4);
    paramNH.param<double>("LaserMaxDistance", LaserMaxDistance, 10.0);
    paramNH.param<bool>("IgnoreZValues", IgnoreZValues, false);
@@ -44,11 +44,11 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("MaxAlignDistance", MaxAlignDistance, 0.3);
    MaxAlignDistance *= MaxAlignDistance;
    paramNH.param<int>("InitialScans", InitialScans, 20);
-   paramNH.param<double>("LifeRatio", LifeRatio, 4.0);
+   paramNH.param<double>("LifeRatio", LifeRatio, 2.0);
    paramNH.param<double>("InitHeight", InitHeight, 1.0);
 
-   paramNH.param<double>("MaxMoveXYZ", MaxMoveXYZ, 0.85);
-   paramNH.param<double>("MaxMoveTh", MaxMoveTh, 90.0);
+   paramNH.param<double>("MaxMoveXYZ", MaxMoveXYZ, 0.5);
+   paramNH.param<double>("MaxMoveTh", MaxMoveTh, 40.0);
    paramNH.param<int>("MaxScanSkip", MaxScanSkip, 1);
    paramNH.param<int>("AddSkipCount", AddSkipCount, 50);
    paramNH.param<int>("MaxFail", MaxFail, 5);
