@@ -308,7 +308,7 @@ void OgmbicpGPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    }
    cloud->cloud = newCloud;
 
-   PointCloudPtr worldPoints = centerPointCloud(*cloud, curPose, sensorPose, &laserOffset);
+   PointCloudPtr worldPoints = centerPointCloud(*cloud, curPose, sensorPose);
    laserPose = sensorPose;
    //Old place timer t1 went
 
@@ -520,7 +520,7 @@ void OgmbicpGPU::queueMapUpdateKernels(int numThreads) {
    
 }
 
-PointCloudPtr OgmbicpGPU::centerPointCloud(PointCloud &p, Pose curPose, Pose sensorPose, Pose *laserOffset) {
+PointCloudPtr OgmbicpGPU::centerPointCloud(PointCloud &p, Pose curPose, Pose sensorPose) {
 
    pos_x += results->cellShift.x * CellSize;
    pos_y += results->cellShift.y * CellSize;
@@ -532,9 +532,9 @@ PointCloudPtr OgmbicpGPU::centerPointCloud(PointCloud &p, Pose curPose, Pose sen
    PointCloudPtr rval = new PointCloud("/world", p, newPose);
 
    Pose absSensorPose = newPose.toTF() * sensorPose.toTF();
-   laserOffset->position.x = absSensorPose.position.x;
-   laserOffset->position.y = absSensorPose.position.y;
-   laserOffset->position.z = absSensorPose.position.z;
+   points->laserOffset.x = absSensorPose.position.x;
+   points->laserOffset.y = absSensorPose.position.y;
+   points->laserOffset.z = absSensorPose.position.z;
 
    return rval;
 }

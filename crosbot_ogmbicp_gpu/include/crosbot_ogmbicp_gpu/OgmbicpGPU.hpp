@@ -45,8 +45,6 @@ private:
    //Maximum number of active cells at any time
    int MaxActiveCells;
 
-   //Offset of laser from center of point cloud
-   Pose laserOffset;
    //Current x and y pose of the robot rounded to the nearest cell
    double pos_x;
    double pos_y;
@@ -106,7 +104,7 @@ private:
    int avNumIts;
 
    //center point cloud around the robot's current position
-   PointCloudPtr centerPointCloud(PointCloud &p, Pose curPose, Pose sensorPose, Pose *laserOffset);
+   PointCloudPtr centerPointCloud(PointCloud &p, Pose curPose, Pose sensorPose);
    //Initialise results struct for opencl
    void initialiseResults();
    //Initialise map for opencl
