@@ -462,8 +462,8 @@ int OgmbicpGPU::prepareLaserPoints(PointCloudPtr p, int numPoints, Pose sensorPo
    } else {
       points->offset.x = results->finalOffset.x;
       points->offset.y = results->finalOffset.y;
-      //points->offset.z = results->finalOffset.z;
-      points->offset.z = 0;
+      points->offset.z = results->finalOffset.z;
+      //points->offset.z = 0;
       points->offset.w = results->finalOffset.w;
    }
 
