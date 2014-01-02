@@ -12,26 +12,98 @@
 #include <crosbot/utils.hpp>
 #include <crosbot/data.hpp>
 #include <crosbot_map/localmap.hpp>
+#include <crosbot_map/tag.hpp>
 #include <sensor_msgs/LaserScan.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 
 using namespace crosbot;
 using namespace std;
 
+#define ANGNORM(X) while (X < -M_PI) X += 2.0*M_PI;while (X > M_PI) X -= 2.0*M_PI
+
+class SlamSnap {
+public:
+   SnapPtr snap;
+   int localMapIndex;
+   Pose localOffset;
+};
+
+class SlamHistory {
+public:
+   Pose localPose;
+   int localMapIndex;
+   ros::Time stamp;
+   Pose currentSlamPose;
+};
+
 class GraphSlam {
 
 public:
+
    /*
     * Config attributes for graph slam
     */
    //total width and length of the global map in metres
-   double MapSize;
+   double GlobalMapSize;
    //width and length of a map cell in metres
    double CellSize;
 protected:
    //Time in us between transfers of global map images
    int ImgTransmitTime;
+   //Minimum and maximum heights a laser point can have
+   double MinAddHeight;
+   double MaxAddHeight;
+   //Maximum and minimum distance laser points can have
+   double LaserMinDist;
+   double LaserMaxDist;
+   //Width and height of a local map in metres
+   double LocalMapSize;
+   //Distance the robot can travel inside a local map
+   double LocalMapDistance;
+   //Number of local map grid squares searched in each direction for
+   //an ICP match
+   int SearchSize;
+   //Maximum distance points can be apart to be considered matching
+   //in the ICP process
+   double MaxAlignDistance;
+   //L value for ICP
+   double LValue;
+   //Fudge factor used to scale information matrix of constraint into
+   //covariance matrix that corresponds to distance between scans
+   int InformationScaleFactor;
+   //Maximum covariance constraints can have. Should roughly correspond
+   //to maximum error position tracker is likely to habe inside a local  map
+   double MaxCovar;
+   //Threshold used for histogram correlation in loop closing
+   //4 is a perfect match. 3.3 - 3.6 is normally good
+   double CorrelationThreshold;
+   //Number of matching points in the icp of loop closing needed for
+   //each iteration of icp
+   int MinGoodCount;
+   //Number of matching points in the icp of loop closing needed for
+   //maps to be considered matched
+   int FinalMinGoodCount;
+   //Max number of iterations used in the ICP alignment of local maps
+   int MaxIterations;
+   //Max errors in an iteration of ICP for the match to be considered
+   //matched
+   double MaxErrorTheta;
+   double MaxErrorDisp;
+   //Maximum number of constraints possible
+   //int MaxNumConstraints;
+   //Maximum number of loop closing constraints possible
+   //int MaxNumLoopConstraints;
+   //If should turn combining of local maps on
+   bool LocalMapCombine;
+   //Maximum value theta can change during a loop closure.
+   //A negative value is no maximum
+   double MaxThetaOptimise;
+   //Time in us between robot poses being added to the history
+   int HistoryTime;
+
+
 
    /*
     * Other fields
@@ -41,12 +113,49 @@ protected:
     */
    Time lastImgTime;
 
+   //Lock to stop snaps interferring with local map changes
+   ReadWriteLock masterLockSmith;
+
+   //Index of current local map
+   int currentLocalMap;
+   //ICP pose of current local map
+   Pose currentLocalMapICPPose;
+   //List of all stored snaps
+   vector<SlamSnap*> snaps;
+   //Time the last pose history was stored
+   Time lastHistoryTime;
+   //History of slam poses relative to their local maps
+   vector<SlamHistory> historySlam;
+   //History of actual slam poses
+   vector<geometry_msgs::PoseStamped> historySlamPoses;
+
    /*
     * Gets the global map in the standard crosbot format
     */
    virtual void getGlobalMap(LocalMapPtr curMap) = 0;
 
+   /*
+    * Gets the current global x,y,theta of a local map
+    */
+   virtual void getGlobalMapPosition(int mapIndex, double& gx, double& gy,
+         double& gth) = 0;
+
+   /*
+    * Adds the current pose to the history
+    */
+   void addPoseHistory(Pose icpPose);
+
 public:
+   Pose slamPose;
+   /*
+    * Has graph slam finished setting up?
+    */
+   bool finishedSetup;
+   //Number of cells across in local and global occupancy grids
+   int DimLocalOG;
+   int DimGlobalOG;
+
+
    /*
     * Initialise the position tracker
     */
@@ -76,7 +185,36 @@ public:
    /*
     * Grabs the current map
     */
-   crosbot::ImagePtr drawMap(LocalMapPtr globalMap);
+   crosbot::ImagePtr drawMap(LocalMapPtr globalMap, Pose icpPose);
+   /*
+    * Adds a snap to the list
+    */
+   void addSnap(SnapPtr newSnap);
+
+   /*
+    * Gets the current list of snaps
+    */
+   void getSnaps(vector<SnapPtr>& list);
+
+   /*
+    * Updates a snap
+    */
+   bool updateSnap(uint32_t id, uint8_t type, string description, uint8_t status);
+
+   /*
+    * Gets a particular snap
+    */
+   bool getSnap(uint32_t id, uint8_t type, SnapPtr& snap);
+
+   /*
+    * Gets a history of past slam poses
+    */
+   vector<geometry_msgs::PoseStamped>& getSlamHistory();
+
+   /*
+    * Adds the track the robot took to the image displayed
+    */
+   void addSlamTrack(ImagePtr mapImage);
 
 private:
 

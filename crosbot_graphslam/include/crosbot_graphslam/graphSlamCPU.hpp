@@ -27,6 +27,8 @@ public:
    ~GraphSlamCPU();
 protected:
    void getGlobalMap(LocalMapPtr curMap);
+   void getGlobalMapPosition(int mapIndex, double& gx, double& gy, 
+         double& gth);
 private:
 
    //debugging for timings
