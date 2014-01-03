@@ -100,6 +100,9 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
    double diffX, diffY, diffTh;
 
    //Update the current positions
+   slamPose.position.z = icpPose.position.z;
+
+   //get the difference in icp position since the last update
    diffX = icpPose.position.x - oldICPPose.position.x; 
    diffY = icpPose.position.y - oldICPPose.position.y; 
    double yi, pi, ri;
@@ -108,13 +111,18 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
    oldICPPose.getYPR(yo, po, ro);
    diffTh = yi - yo;
    ANGNORM(diffTh);
-   slamPose.position.x += diffX;
-   slamPose.position.y += diffY;
-   slamPose.position.z = icpPose.position.z;
-   slamPose.getYPR(yo, po, ro);
-   yi = yo + diffTh;
-   ANGNORM(yi);
-   slamPose.setYPR(yi, pi, ri);
+   //Update the slam position
+   double ys, ps, rs;
+   slamPose.getYPR(ys, ps, rs);
+   ys += diffTh;
+   ANGNORM(ys);
+   double angleError = ys - yi;
+   double cosTh = cos(angleError);
+   double sinTh = sin(angleError);
+   slamPose.position.x += cosTh * diffX - sinTh * diffY;
+   slamPose.position.y += sinTh * diffX + cosTh * diffY;
+   slamPose.setYPR(ys, pi, ri);
+   //Update the offset in the current local map
    common->currentOffsetX += diffX;
    common->currentOffsetY += diffY;
    common->currentOffsetTh += diffTh;
@@ -125,8 +133,8 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
 
    //Add the points to the current local map
    int i, j;
-   double cosTh = cos(-common->currentOffsetTh);
-   double sinTh = sin(-common->currentOffsetTh);
+   cosTh = cos(-common->currentOffsetTh);
+   sinTh = sin(-common->currentOffsetTh);
    for (i = 0; i < cloud->cloud.size() - 1; ++i) {
       double dist = cloud->cloud[i].x * cloud->cloud[i].x + cloud->cloud[i].y * cloud->cloud[i].y;
       if (dist > LaserMinDist * LaserMinDist && dist < LaserMaxDist * LaserMaxDist &&
@@ -216,6 +224,12 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
       }
    }
 
+   double temp = sqrt(common->currentOffsetX * common->currentOffsetX +
+         common->currentOffsetY * common->currentOffsetY);
+   if (temp >= LocalMapDistance) {
+      cout << "Creating a new local map" << endl;
+      finishMap();
+   }
 
 
    oldICPPose = icpPose;
@@ -228,6 +242,22 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
    }
 
    finishedSetup = true;
+}
+
+void GraphSlamCPU::finishMap() {
+   int numLocalPoints = localMaps[currentLocalMap].numPoints;
+   //
+
+   int oldLocalMap = currentLocalMap;
+   int numOldMapPoints = numLocalPoints;
+
+
+   //TODO: temp line below. next local map is not correct
+   createNewLocalMap(oldLocalMap, currentLocalMap + 1, currentLocalMap);
+   numGlobalPoints += numLocalPoints;
+   //currentLocalMap = nextLocalMap;
+   //TODO: temp line below, not correct
+   currentLocalMap++;
 }
 
 GraphSlamCPU::~GraphSlamCPU() {
@@ -269,5 +299,36 @@ int GraphSlamCPU::convertToGlobalPosition(double x, double y, int mapIndex, doub
    int i = (gx + off) / CellSize;
    int j = (gy + off) / CellSize;
    return j * DimGlobalOG + i;
+}
+
+void GraphSlamCPU::createNewLocalMap(int oldLocalMap, int newLocalMap, int parentLocalMap) {
+   
+   for(int i = 0; i < DimLocalOG * DimLocalOG; i++) {
+      common->localOG[i] = -1;
+      common->localOGCount[i] = 0;
+      common->localOGZ[i] = MinAddHeight;
+   }
+   if (newLocalMap == localMaps.size()) {
+      LocalMap temp;
+      localMaps.push_back(temp);
+   }
+   clearMap(newLocalMap);
+   //Set the map centre for the old local map. This is normally done in the prepare
+   //local map kernel, but it is not called for the first local map
+   if (oldLocalMap == 0) {
+      localMaps[0].mapCentreX = (common->minMapRangeX + common->maxMapRangeX) / 2.0;
+      localMaps[0].mapCentreY = (common->minMapRangeY + common->maxMapRangeY) / 2.0;
+   }
+   localMaps[oldLocalMap].robotMapCentreX = common->currentOffsetX/2.0;
+   localMaps[oldLocalMap].robotMapCentreY = common->currentOffsetY/2.0;
+   localMaps[newLocalMap].indexParentNode = parentLocalMap;
+   localMaps[newLocalMap].treeLevel = localMaps[parentLocalMap].treeLevel + 1;
+   common->minMapRangeX = INFINITY;
+   common->maxMapRangeX = 0;
+   common->minMapRangeY = INFINITY;
+   common->maxMapRangeY = 0;
+   common->numPotentialMatches = 0;
+
+
 }
 

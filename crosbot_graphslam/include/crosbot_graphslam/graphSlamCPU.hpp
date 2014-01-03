@@ -134,12 +134,15 @@ private:
     * Private methods
     */
 
+   //Performs loop closing tests and sets up a new local map if needed
+   void finishMap();
    //Clears a local map for use
    void clearMap(int mapIndex);
    //returns the index of a 2D point in a local map, or -1 if the point does not fit inside the map
    int getLocalOGIndex(double x, double y);
    //converts to x and y coord of a local map to its global index
    int convertToGlobalPosition(double x, double y, int mapIndex, double cosTh, double sinTh);
+   void createNewLocalMap(int oldLocalMap, int newLocalMap, int parentLocalMap);
 
 };
 
