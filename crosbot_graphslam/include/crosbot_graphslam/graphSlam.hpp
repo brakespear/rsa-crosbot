@@ -21,6 +21,11 @@
 using namespace crosbot;
 using namespace std;
 
+#define NUM_ORIENTATION_BINS 64
+#define NUM_PROJECTION_BINS 100
+#define MAX_LOCAL_POINTS 2000
+
+
 #define ANGNORM(X) while (X < -M_PI) X += 2.0*M_PI;while (X > M_PI) X -= 2.0*M_PI
 
 class SlamSnap {
@@ -102,6 +107,8 @@ protected:
    double MaxThetaOptimise;
    //Time in us between robot poses being added to the history
    int HistoryTime;
+   //Number of times a cell has to be observed before being added to the local map
+   int MinObservationCount;
 
 
 
@@ -120,6 +127,8 @@ protected:
    int currentLocalMap;
    //ICP pose of current local map
    Pose currentLocalMapICPPose;
+   //ICP pose of last iteration
+   Pose oldICPPose;
    //List of all stored snaps
    vector<SlamSnap*> snaps;
    //Time the last pose history was stored

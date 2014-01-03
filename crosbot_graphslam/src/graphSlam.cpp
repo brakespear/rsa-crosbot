@@ -40,6 +40,7 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<bool>("LocalMapCombine", LocalMapCombine, true);
    paramNH.param<double>("MaxThetaOptimise", MaxThetaOptimise, M_PI / 2.0);
    paramNH.param<int>("HistoryTime", HistoryTime, 1000000);
+   paramNH.param<int>("MinObservationCount", MinObservationCount, 10);
 
    DimLocalOG = LocalMapSize / CellSize;
    DimGlobalOG = GlobalMapSize / CellSize;
