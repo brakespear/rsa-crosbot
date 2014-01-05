@@ -20,6 +20,9 @@ GraphSlamCPU::GraphSlamCPU() {
    finishedSetup = false;
    currentLocalMap = 0;
    numGlobalPoints = 0;
+   offsetFromParentX = 0;
+   offsetFromParentY = 0;
+   offsetFromParentTh = 0;
 }
 
 void GraphSlamCPU::initialise(ros::NodeHandle &nh) {
@@ -56,6 +59,7 @@ void GraphSlamCPU::initialiseTrack(Pose icpPose, PointCloudPtr cloud) {
    localMaps[0].parentOffsetX = 0;
    localMaps[0].parentOffsetY = 0;
    localMaps[0].parentOffsetTh = 0;
+   common->startICPTh = 0;
    common->currentOffsetX = 0;
    common->currentOffsetY = 0;
    common->currentOffsetTh = 0;
@@ -123,8 +127,15 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
    slamPose.position.y += sinTh * diffX + cosTh * diffY;
    slamPose.setYPR(ys, pi, ri);
    //Update the offset in the current local map
-   common->currentOffsetX += diffX;
-   common->currentOffsetY += diffY;
+   offsetFromParentX += diffX;
+   offsetFromParentY += diffY;
+   offsetFromParentTh += diffTh;
+   ANGNORM(offsetFromParentTh);
+   //Need to convert diffX and diffY to be relative to the current local map
+   cosTh = cos(-common->startICPTh);
+   sinTh = sin(-common->startICPTh);
+   common->currentOffsetX += diffX * cosTh - diffY * sinTh;
+   common->currentOffsetY += diffX * sinTh + diffY * cosTh;
    common->currentOffsetTh += diffTh;
    ANGNORM(common->currentOffsetTh);
 
@@ -224,11 +235,11 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
       }
    }
 
-   double temp = sqrt(common->currentOffsetX * common->currentOffsetX +
-         common->currentOffsetY * common->currentOffsetY);
+   double temp = sqrt(offsetFromParentX * offsetFromParentX +
+         offsetFromParentY * offsetFromParentY);
    if (temp >= LocalMapDistance) {
       cout << "Creating a new local map" << endl;
-      finishMap();
+      finishMap(angleError, yi);
    }
 
 
@@ -244,7 +255,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
    finishedSetup = true;
 }
 
-void GraphSlamCPU::finishMap() {
+void GraphSlamCPU::finishMap(double angleError, double icpTh) {
    int numLocalPoints = localMaps[currentLocalMap].numPoints;
    //
 
@@ -253,7 +264,10 @@ void GraphSlamCPU::finishMap() {
 
 
    //TODO: temp line below. next local map is not correct
-   createNewLocalMap(oldLocalMap, currentLocalMap + 1, currentLocalMap);
+   createNewLocalMap(oldLocalMap, currentLocalMap + 1, currentLocalMap, angleError, icpTh);
+   offsetFromParentX = 0;
+   offsetFromParentY = 0;
+   offsetFromParentTh = 0;
    numGlobalPoints += numLocalPoints;
    //currentLocalMap = nextLocalMap;
    //TODO: temp line below, not correct
@@ -301,7 +315,7 @@ int GraphSlamCPU::convertToGlobalPosition(double x, double y, int mapIndex, doub
    return j * DimGlobalOG + i;
 }
 
-void GraphSlamCPU::createNewLocalMap(int oldLocalMap, int newLocalMap, int parentLocalMap) {
+void GraphSlamCPU::createNewLocalMap(int oldLocalMap, int newLocalMap, int parentLocalMap, double angleError, double icpTh) {
    
    for(int i = 0; i < DimLocalOG * DimLocalOG; i++) {
       common->localOG[i] = -1;
@@ -328,7 +342,31 @@ void GraphSlamCPU::createNewLocalMap(int oldLocalMap, int newLocalMap, int paren
    common->minMapRangeY = INFINITY;
    common->maxMapRangeY = 0;
    common->numPotentialMatches = 0;
+   common->startICPTh = icpTh;
 
+   double cosTh = cos(angleError);
+   double sinTh = sin(angleError);
+   double tempX, tempY;
+   tempX = cosTh * offsetFromParentX - sinTh * offsetFromParentY;
+   tempY = sinTh * offsetFromParentX + cosTh * offsetFromParentY;
+   localMaps[newLocalMap].currentGlobalPosX = localMaps[parentLocalMap].currentGlobalPosX
+      + tempX;
+   localMaps[newLocalMap].currentGlobalPosY = localMaps[parentLocalMap].currentGlobalPosY
+      + tempY;
+   localMaps[newLocalMap].currentGlobalPosTh = localMaps[parentLocalMap].currentGlobalPosTh
+      + offsetFromParentTh;
+   ANGNORM(localMaps[newLocalMap].currentGlobalPosTh);
+
+   //Make the offset relative to the parent instead of the global coord system
+   cosTh = cos(-localMaps[parentLocalMap].currentGlobalPosTh);
+   sinTh = sin(-localMaps[parentLocalMap].currentGlobalPosTh);
+   localMaps[newLocalMap].parentOffsetX = cosTh * tempX - sinTh * tempY;
+   localMaps[newLocalMap].parentOffsetY = sinTh * tempX + cosTh * tempY;
+   localMaps[newLocalMap].parentOffsetTh = offsetFromParentTh;
+
+   common->currentOffsetX = 0;
+   common->currentOffsetY = 0;
+   common->currentOffsetTh = 0;
 
 }
 

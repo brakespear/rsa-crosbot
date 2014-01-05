@@ -73,6 +73,7 @@ private:
       double currentOffsetX;
       double currentOffsetY;
       double currentOffsetTh;
+      double startICPTh;
 
       double minMapRangeX;
       double minMapRangeY;
@@ -123,6 +124,10 @@ private:
    //Number of points in the global map not counting the points in the current
    //local map
    int numGlobalPoints;
+   //Offset of the robot in the current local map relative to ICP frame 
+   double offsetFromParentX;
+   double offsetFromParentY;
+   double offsetFromParentTh;
 
 
    //debugging for timings
@@ -135,14 +140,14 @@ private:
     */
 
    //Performs loop closing tests and sets up a new local map if needed
-   void finishMap();
+   void finishMap(double angleError, double icpTh);
    //Clears a local map for use
    void clearMap(int mapIndex);
    //returns the index of a 2D point in a local map, or -1 if the point does not fit inside the map
    int getLocalOGIndex(double x, double y);
    //converts to x and y coord of a local map to its global index
    int convertToGlobalPosition(double x, double y, int mapIndex, double cosTh, double sinTh);
-   void createNewLocalMap(int oldLocalMap, int newLocalMap, int parentLocalMap);
+   void createNewLocalMap(int oldLocalMap, int newLocalMap, int parentLocalMap, double angleError, double icpTh);
 
 };
 
