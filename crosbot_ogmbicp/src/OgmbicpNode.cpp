@@ -138,7 +138,7 @@ void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan)
    }
 
    Pose icpPose = pos_tracker.curPose;
-   cout << "Pose from icp is: " << icpPose << endl;
+   //cout << "Pose from icp is: " << icpPose << endl;
    geometry_msgs::TransformStamped icpTs = getTransform(icpPose, icp_frame, base_frame);
    tfPub.sendTransform(icpTs);
 }

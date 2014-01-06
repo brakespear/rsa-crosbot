@@ -54,8 +54,14 @@ private:
     */
    string icp_frame, base_frame, slam_frame;
    string scan_sub, snap_sub;
-   string global_map_image_pub, slam_history_pub;
+   string global_map_image_pub, slam_history_pub, global_grid_pub;
    string snap_list_srv, snap_update_srv, snap_get_srv;
+
+   /*
+    * Publish an additional map slice of a higher height
+    */
+   bool IncludeHighMapSlice;
+   double HighMapSliceHeight;
 
    /*
     * ROS connections
@@ -64,6 +70,7 @@ private:
    ros::Subscriber snapSub;
    ros::Publisher imagePub;
    ros::Publisher slamHistoryPub;
+   vector<ros::Publisher> slamGridPubs;
    ros::ServiceServer snapListServer;
    ros::ServiceServer snapUpdateServer;
    ros::ServiceServer snapGetServer;
@@ -71,10 +78,12 @@ private:
    tf::TransformBroadcaster tfPub;
 
    GraphSlam &graph_slam;
-   LocalMapPtr globalMap;
+   vector<LocalMapPtr> globalMaps;
 
    //Is it the first scan?
    bool isInit;
+   //Height of the map slices
+   vector<double> mapSlices;
 
    /*
     * Main callback for graph slam. Processes a new scan

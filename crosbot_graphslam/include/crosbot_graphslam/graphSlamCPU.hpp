@@ -26,7 +26,7 @@ public:
    GraphSlamCPU();
    ~GraphSlamCPU();
 protected:
-   void getGlobalMap(LocalMapPtr curMap);
+   void getGlobalMap(vector<LocalMapPtr> curMap, vector<double> mapSlices);
    void getGlobalMapPosition(int mapIndex, double& gx, double& gy, 
          double& gth);
 private:
@@ -121,9 +121,8 @@ private:
    //The current global map
    vector<int> globalMap;
    vector<double> globalMapHeights;
-   //Number of points in the global map not counting the points in the current
-   //local map
-   int numGlobalPoints;
+   //Should the map be totally redrawn?
+   bool resetMap;
    //Offset of the robot in the current local map relative to ICP frame 
    double offsetFromParentX;
    double offsetFromParentY;
@@ -140,7 +139,7 @@ private:
     */
 
    //Performs loop closing tests and sets up a new local map if needed
-   void finishMap(double angleError, double icpTh);
+   void finishMap(double angleError, double icpTh, Pose icpPose);
    //Clears a local map for use
    void clearMap(int mapIndex);
    //returns the index of a 2D point in a local map, or -1 if the point does not fit inside the map

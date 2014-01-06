@@ -28,13 +28,25 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("snap_sub", snap_sub, "snaps");
    paramNH.param<std::string>("global_map_image_pub", global_map_image_pub, "globalImage");
    paramNH.param<std::string>("slam_history_pub", slam_history_pub, "slamHistory");
+   paramNH.param<std::string>("global_grid_pub", global_grid_pub, "slamGrid");
    paramNH.param<std::string>("snap_list_srv", snap_list_srv, "snaps_list");
    paramNH.param<std::string>("snap_update_srv", snap_update_srv, "snap_update");
    paramNH.param<std::string>("snap_get_srv", snap_get_srv, "snap_get");
 
+   paramNH.param<bool>("IncludeHighMapsSlice", IncludeHighMapSlice, false);
+   paramNH.param<double>("HighMapSliceHeight", HighMapSliceHeight, 2.0);
+
+
    graph_slam.initialise(nh);
    graph_slam.start();
 
+   slamGridPubs.push_back(nh.advertise<nav_msgs::OccupancyGrid>(global_grid_pub, 1));
+   mapSlices.push_back(graph_slam.MinAddHeight);
+   if (IncludeHighMapSlice) {
+      string name = global_grid_pub + "High";
+      slamGridPubs.push_back(nh.advertise<nav_msgs::OccupancyGrid>(name, 1));
+      mapSlices.push_back(HighMapSliceHeight);
+   }
    scanSubscriber = nh.subscribe(scan_sub, 1, &GraphSlamNode::callbackScan, this);
    snapSub = nh.subscribe(snap_sub, 1, &GraphSlamNode::callbackSnaps, this);
    imagePub = nh.advertise<sensor_msgs::Image>(global_map_image_pub, 1);
@@ -69,20 +81,27 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
    		latestScan->header.stamp.sec, latestScan->header.stamp.nsec);
    	return;
    }
+   //cout << "Got transform" << endl;
    PointCloudPtr cloud = new PointCloud(base_frame, PointCloud(latestScan, true), sensorPose);
    if (!isInit) {
       isInit = true;
       graph_slam.initialiseTrack(icpPose, cloud);
       uint32_t dim = (uint32_t) (graph_slam.DimGlobalOG);
-      globalMap = new LocalMap(dim, dim, graph_slam.CellSize, slam_frame);
+      int i;
+      for (i = 0; i < mapSlices.size(); i++) {
+         globalMaps.push_back(new LocalMap(dim, dim, graph_slam.CellSize, slam_frame));
+      }
    } else {
       graph_slam.updateTrack(icpPose, cloud);
    }
-   ImagePtr image = graph_slam.drawMap(globalMap, icpPose);
+   ImagePtr image = graph_slam.drawMap(globalMaps, icpPose, mapSlices);
    if (image != NULL) {
       publishSlamHistory();
       graph_slam.addSlamTrack(image);
-      //localMapPub.publish(globalMap->getGrid());
+      int i;
+      for (i = 0; i < mapSlices.size(); i++) {
+         slamGridPubs[i].publish(globalMaps[i]->getGrid());
+      }
       imagePub.publish(image->toROS());
    }
    Pose slamPose = graph_slam.slamPose;

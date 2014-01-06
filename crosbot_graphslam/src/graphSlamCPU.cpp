@@ -23,6 +23,8 @@ GraphSlamCPU::GraphSlamCPU() {
    offsetFromParentX = 0;
    offsetFromParentY = 0;
    offsetFromParentTh = 0;
+   resetMap = false;
+   lastDrawnGlobalPoints = 0;
 }
 
 void GraphSlamCPU::initialise(ros::NodeHandle &nh) {
@@ -97,7 +99,7 @@ void GraphSlamCPU::initialiseTrack(Pose icpPose, PointCloudPtr cloud) {
 }
 
 void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
-   cout << "The icp pose from slam is: " << icpPose << endl;
+   //cout << "The icp pose from slam is: " << icpPose << endl;
 
    ros::WallTime t1 = ros::WallTime::now();
 
@@ -144,12 +146,12 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
 
    //Add the points to the current local map
    int i, j;
-   cosTh = cos(-common->currentOffsetTh);
-   sinTh = sin(-common->currentOffsetTh);
+   cosTh = cos(common->currentOffsetTh);
+   sinTh = sin(common->currentOffsetTh);
    for (i = 0; i < cloud->cloud.size() - 1; ++i) {
       double dist = cloud->cloud[i].x * cloud->cloud[i].x + cloud->cloud[i].y * cloud->cloud[i].y;
       if (dist > LaserMinDist * LaserMinDist && dist < LaserMaxDist * LaserMaxDist &&
-         cloud->cloud[i].z > MinAddHeight && cloud->cloud[i].z < MaxAddHeight) {
+         cloud->cloud[i].z + InitHeight > MinAddHeight && cloud->cloud[i].z + InitHeight < MaxAddHeight) {
 
          double curPointX, curPointY;
          curPointX = cloud->cloud[i].x * cosTh - cloud->cloud[i].y * sinTh + common->currentOffsetX;
@@ -224,11 +226,12 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
                            currentLocalMap, cosThG, sinThG);
             if (numGlobalPoints + localMaps[currentLocalMap].numPoints < globalMap.size()) {
                globalMap[numGlobalPoints + localMaps[currentLocalMap].numPoints] = globalIndex;
+               globalMapHeights[numGlobalPoints + common->localOG[ogIndex]] = 
+                  localMaps[currentLocalMap].pointsZ[common->localOG[ogIndex]];
             } else {
                globalMap.push_back(globalIndex);
+               globalMapHeights.push_back(localMaps[currentLocalMap].pointsZ[common->localOG[ogIndex]]);
             }
-            globalMapHeights[numGlobalPoints + common->localOG[ogIndex]] = 
-               localMaps[currentLocalMap].pointsZ[common->localOG[ogIndex]];
             localMaps[currentLocalMap].numPoints++;
          }
 
@@ -239,9 +242,8 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
          offsetFromParentY * offsetFromParentY);
    if (temp >= LocalMapDistance) {
       cout << "Creating a new local map" << endl;
-      finishMap(angleError, yi);
+      finishMap(angleError, yi, icpPose);
    }
-
 
    oldICPPose = icpPose;
 
@@ -255,7 +257,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
    finishedSetup = true;
 }
 
-void GraphSlamCPU::finishMap(double angleError, double icpTh) {
+void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
    int numLocalPoints = localMaps[currentLocalMap].numPoints;
    //
 
@@ -268,6 +270,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh) {
    offsetFromParentX = 0;
    offsetFromParentY = 0;
    offsetFromParentTh = 0;
+   currentLocalMapICPPose = icpPose;
    numGlobalPoints += numLocalPoints;
    //currentLocalMap = nextLocalMap;
    //TODO: temp line below, not correct
@@ -277,11 +280,62 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh) {
 GraphSlamCPU::~GraphSlamCPU() {
 }
 
-void GraphSlamCPU::getGlobalMap(LocalMapPtr curMap) {
+void GraphSlamCPU::getGlobalMap(vector<LocalMapPtr> curMap, vector<double> mapSlices) {
+
+   int x, y, mapNum;
+   crosbot::LocalMap::Cell *cellsP;
+   if (resetMap) {
+      resetMap = false;
+      //cout << "Reseting map" << endl;
+      lastDrawnGlobalPoints = 0;
+      for(mapNum = 0; mapNum < curMap.size(); mapNum++) {
+         for(y = 0; y < curMap[mapNum]->height; y++) {
+            cellsP = &(curMap[mapNum]->cells[y][0]);
+            for(x = 0; x< curMap[mapNum]->width; x++) {
+               cellsP->current = false;
+               cellsP->hits = 0;
+               cellsP++;
+            }
+         }
+      }
+   }
+   int numLocalPoints = localMaps[currentLocalMap].numPoints;
+   //cout << numLocalPoints << " " << numGlobalPoints << " " << lastDrawnGlobalPoints << endl;
+   if (numGlobalPoints + numLocalPoints > lastDrawnGlobalPoints) {
+      double off = (DimGlobalOG * CellSize) / 2.0 
+                 - CellSize / 2.0;
+      x = numGlobalPoints - MAX_LOCAL_POINTS > lastDrawnGlobalPoints ?
+           lastDrawnGlobalPoints : numGlobalPoints - MAX_LOCAL_POINTS;
+      if (x < 0) {
+         x = 0;
+      }
+      for(; x < numGlobalPoints + numLocalPoints; x++) {
+         int index = globalMap[x];
+         int yi = index / DimGlobalOG;
+         int xi = index % DimGlobalOG;
+         for(mapNum = 0; mapNum < curMap.size(); mapNum++) {
+            cellsP = &(curMap[mapNum]->cells[yi][xi]);
+            if (globalMapHeights[x] >= mapSlices[mapNum]) {
+               if (x < numGlobalPoints) {
+                  cellsP->current = false;
+                  cellsP->hits = curMap[mapNum]->maxHits;
+               } else {
+                  cellsP->current = true;
+                  cellsP->hits = curMap[mapNum]->maxHits;
+               }
+            }
+         }
+      }
+      lastDrawnGlobalPoints = numGlobalPoints + numLocalPoints;
+   }
 }
 
 void GraphSlamCPU::getGlobalMapPosition(int mapIndex, double& gx, double& gy,
       double& gth) {
+
+   gx = localMaps[mapIndex].currentGlobalPosX;
+   gy = localMaps[mapIndex].currentGlobalPosY;
+   gth = localMaps[mapIndex].currentGlobalPosTh;
 }
 
 void GraphSlamCPU::clearMap(int mapIndex) {

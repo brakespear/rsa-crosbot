@@ -54,12 +54,12 @@ public:
    double GlobalMapSize;
    //width and length of a map cell in metres
    double CellSize;
-protected:
-   //Time in us between transfers of global map images
-   int ImgTransmitTime;
    //Minimum and maximum heights a laser point can have
    double MinAddHeight;
    double MaxAddHeight;
+protected:
+   //Time in us between transfers of global map images
+   int ImgTransmitTime;
    //Maximum and minimum distance laser points can have
    double LaserMinDist;
    double LaserMaxDist;
@@ -109,6 +109,8 @@ protected:
    int HistoryTime;
    //Number of times a cell has to be observed before being added to the local map
    int MinObservationCount;
+   //Initial height of the robot
+   double InitHeight;
 
 
 
@@ -137,11 +139,17 @@ protected:
    vector<SlamHistory> historySlam;
    //History of actual slam poses
    vector<geometry_msgs::PoseStamped> historySlamPoses;
+   //Number of points that were used the last time the global map was drawn
+   int lastDrawnGlobalPoints;
+   //Number of points in the global map not counting the points in the current
+   //local map
+   int numGlobalPoints;
+
 
    /*
     * Gets the global map in the standard crosbot format
     */
-   virtual void getGlobalMap(LocalMapPtr curMap) = 0;
+   virtual void getGlobalMap(vector<LocalMapPtr> curMap, vector<double> mapSlices) = 0;
 
    /*
     * Gets the current global x,y,theta of a local map
@@ -194,7 +202,7 @@ public:
    /*
     * Grabs the current map
     */
-   crosbot::ImagePtr drawMap(LocalMapPtr globalMap, Pose icpPose);
+   crosbot::ImagePtr drawMap(vector<LocalMapPtr> globalMaps, Pose icpPose, vector<double> mapSlices);
    /*
     * Adds a snap to the list
     */

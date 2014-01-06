@@ -41,13 +41,15 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("MaxThetaOptimise", MaxThetaOptimise, M_PI / 2.0);
    paramNH.param<int>("HistoryTime", HistoryTime, 1000000);
    paramNH.param<int>("MinObservationCount", MinObservationCount, 10);
+   paramNH.param<double>("InitHeight", InitHeight, 1.0);
 
    DimLocalOG = LocalMapSize / CellSize;
    DimGlobalOG = GlobalMapSize / CellSize;
 
 }
 
-crosbot::ImagePtr GraphSlam::drawMap(LocalMapPtr globalMap, Pose icpPose) {
+crosbot::ImagePtr GraphSlam::drawMap(vector<LocalMapPtr> globalMaps, Pose icpPose, 
+      vector<double> mapSlices) {
    Time currentTime = Time::now();
    if ((currentTime - lastHistoryTime).toSec() > HistoryTime / 1000000.0) {
       lastHistoryTime = currentTime;
@@ -56,8 +58,8 @@ crosbot::ImagePtr GraphSlam::drawMap(LocalMapPtr globalMap, Pose icpPose) {
 
    if ((currentTime - lastImgTime).toSec() > ImgTransmitTime / 1000000.0) {
       lastImgTime = currentTime;
-      getGlobalMap(globalMap);
-      ImagePtr globalMapImage = globalMap->getImage();
+      getGlobalMap(globalMaps, mapSlices);
+      ImagePtr globalMapImage = globalMaps[0]->getImage();
       return globalMapImage;
    } else {
       return NULL;
