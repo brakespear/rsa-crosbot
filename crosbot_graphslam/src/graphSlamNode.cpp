@@ -36,7 +36,6 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<bool>("IncludeHighMapsSlice", IncludeHighMapSlice, false);
    paramNH.param<double>("HighMapSliceHeight", HighMapSliceHeight, 2.0);
 
-
    graph_slam.initialise(nh);
    graph_slam.start();
 
