@@ -84,11 +84,11 @@ private:
       int combineIndex;
       int combineMode;
       int numPotentialMatches;
-      int *potentialMatches;
-      double *potentialMatchX;
-      double *potentialMatchY;
-      double *potentialMatchTh;
-      int *potentialMatchParent;
+      int potentialMatches[MAX_POTENTIAL_MATCHES];
+      double potentialMatchX[MAX_POTENTIAL_MATCHES];
+      double potentialMatchY[MAX_POTENTIAL_MATCHES];
+      double potentialMatchTh[MAX_POTENTIAL_MATCHES];
+      int potentialMatchParent[MAX_POTENTIAL_MATCHES];
       int numIterations;
       double A[3][3];
       double B[3];

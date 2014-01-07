@@ -35,7 +35,7 @@
       <param name="icp_frame" value="icp_test" />
 	</node>
 
-	<node pkg="crosbot_graphslam" type="crosbot_graphslam" name="crosbot_graphslam" output="screen" launch-prefix="gdb -ex run --args">
+	<node pkg="crosbot_graphslam" type="crosbot_graphslam" name="crosbot_graphslam" output="screen">
 		<param name="base_frame" value="base_footprint" />
       <param name="icp_frame" value="icp_test" />
 	</node>

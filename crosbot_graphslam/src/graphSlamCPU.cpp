@@ -1000,6 +1000,7 @@ void GraphSlamCPU::findPotentialMatches() {
          int x,y;
 
          int minLevel = min(localMaps[currentLocalMap].treeLevel, localMaps[globalWarp].treeLevel);
+
          for (y = 0; y < 3; y++) {
             for(x = 0; x < 3; x++) {
                int mapIndex = currentLocalMap;
@@ -1045,7 +1046,6 @@ void GraphSlamCPU::findPotentialMatches() {
                fabs(mapCurPosY - mapOtherPosY) < totalCovar[1][1]) {
             //In the right area for a match, so do histogram correlation
             int i, j;
-
             //Perform the correlations for the entropy and orientation histograms
             for (i = 0; i < NUM_ORIENTATION_BINS; i++) {
                orienCorr[i] = 0;
@@ -1082,7 +1082,6 @@ void GraphSlamCPU::findPotentialMatches() {
                }
             }
             maxPeak = maxIndex;
-         
             //Go through the peaks and perform the projection correlations as well
             double maxCorrScore = 0;
             int maxOrien = 0;
