@@ -97,9 +97,9 @@ protected:
    double MaxErrorTheta;
    double MaxErrorDisp;
    //Maximum number of constraints possible
-   //int MaxNumConstraints;
+   int MaxNumConstraints;
    //Maximum number of loop closing constraints possible
-   //int MaxNumLoopConstraints;
+   int MaxNumLoopConstraints;
    //If should turn combining of local maps on
    bool LocalMapCombine;
    //Maximum value theta can change during a loop closure.
@@ -127,6 +127,10 @@ protected:
 
    //Index of current local map
    int currentLocalMap;
+   //the parent of the current local map in the tree
+   int parentLocalMap;
+   //Index of next local map that will be used
+   int nextLocalMap;
    //ICP pose of current local map
    Pose currentLocalMapICPPose;
    //ICP pose of last iteration
@@ -144,6 +148,10 @@ protected:
    //Number of points in the global map not counting the points in the current
    //local map
    int numGlobalPoints;
+   //Status of local maps being combined
+   int combineMode;
+   //Total number of constraints in the graph
+   int numConstraints;
 
 
    /*
@@ -161,6 +169,13 @@ protected:
     * Adds the current pose to the history
     */
    void addPoseHistory(Pose icpPose);
+
+   /*
+    * After maps have been combined, the snaps and slam history nodes from the map being
+    * deleted need to be moved to the local map being combined
+    */
+   void fixSnapPositions(int combineIndex, double alignX, double alignY, double alignTh);
+   void fixSlamHistoryPositions(int combineIndex, double alignX, double alignY, double alignTh);
 
 public:
    Pose slamPose;

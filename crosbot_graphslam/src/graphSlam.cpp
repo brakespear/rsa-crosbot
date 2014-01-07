@@ -35,8 +35,8 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("MaxIterations", MaxIterations, 60);
    paramNH.param<double>("MaxErrorTheta", MaxErrorTheta, 0.03);
    paramNH.param<double>("MaxErrorDisp", MaxErrorDisp, 0.0005);
-   //paramNH.param<int>("MaxNumConstraints", MaxNumConstraints, 200);
-   //paramNH.param<int>("MaxNumLoopConstraints", MaxNumLoopConstraints, 50);
+   paramNH.param<int>("MaxNumConstraints", MaxNumConstraints, 200);
+   paramNH.param<int>("MaxNumLoopConstraints", MaxNumLoopConstraints, 50);
    paramNH.param<bool>("LocalMapCombine", LocalMapCombine, true);
    paramNH.param<double>("MaxThetaOptimise", MaxThetaOptimise, M_PI / 2.0);
    paramNH.param<int>("HistoryTime", HistoryTime, 1000000);
@@ -238,4 +238,46 @@ void GraphSlam::addSlamTrack(ImagePtr mapImage) {
    }
 
 }
+
+void GraphSlam::fixSnapPositions(int combineIndex, double alignX, double alignY, double alignTh) {
+   int k;
+   //Adjust the local map coords of the recent snaps
+   for (k = snaps.size() - 1; k >= 0 && snaps[k]->localMapIndex == currentLocalMap; k--) {
+      snaps[k]->localMapIndex = combineIndex;
+      double yaw, pitch, roll;
+      snaps[k]->localOffset.getYPR(yaw, pitch, roll);
+                     
+      double cosTh = cos(-alignTh);
+      double sinTh = sin(-alignTh);
+      double tempX = snaps[k]->localOffset.position.x - alignX;
+      double tempY = snaps[k]->localOffset.position.y - alignY;
+      snaps[k]->localOffset.position.x = tempX * cosTh - tempY * sinTh;
+      snaps[k]->localOffset.position.y = tempX * sinTh + tempY * cosTh;
+      yaw -= alignTh;
+      ANGNORM(yaw);
+      snaps[k]->localOffset.setYPR(yaw, pitch, roll);
+   }
+}
+
+void GraphSlam::fixSlamHistoryPositions(int combineIndex, double alignX, 
+      double alignY, double alignTh) {
+   //Adjust the local map coords of the recent slam history
+   int k;
+   for(k = historySlam.size() - 1; k >= 0 && historySlam[k].localMapIndex ==
+                currentLocalMap; --k) {
+      historySlam[k].localMapIndex = combineIndex;
+      double yaw, roll, pitch;
+      historySlam[k].localPose.getYPR(yaw, pitch, roll);
+      double cosTh = cos(-alignTh);
+      double sinTh = sin(-alignTh);
+      double tempX = historySlam[k].localPose.position.x - alignX;
+      double tempY = historySlam[k].localPose.position.y - alignY;
+      historySlam[k].localPose.position.x = tempX * cosTh - tempY * sinTh;
+      historySlam[k].localPose.position.y = tempX * sinTh + tempY * cosTh;
+      yaw -= alignTh;
+      ANGNORM(yaw);
+      historySlam[k].localPose.setYPR(yaw, pitch, roll);
+   }
+}
+
 

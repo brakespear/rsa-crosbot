@@ -105,16 +105,16 @@ private:
       double pointsNxtX[MAX_LOCAL_POINTS];
       double pointsNxtY[MAX_LOCAL_POINTS];
 
-      vector<int> constraintType;
-      vector<int> constraintIndex;
-      vector<int> loopConstraintParent;
-      vector<int> loopConstraintI;
-      vector<int> loopConstraintJ;
-      vector<double> loopConstraintXDisp;
-      vector<double> loopConstraintYDisp;
-      vector<double> loopConstraintThetaDisp;
-      vector<double[3][3]> loopConstraintInfo;
-      vector<double[3]> graphHessian;
+      int *constraintType;
+      int *constraintIndex;
+      int *loopConstraintParent;
+      int *loopConstraintI;
+      int *loopConstraintJ;
+      double *loopConstraintXDisp;
+      double *loopConstraintYDisp;
+      double *loopConstraintThetaDisp;
+      double (*loopConstraintInfo)[3][3];
+      double (*graphHessian)[3];
    } SlamCommon;
    SlamCommon *common;
 
@@ -146,7 +146,62 @@ private:
    int getLocalOGIndex(double x, double y);
    //converts to x and y coord of a local map to its global index
    int convertToGlobalPosition(double x, double y, int mapIndex, double cosTh, double sinTh);
+   //Creates and sets up a new local map
    void createNewLocalMap(int oldLocalMap, int newLocalMap, int parentLocalMap, double angleError, double icpTh);
+   //Converts point pX, pY to the reference frame of another local map
+   void convertReferenceFrame(double pX, double pY, double offsetX, double offsetY,
+         double cosTh, double sinTh, double *pointX, double *pointY);
+   //Finds the best matching point in the occupancy grid of the current local map
+   int findMatchingPoint(double pointX, double pointY, int searchFactor);
+   //Gets the mbicp metric vallue for the match between laser point and og point
+   double getMetricValue(double pointX, double pointY, double ogPointX, double ogPointY);
+   //Multiply two 3x3 matrices
+   void mult3x3Matrix(double a[3][3], double b[3][3], double res[3][3]);
+   //Calculate the inverse of a 3x3 matrix
+   void invert3x3Matrix(double m[3][3], double res[3][3]);
+   // Nasty hack function to make covariance matrices acceptable in the occassional 
+   // case where not enough matching points were found when creating the 
+   // information matrix
+   void covarFiddle(double m[3][3]);
+   //Converts a point from local map coords to global coords  
+   void convertToGlobalCoord(double x, double y, double localPosX,
+      double localPosY, double localPosTh, double *resX, double *resY);
+   //Finds if an index in a histogram correlation is a peak
+   bool findIfPeak(double *corr, int i);
+   //Correlates two projection histogram sets
+   double correlateProjection(double proj1[NUM_ORIENTATION_BINS][NUM_PROJECTION_BINS],
+         double proj2[NUM_ORIENTATION_BINS][NUM_PROJECTION_BINS], int startIndex,
+         int offset, int *maxIndex);
+   //gets part of the global position of node
+   double getGlobalPosIndex(int node, int index);
+
+   /*
+    * Loop closing methods
+    */
+   //Calculates the information matrix between the current local map
+   //and its parent
+   void getHessianMatch(int constraintIndex);
+   //Finishes a local map - finalises the histograms and hessian matrices
+   void prepareLocalMap();
+   //Finds potentially matching local maps by position and histogram correlation
+   void findPotentialMatches();
+   //Perform an icp match between the current local map and otherMap
+   void alignICP(int otherMap, int matchIndex);
+   //Calculates the overall icp alignment matrix from alignICP
+   void calculateICPMatrix(int matchIndex);
+   //Finalises the information matrix of a loop constraint
+   void finaliseInformationMatrix();
+   //Calculates the global hessian matrix for the map optimisation
+   void getGlobalHessianMatrix();
+   //Performs the optimisation of the graph
+   void calculateOptimisationChange(int numIterations);
+   //Updates the global positions of all local maps
+   void updateGlobalPositions();
+   //Updates the global covariances of each local map and updates
+   //the global positions of all laser points
+   void updateGlobalMap();
+   //Combines two local maps
+   void combineNodes(double alignError, int numOtherGlobalPoints);
 
 };
 
