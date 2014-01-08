@@ -599,7 +599,7 @@ void OgmbicpCPU::getLocalMap(LocalMapPtr curMap) {
       xd = localMap->activeColumns[k].i * CellSize - off;
       yd = localMap->activeColumns[k].j * CellSize - off;
       int i,j;
-      i = curMap->width/2 - xd / curMap->resolution;
+      i = curMap->width/2 + xd / curMap->resolution;
       j = curMap->height/2 - yd / curMap->resolution;
       if (i >= 0 && i < curMap->width && j >= 0 && j < curMap->height) {
          LocalMap::Cell *cellsP = &(curMap->cells[curMap->height - j - 1][i]);
