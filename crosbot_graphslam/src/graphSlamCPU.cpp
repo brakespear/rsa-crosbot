@@ -1286,8 +1286,8 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex) {
          common->A[1][1] * common->A[2][2]);
 
    if (common->goodCount > MinGoodCount) {
-      cout << "shifts: " << shift[0] << " " << shift[1] << " " << 
-         shift[2] << " " << common->goodCount << endl;
+      /*cout << "shifts: " << shift[0] << " " << shift[1] << " " << 
+         shift[2] << " " << common->goodCount << endl;*/
       //Add the amount of the shift to the move offset
       common->potentialMatchX[matchIndex] += shift[0];
       common->potentialMatchY[matchIndex] += shift[1];
