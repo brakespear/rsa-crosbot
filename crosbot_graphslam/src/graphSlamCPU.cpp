@@ -270,7 +270,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
    double temp = sqrt(offsetFromParentX * offsetFromParentX +
          offsetFromParentY * offsetFromParentY);
    if (temp >= LocalMapDistance) {
-      cout << "Creating a new local map" << endl;
+      cout << "Creating a new local map " << currentLocalMap << endl;
       finishMap(angleError, yi, icpPose);
    }
 
@@ -350,8 +350,11 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          numConstraints++;
          if (common->numPotentialMatches > 0 && !resetMap) {
             cout << "************" << endl;
-            cout << "Potential Match found with map: " << common->potentialMatches[0] << endl;
-            cout << "************" << endl;
+            cout << "Potential Match found with maps:" ;
+            for (int h = 0; h < common->numPotentialMatches; h++) {
+                cout << common->potentialMatches[h] << " ";
+            }
+            cout << endl << "************" << endl;
 
             int i;
             for (i = 0; i < common->numPotentialMatches; i++) {
@@ -1042,6 +1045,9 @@ void GraphSlamCPU::findPotentialMatches() {
                            localMaps[globalWarp].currentGlobalPosY,
                            localMaps[globalWarp].currentGlobalPosTh,
                            &mapOtherPosX, &mapOtherPosY);
+         /*cout << "covar of map " << currentLocalMap << " to map " << globalWarp <<
+            " is " << totalCovar[0][0] << " " << totalCovar[1][1] << " pos " <<
+            mapCurPosX << " " << mapCurPosY << " " << mapOtherPosX << " " << mapOtherPosY << endl;*/
          if (fabs(mapCurPosX - mapOtherPosX) < totalCovar[0][0] &&
                fabs(mapCurPosY - mapOtherPosY) < totalCovar[1][1]) {
             //In the right area for a match, so do histogram correlation
@@ -1109,6 +1115,7 @@ void GraphSlamCPU::findPotentialMatches() {
                   maxY = maxIndex90;
                }            
             }
+            cout << "Correlation score of map " << globalWarp << " is " << maxCorrScore << endl;
             if (maxCorrScore > CorrelationThreshold) {
                int res = common->numPotentialMatches;
                common->numPotentialMatches++;
@@ -1206,8 +1213,8 @@ void GraphSlamCPU::alignICP(int otherMap, int mIndex) {
    double offsetTh = common->potentialMatchTh[mIndex];
    double cosTh = cos(offsetTh);
    double sinTh = sin(offsetTh);
-   cout << offsetX << " " << offsetY << " " << offsetTh << endl;
-   for (int index; index < localMaps[otherMap].numPoints; index++) {
+   //cout << offsetX << " " << offsetY << " " << offsetTh << endl;
+   for (int index = 0; index < localMaps[otherMap].numPoints; index++) {
       int searchFactor = 1;
       if (common->numIterations < 2) {
          searchFactor = 3;
@@ -1309,7 +1316,7 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex) {
       //Match failed
       common->matchSuccess = -1;
       finished = 1;
-      cout << "Match failedddddd" << endl;
+      cout << "Match failed good count: " << common->goodCount << endl;
    }
    if (finished) {
       common->numIterations = 0;
