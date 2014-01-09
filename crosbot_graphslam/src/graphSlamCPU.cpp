@@ -188,10 +188,10 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
          int ogIndex = getLocalOGIndex(curPointX, curPointY);
          if (ogIndex >= 0 && common->localOGCount[ogIndex] < MinObservationCount) {
             common->localOGCount[ogIndex]++;
-            common->localOGZ[ogIndex] = std::max(common->localOGZ[ogIndex], cloud->cloud[i].z);
+            common->localOGZ[ogIndex] = std::max(common->localOGZ[ogIndex], cloud->cloud[i].z + InitHeight);
          } else if (ogIndex >= 0 && common->localOGCount[ogIndex] > MinObservationCount) {
             localMaps[currentLocalMap].pointsZ[common->localOG[ogIndex]] = std::max(
-               localMaps[currentLocalMap].pointsZ[common->localOG[ogIndex]], cloud->cloud[i].z);
+               localMaps[currentLocalMap].pointsZ[common->localOG[ogIndex]], cloud->cloud[i].z + InitHeight);
             globalMapHeights[numGlobalPoints + common->localOG[ogIndex]] = 
                localMaps[currentLocalMap].pointsZ[common->localOG[ogIndex]];
          } else if (ogIndex >= 0 && localMaps[currentLocalMap].numPoints < MAX_LOCAL_POINTS) {
@@ -212,7 +212,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
             common->pointsNxtY[index] = curPointNxtY;
 
             localMaps[currentLocalMap].pointsZ[index] = std::max(
-               common->localOGZ[ogIndex], cloud->cloud[i].z);
+               common->localOGZ[ogIndex], cloud->cloud[i].z + InitHeight);
 
             if (curPointX < common->minMapRangeX) {
                common->minMapRangeX = curPointX;

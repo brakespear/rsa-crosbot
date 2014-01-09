@@ -10,6 +10,11 @@
 
 #include <crosbot_graphslam/graphSlam.hpp>
 
+#define NUM_ORIENTATION_BINS 64
+#define NUM_PROJECTION_BINS 100
+#define MAX_LOCAL_POINTS 2000
+#define MAX_POTENTIAL_MATCHES 50
+
 class GraphSlamCPU : public GraphSlam {
 public:
    /*
