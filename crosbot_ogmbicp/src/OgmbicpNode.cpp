@@ -123,6 +123,7 @@ void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan)
    	return;
    }
    PointCloudPtr cloud = new PointCloud(base_frame, PointCloud(latestScan, true), sensorPose);
+   //sensorPose.position = Point();
    if (!isInit) {
       isInit = true;
       pos_tracker.initialiseTrack(sensorPose, cloud);

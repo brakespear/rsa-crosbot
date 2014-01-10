@@ -842,7 +842,7 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, globalMapHeights);
 
       opencl_task->setArg(4, 1, sizeof(cl_mem), &clGlobalMap);
-      opencl_task->setArg(3, 12, sizeof(cl_mem), &clGlobalMap);
+      opencl_task->setArg(2, 12, sizeof(cl_mem), &clGlobalMap);
       opencl_task->setArg(3, 13, sizeof(cl_mem), &clGlobalMap);
       opencl_task->setArg(5, 1, sizeof(cl_mem), &clGlobalMapHeights);
       opencl_task->setArg(5, 12, sizeof(cl_mem), &clGlobalMapHeights);
@@ -894,7 +894,6 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       opencl_task->setArg(1, 12, sizeof(cl_mem), &clSlamLocalMap);
       opencl_task->setArg(1, 13, sizeof(cl_mem), &clSlamLocalMap);
       opencl_task->setArg(1, 14, sizeof(cl_mem), &clSlamLocalMap);
-      opencl_task->setArg(2, 26, sizeof(cl_mem), &clSlamLocalMap);
       opencl_task->setArg(4, 12, sizeof(cl_mem), &clGlobalMapPositions);
    }
 

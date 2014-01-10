@@ -180,7 +180,7 @@ __kernel void update2DMap(constant configValues *config, global oclLocalMap3D *m
  */
 __kernel void transform(constant configValues *config, global oclLaserPoints *points, 
       global oclLocalMap3D *map, const int numPoints, const int oldNumPoints, 
-      const int initialTransform, global float *out) {
+      const int initialTransform, global float *out, const int isFinal, global oclResults *results) {
    int index = get_global_id(0);
    if (index < oldNumPoints) {
       //The map won't have been reset properly for active cells that were added in the 
@@ -233,6 +233,27 @@ __kernel void transform(constant configValues *config, global oclLaserPoints *po
       }
 
    }
+
+      if (index == 0 && isFinal == 1 && map->failCount == 0) {
+         map->robotOff.x += results->finalOffset.x;
+         map->robotOff.y += results->finalOffset.y;
+         while (map->robotOff.x > config->MapCellWidth) {
+            results->cellShift.x += 1;
+            map->robotOff.x -= config->MapCellWidth;
+         }
+         while (map->robotOff.y > config->MapCellWidth) {
+            results->cellShift.y += 1;
+            map->robotOff.y -= config->MapCellWidth;
+         }
+         while (map->robotOff.x < -config->MapCellWidth) {
+            results->cellShift.x -= 1;
+            map->robotOff.x += config->MapCellWidth;
+         }
+         while (map->robotOff.y < -config->MapCellWidth) {
+            results->cellShift.y -= 1;
+            map->robotOff.y += config->MapCellWidth;
+         }
+      }
 }
 
 //TODO: look at including hcell propogation
@@ -1036,7 +1057,7 @@ __kernel void calcMatrix(constant configValues *config, global oclLocalMap3D *ma
          map->scanSkip++;
       }
 
-      if (partialResults->proceed == 0 && map->failCount == 0) {
+      /*if (partialResults->proceed == 0 && map->failCount == 0) {
          map->robotOff.x += results->finalOffset.x;
          map->robotOff.y += results->finalOffset.y;
          while (map->robotOff.x > config->MapCellWidth) {
@@ -1055,7 +1076,7 @@ __kernel void calcMatrix(constant configValues *config, global oclLocalMap3D *ma
             results->cellShift.y -= 1;
             map->robotOff.y += config->MapCellWidth;
          }
-      }
+      }*/
    }
 }
 

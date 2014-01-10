@@ -29,7 +29,7 @@
 		<remap from="image" to="/camera/rgb/image_color" />
    </node-->
 	
-	<node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp">
+	<node pkg="crosbot_ogmbicp_gpu" type="crosbot_ogmbicp_gpu" name="crosbot_ogmbicp_gpu" output="screen">
 		<!--param name="odom_frame" Xvalue="odom" value="" /-->
 		<param name="base_frame" value="base_footprint" />
       <param name="icp_frame" value="icp_test" />

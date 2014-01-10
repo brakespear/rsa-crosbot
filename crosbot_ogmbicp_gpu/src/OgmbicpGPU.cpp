@@ -82,7 +82,7 @@ void OgmbicpGPU::start() {
    config_values.MapCellWidth = CellSize;
    config_values.MapCellHeight = CellHeight;
    config_values.LaserMaxAlign = LaserMaxAlign;
-   config_values.MaxAlignDist = MaxAlignDistance * MaxAlignDistance;
+   config_values.MaxAlignDist = MaxAlignDistance;
    config_values.UseSimpleH = UseSimpleH ? 1 : 0;
    config_values.UseVariableL = UseVariableL ? 1 : 0;
    config_values.UseFactor = UseFactor ? 1 : 0;
@@ -104,7 +104,7 @@ void OgmbicpGPU::start() {
    config_values.AddSkipCount = AddSkipCount;
    config_values.MaxFail = MaxFail;
    config_values.LifeRatio = LifeRatio;
-   config_values.UsePriorMove = UsePriorMove ? 1 : 0;
+   config_values.UsePriorMove = UsePriorMove/* ? 1 : 0*/;
    //TODO: set this to be the correct values
    //config_values.FlobsticleHeight = FlobsticleHeight;
    config_values.FlobsticleHeight = 0.05;
@@ -244,6 +244,7 @@ void OgmbicpGPU::setKernelArgs() {
    //opencl_task->setArg(4, 2, sizeof(int), &oldNumPoints);
    //opencl_task->setArg(5, 2, sizeof(int), 0);
    opencl_task->setArg(6, 2, sizeof(cl_mem), &clRes);
+   opencl_task->setArg(8, 2, sizeof(cl_mem), &clResults);
 
    //kernel 3
    opencl_task->setArg(0, 3, sizeof(cl_mem), &clConfig);
@@ -352,7 +353,6 @@ void OgmbicpGPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
       int yy = 0;
       opencl_task->setArg(5, 2, sizeof(int), &yy);
       avNumIts++;
-
       /*retVal = clEnqueueReadBuffer(opencl_manager->getCommandQueue(), 
                clRes, CL_TRUE, 0, sizeof(float) * 500, outP, 0, 0, 0);
       if (retVal != CL_SUCCESS) {
@@ -386,7 +386,7 @@ void OgmbicpGPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    gz = results->finalOffset.z;
    gth = results->finalOffset.w;
 
-   transformToRobot(gx, gy, gz, gth); 
+   //transformToRobot(gx, gy, gz, gth); 
 
    curPose.position.x += gx; 
    curPose.position.y += gy;
@@ -491,6 +491,8 @@ void OgmbicpGPU::setNumPointsKernelArgs(int numPoints) {
    opencl_task->setArg(3, 4, sizeof(int), &numPoints);
    opencl_task->setArg(4, 6, sizeof(int), &numPoints);
    opencl_task->setArg(4, 8, sizeof(int), &numPoints);
+   int isFinal = 0;
+   opencl_task->setArg(7, 2, sizeof(int), &isFinal);
 
 }
 
@@ -505,6 +507,29 @@ void OgmbicpGPU::queueMapUpdateKernels(int numThreads) {
    if (oldNumPoints > numThreads) {
       globalSizePoints = getGlobalWorkSize(oldNumPoints);
    }
+
+
+
+   int isFinal = 1;
+   opencl_task->setArg(7, 2, sizeof(int), &isFinal);
+   clEnqueueReadBuffer(opencl_manager->getCommandQueue(), clResults, CL_TRUE, 0, 
+         sizeof(oclResults), results, 0, 0, 0);
+   double gx, gy, gz, gth;
+   gx = results->finalOffset.x;
+   gy = results->finalOffset.y;
+   gz = results->finalOffset.z;
+   gth = results->finalOffset.w;
+   transformToRobot(gx, gy, gz, gth);
+   results->finalOffset.x = gx; 
+   results->finalOffset.y = gy; 
+   results->finalOffset.z = gz; 
+   results->finalOffset.w = gth;
+   clEnqueueWriteBuffer(opencl_manager->getCommandQueue(), clResults, CL_TRUE, 
+         0, sizeof(oclResults), results, 0, 0, 0);
+   
+
+
+
    opencl_task->queueKernel(2, 1, globalSizePoints, LocalSize, 0, NULL, NULL, false);
    opencl_task->queueKernel(6, 1, globalSizePoints, LocalSize, 0, NULL, NULL, false);
    int res = clEnqueueReadBuffer(opencl_manager->getCommandQueue(), clResults, CL_TRUE, 0, 
