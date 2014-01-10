@@ -17,7 +17,7 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("MapSize", MapSize, 10);
    paramNH.param<double>("CellSize", CellSize, 0.05);
    paramNH.param<double>("CellHeight", CellHeight, 0.05);
-   paramNH.param<double>("MagSegLen", MaxSegLen, 0.1);
+   paramNH.param<double>("MaxSegLen", MaxSegLen, 0.1);
    MaxSegLen *= MaxSegLen;
    paramNH.param<int>("MaxIterations", MaxIterations, 200);
    paramNH.param<double>("MaxErrorXY", MaxErrorXY, 0.0001);

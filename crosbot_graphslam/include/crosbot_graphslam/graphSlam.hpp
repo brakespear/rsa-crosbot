@@ -21,11 +21,6 @@
 using namespace crosbot;
 using namespace std;
 
-#define NUM_ORIENTATION_BINS 64
-#define NUM_PROJECTION_BINS 100
-#define MAX_LOCAL_POINTS 2000
-#define MAX_POTENTIAL_MATCHES 50
-
 #define ANGNORM(X) while (X < -M_PI) X += 2.0*M_PI;while (X > M_PI) X -= 2.0*M_PI
 
 class SlamSnap {

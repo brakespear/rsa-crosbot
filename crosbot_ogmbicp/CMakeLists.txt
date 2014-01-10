@@ -82,6 +82,10 @@ target_link_libraries(ogmbicp
    ${catkin_LIBRARIES} 
  )
 
+target_link_libraries(ogmbicp
+   ${catkin_LIBRARIES} 
+ )
+
 #############
 ## Install ##
 #############
