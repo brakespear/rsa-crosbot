@@ -77,6 +77,10 @@ private:
    tf::TransformListener tfListener;
    tf::TransformBroadcaster tfPub;
 
+   //Debugging publisher
+   ros::Publisher imageTestPub;
+   LocalMapPtr testMap;
+
    GraphSlam &graph_slam;
    vector<LocalMapPtr> globalMaps;
 

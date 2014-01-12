@@ -24,6 +24,10 @@
       <remap from="image" to="localImage" />
 		<!--remap from="image" to="/mbicp/image" /-->
 	</node>
+	<node pkg="image_view" type="image_view" name="testmap_view">
+      <remap from="image" to="slamTest" />
+		<!--remap from="image" to="/mbicp/image" /-->
+	</node>
 
 	<!--node pkg="image_view" type="image_view" name="image_view">
 		<remap from="image" to="/camera/rgb/image_color" />
