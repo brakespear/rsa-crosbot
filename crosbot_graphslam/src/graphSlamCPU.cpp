@@ -356,6 +356,9 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             }
             cout << endl << "************" << endl;
 
+            //Debugging map print
+            updateTestMap();
+
             int i;
             for (i = 0; i < common->numPotentialMatches; i++) {
                int matchSuccess = 0;
@@ -2001,4 +2004,64 @@ void GraphSlamCPU::combineNodes(double alignError, int numOtherGlobalPoints) {
    common->combineMode = 1;
 }
 
+void GraphSlamCPU::updateTestMap() {
+
+   int x,y;
+   for (y = 0; y < testMap->height; y++) {
+      crosbot::LocalMap::Cell *cellsP = &(testMap->cells[y][0]);
+      for (x = 0; x < testMap->width; x++) {
+         cellsP->current = false;
+         cellsP->hits = 0;
+         cellsP++;
+      }
+   }
+   /*testMap->origin.position.x = curPose.position.x - 
+      (testMap->width * testMap->resolution) / 2;
+   testMap->origin.position.y = curPose.position.y - 
+      (testMap->height * testMap->resolution) / 2;*/
+   int mapWidth = LocalMapSize / CellSize;
+   double off = (mapWidth * CellSize) / 2.0 - CellSize / 2.0;
+   int k;
+   for (k = 0; k < localMaps[currentLocalMap].numPoints; k++) {
+      double xd, yd;
+      xd = localMaps[currentLocalMap].pointsX[k]/* - off*/;
+      yd = localMaps[currentLocalMap].pointsY[k]/* - off*/;
+      int i,j;
+      i = testMap->width/2 + xd / testMap->resolution;
+      j = testMap->height/2 - yd / testMap->resolution;
+      if (i >= 0 && i < testMap->width && j >= 0 && j < testMap->height) {
+         crosbot::LocalMap::Cell *cellsP = &(testMap->cells[testMap->height - j - 1][i]);
+
+         cellsP->hits = testMap->maxHits;
+         cellsP->current = true;
+      }
+   }
+
+   int otherMap = common->potentialMatches[0];
+   double offsetX = common->potentialMatchX[0];
+   double offsetY = common->potentialMatchY[0];
+   double offsetTh = common->potentialMatchTh[0];
+   double cosTh = cos(offsetTh);
+   double sinTh = sin(offsetTh);
+   cout << "***** Updating test map with maps " << currentLocalMap << " (red) and " << otherMap << endl;
+   //cout << "number of points displayed: " << count << "/" << localMaps[currentLocalMap].numPoints << endl;
+   for (k = 0; k < localMaps[otherMap].numPoints; k++) {
+      //Transform the points. Offsets are currently relative to the new map, so shouldn't use
+      //convertReferenceFrame
+      double xd, yd;
+      double pX = localMaps[otherMap].pointsX[k];
+      double pY = localMaps[otherMap].pointsY[k];
+      xd = (pX * cosTh - pY * sinTh) + offsetX/* - off*/;
+      yd = (pX * sinTh + pY * cosTh) + offsetY/* - off*/;
+      int i,j;
+      i = testMap->width/2 + xd / testMap->resolution;
+      j = testMap->height/2 - yd / testMap->resolution;
+      if (i >= 0 && i < testMap->width && j >= 0 && j < testMap->height) {
+         crosbot::LocalMap::Cell *cellsP = &(testMap->cells[testMap->height - j - 1][i]);
+
+         cellsP->hits = testMap->maxHits;
+      }
+      
+   }
+}
 

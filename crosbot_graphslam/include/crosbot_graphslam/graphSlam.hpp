@@ -243,6 +243,9 @@ public:
     */
    void addSlamTrack(ImagePtr mapImage);
 
+   //Debugging functions
+   LocalMapPtr testMap;
+
 private:
 
 };

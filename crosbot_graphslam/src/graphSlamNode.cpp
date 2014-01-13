@@ -53,6 +53,9 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    snapListServer = nh.advertiseService(snap_list_srv, &GraphSlamNode::getSnapsList, this);
    snapUpdateServer = nh.advertiseService(snap_update_srv, &GraphSlamNode::snapUpdate, this);
    snapGetServer = nh.advertiseService(snap_get_srv, &GraphSlamNode::snapGet, this);
+
+   //Debugging publisher
+   imageTestPub = nh.advertise<sensor_msgs::Image>("slamTest", 1);
 }
 
 void GraphSlamNode::shutdown() {
@@ -90,6 +93,10 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
       for (i = 0; i < mapSlices.size(); i++) {
          globalMaps.push_back(new LocalMap(dim, dim, graph_slam.CellSize, slam_frame));
       }
+      //Debugging publisher
+      dim = (uint32_t)(graph_slam.DimLocalOG);
+      testMap = new LocalMap(dim, dim, graph_slam.CellSize, slam_frame);
+      graph_slam.testMap = testMap;
    } else {
       graph_slam.updateTrack(icpPose, cloud);
    }
@@ -102,6 +109,9 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
          slamGridPubs[i].publish(globalMaps[i]->getGrid());
       }
       imagePub.publish(image->toROS());
+
+      //Debugging publisher
+      imageTestPub.publish((testMap->getImage())->toROS());
    }
    Pose slamPose = graph_slam.slamPose;
    Pose correction = icpPose.toTF().inverse() * slamPose.toTF();

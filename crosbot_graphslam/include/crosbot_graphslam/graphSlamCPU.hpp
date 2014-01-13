@@ -208,6 +208,10 @@ private:
    //Combines two local maps
    void combineNodes(double alignError, int numOtherGlobalPoints);
 
+
+   //Debugging publisher
+   void updateTestMap();
+
 };
 
 #endif
