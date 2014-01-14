@@ -899,8 +899,8 @@ __kernel void findPotentialMatches(constant slamConfig *config, global slamLocal
             float maxTheta = (2 * M_PI * maxPeak[warpNum]) / NUM_ORIENTATION_BINS - 
                              (M_PI * (float)(2 * NUM_ORIENTATION_BINS - 1) 
                               / (float) (2 * NUM_ORIENTATION_BINS));
-            float cosTh = cos(maxTheta);
-            float sinTh = sin(maxTheta);
+            float cosTh = cos(-maxTheta);
+            float sinTh = sin(-maxTheta);
             common->potentialMatchX[res] = (tempX + sinTh * tempY / cosTh) / 
                                            (cosTh + sinTh * sinTh / cosTh);
             common->potentialMatchY[res] = (cosTh * common->potentialMatchX[res] - tempX) / sinTh;

@@ -234,26 +234,26 @@ __kernel void transform(constant configValues *config, global oclLaserPoints *po
 
    }
 
-      if (index == 0 && isFinal == 1 && map->failCount == 0) {
-         map->robotOff.x += results->finalOffset.x;
-         map->robotOff.y += results->finalOffset.y;
-         while (map->robotOff.x > config->MapCellWidth) {
-            results->cellShift.x += 1;
-            map->robotOff.x -= config->MapCellWidth;
-         }
-         while (map->robotOff.y > config->MapCellWidth) {
-            results->cellShift.y += 1;
-            map->robotOff.y -= config->MapCellWidth;
-         }
-         while (map->robotOff.x < -config->MapCellWidth) {
-            results->cellShift.x -= 1;
-            map->robotOff.x += config->MapCellWidth;
-         }
-         while (map->robotOff.y < -config->MapCellWidth) {
-            results->cellShift.y -= 1;
-            map->robotOff.y += config->MapCellWidth;
-         }
+   if (index == 0 && isFinal == 1 && map->failCount == 0) {
+      map->robotOff.x += results->finalOffset.x;
+      map->robotOff.y += results->finalOffset.y;
+      while (map->robotOff.x > config->MapCellWidth) {
+         results->cellShift.x += 1;
+         map->robotOff.x -= config->MapCellWidth;
       }
+      while (map->robotOff.y > config->MapCellWidth) {
+         results->cellShift.y += 1;
+         map->robotOff.y -= config->MapCellWidth;
+      }
+      while (map->robotOff.x < -config->MapCellWidth) {
+         results->cellShift.x -= 1;
+         map->robotOff.x += config->MapCellWidth;
+      }
+      while (map->robotOff.y < -config->MapCellWidth) {
+         results->cellShift.y -= 1;
+         map->robotOff.y += config->MapCellWidth;
+      }
+   }
 }
 
 //TODO: look at including hcell propogation
