@@ -2081,8 +2081,8 @@ void GraphSlamCPU::updateTestMap() {
    int k;
    for (k = 0; k < localMaps[currentLocalMap].numPoints; k++) {
       double xd, yd;
-      xd = localMaps[currentLocalMap].pointsX[k] - off;
-      yd = localMaps[currentLocalMap].pointsY[k] - off;
+      xd = localMaps[currentLocalMap].pointsX[k]/* - off*/;
+      yd = localMaps[currentLocalMap].pointsY[k]/* - off*/;
       int i,j;
       i = testMap->width/2 + xd / testMap->resolution;
       j = testMap->height/2 - yd / testMap->resolution;
@@ -2100,14 +2100,16 @@ void GraphSlamCPU::updateTestMap() {
    double offsetTh = common->potentialMatchTh[0];
    double cosTh = cos(offsetTh);
    double sinTh = sin(offsetTh);
+   cout << "***** Updating test map with maps " << currentLocalMap << " (red) and " << otherMap << endl;
+   //cout << "number of points displayed: " << count << "/" << localMaps[currentLocalMap].numPoints << endl;
    for (k = 0; k < localMaps[otherMap].numPoints; k++) {
       //Transform the points. Offsets are currently relative to the new map, so shouldn't use
       //convertReferenceFrame
       double xd, yd;
       double pX = localMaps[otherMap].pointsX[k];
       double pY = localMaps[otherMap].pointsY[k];
-      xd = (pX * cosTh - pY * sinTh) + offsetX - off;
-      yd = (pX * sinTh + pY * cosTh) + offsetY - off;
+      xd = (pX * cosTh - pY * sinTh) + offsetX/* - off*/;
+      yd = (pX * sinTh + pY * cosTh) + offsetY/* - off*/;
       int i,j;
       i = testMap->width/2 + xd / testMap->resolution;
       j = testMap->height/2 - yd / testMap->resolution;
