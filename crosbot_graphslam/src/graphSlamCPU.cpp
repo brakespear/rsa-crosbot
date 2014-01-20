@@ -313,7 +313,8 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
    double temp = sqrt(offsetFromParentX * offsetFromParentX +
          offsetFromParentY * offsetFromParentY);
    if (temp >= LocalMapDistance) {
-      cout << "Creating a new local map " << currentLocalMap << endl;
+      cout << "Creating a new local map " << currentLocalMap << " points: " 
+         << localMaps[currentLocalMap].numPoints << endl;
       finishMap(angleError, yi, icpPose);
    }
 
@@ -1347,8 +1348,8 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex) {
          common->A[1][1] * common->A[2][2]);
 
    if (common->goodCount > MinGoodCount) {
-      /*cout << "shifts: " << shift[0] << " " << shift[1] << " " << 
-         shift[2] << " " << common->goodCount << endl;*/
+      cout << "shifts: " << shift[0] << " " << shift[1] << " " << 
+         shift[2] << " " << common->goodCount << endl;
       //Add the amount of the shift to the move offset
       common->potentialMatchX[matchIndex] += shift[0];
       common->potentialMatchY[matchIndex] += shift[1];
