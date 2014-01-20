@@ -1187,8 +1187,8 @@ void GraphSlamCPU::findPotentialMatches() {
                double maxTheta = (2 * M_PI * maxPeak) / NUM_ORIENTATION_BINS - 
                              (M_PI * (float)(2 * NUM_ORIENTATION_BINS - 1) 
                               / (float) (2 * NUM_ORIENTATION_BINS));
-               double cosTh = cos(maxTheta);
-               double sinTh = sin(maxTheta);
+               double cosTh = cos(-maxTheta);
+               double sinTh = sin(-maxTheta);
                common->potentialMatchX[res] = (tempX + sinTh * tempY / cosTh) / 
                                               (cosTh + sinTh * sinTh / cosTh);
                common->potentialMatchY[res] = (cosTh * common->potentialMatchX[res] - tempX) / sinTh;
@@ -1200,6 +1200,7 @@ void GraphSlamCPU::findPotentialMatches() {
                common->potentialMatchTh[res] = ((2 * M_PI * maxOrien) / NUM_ORIENTATION_BINS - 
                                                    (M_PI * (float)(2 * NUM_ORIENTATION_BINS - 1) 
                                                    / (float) (2 * NUM_ORIENTATION_BINS)) + M_PI) * -1;
+               cout << "Maxes are: " << tempX << " " << tempY << " " << maxTheta << " " << common->potentialMatchTh[res] << endl;
                common->potentialMatchX[res] *= -1;
                common->potentialMatchY[res] *= -1;
                common->potentialMatchParent[res] = parentIndex;
@@ -2101,6 +2102,7 @@ void GraphSlamCPU::updateTestMap() {
    double cosTh = cos(offsetTh);
    double sinTh = sin(offsetTh);
    cout << "***** Updating test map with maps " << currentLocalMap << " (red) and " << otherMap << endl;
+   cout << "Offsets from histogram are: " << offsetX << " " << offsetY << " " << offsetTh << endl;
    //cout << "number of points displayed: " << count << "/" << localMaps[currentLocalMap].numPoints << endl;
    for (k = 0; k < localMaps[otherMap].numPoints; k++) {
       //Transform the points. Offsets are currently relative to the new map, so shouldn't use
@@ -2108,15 +2110,26 @@ void GraphSlamCPU::updateTestMap() {
       double xd, yd;
       double pX = localMaps[otherMap].pointsX[k];
       double pY = localMaps[otherMap].pointsY[k];
-      xd = (pX * cosTh - pY * sinTh) + offsetX/* - off*/;
-      yd = (pX * sinTh + pY * cosTh) + offsetY/* - off*/;
+      xd = (pX * cosTh - pY * sinTh) + offsetX;
+      yd = (pX * sinTh + pY * cosTh) + offsetY;
+      double xd2, yd2;
+      xd2 = (pX * cosTh - pY * sinTh);
+      yd2 = (pX * sinTh + pY * cosTh);
+
       int i,j;
       i = testMap->width/2 + xd / testMap->resolution;
       j = testMap->height/2 - yd / testMap->resolution;
+      int i2,j2;
+      i2 = testMap->width/2 + xd2 / testMap->resolution;
+      j2 = testMap->height/2 - yd2 / testMap->resolution;
+
       if (i >= 0 && i < testMap->width && j >= 0 && j < testMap->height) {
          crosbot::LocalMap::Cell *cellsP = &(testMap->cells[testMap->height - j - 1][i]);
-
          cellsP->hits = testMap->maxHits;
+
+         cellsP = &(testMap->cells[testMap->height - j2 - 1][i2]);
+         cellsP->hits = testMap->maxHits / 3.0;
+         
       }
       
    }
