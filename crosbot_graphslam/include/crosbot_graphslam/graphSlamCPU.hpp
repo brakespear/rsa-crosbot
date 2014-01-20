@@ -36,6 +36,10 @@ protected:
          double& gth);
 private:
    //Slam data structures:
+   typedef struct {
+      vector<Point> points;
+      double covar[3][3];
+   } Scan;
 
    /*
     * Information stored for each local map
@@ -55,6 +59,7 @@ private:
       double parentInfo[3][3];
       double changeInPos[3];
       double globalCovar[3][3];
+      double internalCovar[3][3];
 
       double mapCentreX;
       double mapCentreY;
@@ -68,8 +73,17 @@ private:
       double pointsX[MAX_LOCAL_POINTS];
       double pointsY[MAX_LOCAL_POINTS];
       double pointsZ[MAX_LOCAL_POINTS];
+
+      vector<Scan *> scans;
    } LocalMap;
    vector<LocalMap> localMaps;
+
+   typedef struct {
+      Point p;
+      double gradX;
+      double gradY;
+      int count;
+   } GridCell;
 
    /*
     * General information needed for graph slam
@@ -104,11 +118,9 @@ private:
       double histSin[NUM_ORIENTATION_BINS];
       double scaleFactor[3];
 
+      int activeCells[MAX_LOCAL_POINTS];
       int *localOG;
-      int *localOGCount;
-      double *localOGZ;
-      double pointsNxtX[MAX_LOCAL_POINTS];
-      double pointsNxtY[MAX_LOCAL_POINTS];
+      GridCell *grid;
 
       int *constraintType;
       int *constraintIndex;

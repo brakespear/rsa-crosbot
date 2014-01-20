@@ -41,8 +41,7 @@ void GraphSlamCPU::initialise(ros::NodeHandle &nh) {
 void GraphSlamCPU::start() {
    common = new SlamCommon;
    common->localOG = new int[DimLocalOG * DimLocalOG];
-   common->localOGCount = new int[DimLocalOG * DimLocalOG];
-   common->localOGZ = new double[DimLocalOG * DimLocalOG];
+   common->grid = new GridCell[DimLocalOG * DimLocalOG];
    common->constraintType = new int[MaxNumConstraints];
    common->constraintIndex = new int[MaxNumConstraints];
    common->loopConstraintParent = new int[MaxNumLoopConstraints];
@@ -57,8 +56,7 @@ void GraphSlamCPU::start() {
 
 void GraphSlamCPU::stop() {
    delete [] common->localOG;
-   delete [] common->localOGCount;
-   delete [] common->localOGZ;
+   delete [] common->grid;
    delete [] common->constraintType;
    delete [] common->constraintIndex;
    delete [] common->loopConstraintParent;
@@ -91,8 +89,12 @@ void GraphSlamCPU::initialiseTrack(Pose icpPose, PointCloudPtr cloud) {
    common->currentOffsetTh = 0;
    for(int i = 0; i < DimLocalOG * DimLocalOG; i++) {
       common->localOG[i] = -1;
-      common->localOGCount[i] = 0;
-      common->localOGZ[i] = MinAddHeight;
+      common->grid[i].p.x = 0;
+      common->grid[i].p.y = 0;
+      common->grid[i].p.z = MinAddHeight;
+      common->grid[i].gradX = 0;
+      common->grid[i].gradY = 0;
+      common->grid[i].count = 0;
    }
    for(int i = 0; i < MaxNumConstraints + 1; i++) {
       common->graphHessian[i][0] = 0;  
@@ -177,95 +179,136 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
    int i, j;
    cosTh = cos(common->currentOffsetTh);
    sinTh = sin(common->currentOffsetTh);
-   for (i = 0; i < cloud->cloud.size() - 1; ++i) {
+
+   Scan *newScan = new Scan();
+   memset(newScan->covar, 0, sizeof(double) * 9);
+   double tempCovar[3][3];
+   for (i = 0; i < cloud->cloud.size(); ++i) {
       double dist = cloud->cloud[i].x * cloud->cloud[i].x + cloud->cloud[i].y * cloud->cloud[i].y;
       if (dist > LaserMinDist * LaserMinDist && dist < LaserMaxDist * LaserMaxDist &&
          cloud->cloud[i].z + InitHeight > MinAddHeight && cloud->cloud[i].z + InitHeight < MaxAddHeight) {
+         Point p;
+         p.x = cloud->cloud[i].x * cosTh - cloud->cloud[i].y * sinTh + common->currentOffsetX;
+         p.y = cloud->cloud[i].x * sinTh + cloud->cloud[i].y * cosTh + common->currentOffsetY;
+         p.z = cloud->cloud[i].z + InitHeight;
+         newScan->points.push_back(p);
 
-         double curPointX, curPointY;
-         curPointX = cloud->cloud[i].x * cosTh - cloud->cloud[i].y * sinTh + common->currentOffsetX;
-         curPointY = cloud->cloud[i].x * sinTh + cloud->cloud[i].y * cosTh + common->currentOffsetY;
-         int ogIndex = getLocalOGIndex(curPointX, curPointY);
-         if (ogIndex >= 0 && common->localOGCount[ogIndex] < MinObservationCount) {
-            common->localOGCount[ogIndex]++;
-            common->localOGZ[ogIndex] = std::max(common->localOGZ[ogIndex], cloud->cloud[i].z + InitHeight);
-         } else if (ogIndex >= 0 && common->localOGCount[ogIndex] > MinObservationCount) {
-            localMaps[currentLocalMap].pointsZ[common->localOG[ogIndex]] = std::max(
-               localMaps[currentLocalMap].pointsZ[common->localOG[ogIndex]], cloud->cloud[i].z + InitHeight);
-            globalMapHeights[numGlobalPoints + common->localOG[ogIndex]] = 
-               localMaps[currentLocalMap].pointsZ[common->localOG[ogIndex]];
-         } else if (ogIndex >= 0 && localMaps[currentLocalMap].numPoints < MAX_LOCAL_POINTS) {
-            //Add the point to the local map
-            common->localOGCount[ogIndex]++;
-            int index = localMaps[currentLocalMap].numPoints;
-            common->localOG[ogIndex] = index;
+         if (localMaps[currentLocalMap].scans.size() > 0) {
+            int ogIndex = getLocalOGIndex(p.x, p.y);
+            if (ogIndex >= 0) {
+               double x,y;
+               x = -sinTh * cloud->cloud[i].x - cosTh * cloud->cloud[i].y;
+               y = cosTh * cloud->cloud[i].x - sinTh * cloud->cloud[i].y;
+               double length = sqrt(common->grid[ogIndex].gradX * common->grid[ogIndex].gradX +
+                     common->grid[ogIndex].gradY * common->grid[ogIndex].gradY);
+               double mapGradX = common->grid[ogIndex].gradX / length;
+               double mapGradY = common->grid[ogIndex].gradY / length;
+               if (length > 0) {
 
-            localMaps[currentLocalMap].pointsX[index] = curPointX;
-            localMaps[currentLocalMap].pointsY[index] = curPointY;
-
-            double curPointNxtX, curPointNxtY;
-            curPointNxtX = cloud->cloud[i + 1].x * cosTh - 
-               cloud->cloud[i + 1].y * sinTh + common->currentOffsetX;
-            curPointNxtY = cloud->cloud[i + 1].x * sinTh + 
-               cloud->cloud[i + 1].y * cosTh + common->currentOffsetY;
-            common->pointsNxtX[index] = curPointNxtX;
-            common->pointsNxtY[index] = curPointNxtY;
-
-            localMaps[currentLocalMap].pointsZ[index] = std::max(
-               common->localOGZ[ogIndex], cloud->cloud[i].z + InitHeight);
-
-            if (curPointX < common->minMapRangeX) {
-               common->minMapRangeX = curPointX;
-            }
-            if (curPointX > common->maxMapRangeX) {
-               common->maxMapRangeX = curPointX;
-            }
-            if (curPointY < common->minMapRangeY) {
-               common->minMapRangeY = curPointY;
-            }
-            if (curPointY > common->maxMapRangeY) {
-               common->maxMapRangeY = curPointY;
-            }
-            //Update the histograms
-            double orien = atan2(curPointNxtY - curPointY, curPointNxtX - curPointX);
-            orien += M_PI/2;
-            if (orien >= M_PI) {
-               orien -= 2 * M_PI;
-            }
-            int orienIndex = (orien + M_PI) * NUM_ORIENTATION_BINS / (2*M_PI);
-            localMaps[currentLocalMap].orientationHist[orienIndex]++;
-            double mapSize = DimLocalOG * CellSize;
-            for(j = 0; j < NUM_ORIENTATION_BINS; j++) {
-               double dist = curPointX * common->histCos[j] + 
-                                 curPointY * common->histSin[j];
-               int projIndex = (dist + mapSize / 2.0f) / 
-                                 (mapSize / (double) NUM_PROJECTION_BINS);
-               if (projIndex < 0 || projIndex >= NUM_PROJECTION_BINS) {
-                  continue;
+                  double temp = x * mapGradX + y * mapGradY;
+                  tempCovar[0][0] += mapGradX * mapGradX;
+                  tempCovar[0][1] += mapGradX * mapGradY;
+                  tempCovar[0][2] += mapGradX * temp;
+                  tempCovar[1][0] += mapGradX * mapGradY;
+                  tempCovar[1][1] += mapGradY * mapGradY;
+                  tempCovar[1][2] += mapGradY * temp;
+                  tempCovar[2][0] += mapGradX * temp;
+                  tempCovar[2][1] += mapGradY * temp;
+                  tempCovar[2][2] += temp * temp;
                }
-               double normalX = curPointY - curPointNxtY;
-               double normalY = curPointNxtX - curPointX;
-               double normalise = sqrt(normalX * normalX + normalY * normalY);
-               double weight = normalX / normalise * common->histCos[j] +
-                                   normalY / normalise * common->histSin[j];
-               localMaps[currentLocalMap].projectionHist[j][projIndex] += weight;
             }
+         }
+      }
+   }
+   if (localMaps[currentLocalMap].scans.size() > 0) {
+      invert3x3Matrix(tempCovar, newScan->covar);
+      for (i = 0 ; i < 3; i++) {
+         for (j = 0; j < 3; j++) {
+            localMaps[currentLocalMap].internalCovar[i][j] += newScan->covar[i][j];
+         }
+      }
+   }
+
+   for (i = 0; i < newScan->points.size(); ++i) {
+
+      int pre = i - 5;
+      if (pre < 1) { pre = 1;}
+      double preP = (newScan->points[pre - 1].x + newScan->points[pre].x + newScan->points[pre + 1].x) / 3.0;
+      int nxt = i + 5;
+      if (nxt > (int) newScan->points.size() - 2) { nxt = newScan->points.size() - 2; }
+      double nxtP = (newScan->points[nxt - 1].x + newScan->points[nxt].x + newScan->points[nxt + 1].x) / 3.0;
+      double mapGradX = nxtP - preP;
+      preP = (newScan->points[pre - 1].y + newScan->points[pre].y + newScan->points[pre + 1].y) / 3.0;
+      nxtP = (newScan->points[nxt - 1].y + newScan->points[nxt].y + newScan->points[nxt + 1].y) / 3.0;
+      double mapGradY = nxtP - preP;
+
+      int ogIndex = getLocalOGIndex(newScan->points[i].x, newScan->points[i].y);
+      if (ogIndex >= 0 && mapGradX < 0.2 && mapGradX < 0.2) {
+         common->grid[ogIndex].p.z = std::max(common->grid[ogIndex].p.z, newScan->points[i].z);
+         common->grid[ogIndex].p.x += newScan->points[i].x;
+         common->grid[ogIndex].p.y += newScan->points[i].y;
+         common->grid[ogIndex].count++;
+         common->grid[ogIndex].gradX += mapGradY; //Note these are swapped
+         common->grid[ogIndex].gradY += mapGradX;
+
+         if (newScan->points[i].x < common->minMapRangeX) {
+            common->minMapRangeX = newScan->points[i].x;
+         }
+         if (newScan->points[i].x > common->maxMapRangeX) {
+            common->maxMapRangeX = newScan->points[i].x;
+         }
+         if (newScan->points[i].y < common->minMapRangeY) {
+            common->minMapRangeY = newScan->points[i].y;
+         }
+         if (newScan->points[i].y > common->maxMapRangeY) {
+            common->maxMapRangeY = newScan->points[i].y;
+         }
+         //Update the histograms
+         double orien = atan2(mapGradY, mapGradX);
+         orien += M_PI/2;
+         if (orien >= M_PI) {
+            orien -= 2 * M_PI;
+         }
+         int orienIndex = (orien + M_PI) * NUM_ORIENTATION_BINS / (2*M_PI);
+         localMaps[currentLocalMap].orientationHist[orienIndex]++;
+         double mapSize = DimLocalOG * CellSize;
+         for(j = 0; j < NUM_ORIENTATION_BINS; j++) {
+            double dist = newScan->points[i].x * common->histCos[j] + 
+                              newScan->points[i].y * common->histSin[j];
+            int projIndex = (dist + mapSize / 2.0f) / 
+                              (mapSize / (double) NUM_PROJECTION_BINS);
+            if (projIndex < 0 || projIndex >= NUM_PROJECTION_BINS) {
+               continue;
+            }
+            double normalX = -mapGradY;
+            double normalY = mapGradX;
+            double normalise = sqrt(normalX * normalX + normalY * normalY);
+            double weight = normalX / normalise * common->histCos[j] +
+                                normalY / normalise * common->histSin[j];
+            localMaps[currentLocalMap].projectionHist[j][projIndex] += weight;
+         }
+
+         if (common->grid[ogIndex].count == MinObservationCount && 
+               localMaps[currentLocalMap].numPoints < MAX_LOCAL_POINTS) {
+            common->activeCells[localMaps[currentLocalMap].numPoints] = ogIndex;
+            common->localOG[ogIndex] = localMaps[currentLocalMap].numPoints;
+
             //Add the point to the global map
-            int globalIndex = convertToGlobalPosition(curPointX, curPointY, 
+            int globalIndex = convertToGlobalPosition(newScan->points[i].x, newScan->points[i].y, 
                            currentLocalMap, cosThG, sinThG);
             if (numGlobalPoints + localMaps[currentLocalMap].numPoints < globalMap.size()) {
                globalMap[numGlobalPoints + localMaps[currentLocalMap].numPoints] = globalIndex;
                globalMapHeights[numGlobalPoints + common->localOG[ogIndex]] = 
-                  localMaps[currentLocalMap].pointsZ[common->localOG[ogIndex]];
+                  common->grid[ogIndex].p.z;
             } else {
                globalMap.push_back(globalIndex);
-               globalMapHeights.push_back(localMaps[currentLocalMap].pointsZ[common->localOG[ogIndex]]);
+               globalMapHeights.push_back(common->grid[ogIndex].p.z);
             }
             localMaps[currentLocalMap].numPoints++;
          }
-
       }
    }
+   localMaps[currentLocalMap].scans.push_back(newScan);
 
    double temp = sqrt(offsetFromParentX * offsetFromParentX +
          offsetFromParentY * offsetFromParentY);
@@ -295,6 +338,16 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
    int oldLocalMap = currentLocalMap;
    int numOldMapPoints = numLocalPoints;
 
+   int i;
+   for (i = 0; i < numLocalPoints; i++) {
+      int ogIndex = common->activeCells[i];
+      double count = (double)common->grid[ogIndex].count;
+      localMaps[currentLocalMap].pointsX[i] = common->grid[ogIndex].p.x / count;
+      localMaps[currentLocalMap].pointsY[i] = common->grid[ogIndex].p.y / count;
+      localMaps[currentLocalMap].pointsZ[i] = common->grid[ogIndex].p.z;
+      globalMapHeights[numGlobalPoints + i] = common->grid[ogIndex].p.z;
+   }
+
    if (parentLocalMap >= 0) {
       getHessianMatch(-1);
       prepareLocalMap();
@@ -315,7 +368,6 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             if (matchSuccess == 1) {
                cout << "Combining map succeeded" << endl;
                int numOtherGlobalPoints = 0;
-               int i;
                for (i = 0; i < combineIndex; i++) {
                   numOtherGlobalPoints += localMaps[i].numPoints;
                }
@@ -359,7 +411,6 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             //Debugging map print
             updateTestMap();
 
-            int i;
             for (i = 0; i < common->numPotentialMatches; i++) {
                int matchSuccess = 0;
                int c = 0;
@@ -500,6 +551,7 @@ void GraphSlamCPU::clearMap(int mapIndex) {
    memset(localMaps[mapIndex].projectionHist, 0, sizeof(double) * NUM_ORIENTATION_BINS
          * NUM_PROJECTION_BINS);
    memset(localMaps[mapIndex].parentInfo, 0, sizeof(double) * 9);
+   memset(localMaps[mapIndex].internalCovar, 0, sizeof(double) * 9);
 }
 
 int GraphSlamCPU::getLocalOGIndex(double x, double y) {
@@ -528,8 +580,13 @@ void GraphSlamCPU::createNewLocalMap(int oldLocalMap, int newLocalMap, int paren
    
    for(int i = 0; i < DimLocalOG * DimLocalOG; i++) {
       common->localOG[i] = -1;
-      common->localOGCount[i] = 0;
-      common->localOGZ[i] = MinAddHeight;
+      common->grid[i].p.x = 0;
+      common->grid[i].p.y = 0;
+      common->grid[i].p.z = MinAddHeight;
+      common->grid[i].gradX = 0;
+      common->grid[i].gradY = 0;
+      common->grid[i].count = 0;
+
    }
    if (newLocalMap == localMaps.size()) {
       LocalMap temp;
@@ -618,15 +675,15 @@ void GraphSlamCPU::getHessianMatch(int constraintIndex) {
       convertReferenceFrame(localMaps[otherMap].pointsX[index], 
                   localMaps[otherMap].pointsY[index], offsetX, offsetY, cosThN, sinThN, 
                   &transformedPointX, &transformedPointY);
-      matchIndex = findMatchingPoint(transformedPointX, transformedPointY, 1);
+      matchIndex = getLocalOGIndex(transformedPointX, transformedPointY);
       
-      if (matchIndex >= 0) {
+      if (matchIndex >= 0 && common->localOG[matchIndex] >= 0) {
 
          double mapGradX;
          double mapGradY;
          double x,y;
-         mapGradX = common->pointsNxtX[matchIndex] - localMaps[currentLocalMap].pointsX[matchIndex];
-         mapGradY = common->pointsNxtY[matchIndex] - localMaps[currentLocalMap].pointsY[matchIndex];
+         mapGradX = common->grid[matchIndex].gradX;
+         mapGradY = common->grid[matchIndex].gradY;
          double length = sqrt(mapGradX * mapGradX + mapGradY * mapGradY);
          mapGradX /= length;
          mapGradY /= length;
