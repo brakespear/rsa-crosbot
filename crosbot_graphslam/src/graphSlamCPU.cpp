@@ -323,8 +323,14 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
    ros::WallTime t2 = ros::WallTime::now();
    totalTime += t2 - t1;
    numIterations++;
-   if (numIterations % 100 == 0) {
+   if (numIterations % 50 == 0) {
       cout << totalTime.toSec() * 1000.0f / (double) numIterations << "ms " << endl;
+      for (i = 0; i < 3; i++) {
+         for (j = 0; j < 3; j++) {
+            cout << localMaps[currentLocalMap].internalCovar[i][j] << " ";
+         }
+      }
+      cout << endl;
    }
 
    finishedSetup = true;
@@ -352,6 +358,14 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
    if (parentLocalMap >= 0) {
       getHessianMatch(-1);
       prepareLocalMap();
+      cout << "Global covar of map is: ";
+      int k, l;
+      for (k = 0; k < 3; k++) {
+         for (l = 0; l < 3; l++) {
+            cout << localMaps[currentLocalMap].globalCovar[k][l] << " ";
+         }
+      }
+      cout << endl;
       bool needOptimisation = false;
       if (combineMode > 0) {
          int combineIndex = common->combineIndex;
@@ -470,7 +484,8 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
    } else {
       prepareLocalMap();
       nextLocalMap++;
-   }
+   }      
+   cout << "Maps are: old: " << oldLocalMap << " new: " << nextLocalMap << " parent:" << currentLocalMap << endl;
    createNewLocalMap(oldLocalMap, nextLocalMap, currentLocalMap, angleError, icpTh);
    offsetFromParentX = 0;
    offsetFromParentY = 0;
@@ -1348,8 +1363,8 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex) {
          common->A[1][1] * common->A[2][2]);
 
    if (common->goodCount > MinGoodCount) {
-      cout << "shifts: " << shift[0] << " " << shift[1] << " " << 
-         shift[2] << " " << common->goodCount << endl;
+      /*cout << "shifts: " << shift[0] << " " << shift[1] << " " << 
+         shift[2] << " " << common->goodCount << endl;*/
       //Add the amount of the shift to the move offset
       common->potentialMatchX[matchIndex] += shift[0];
       common->potentialMatchY[matchIndex] += shift[1];
@@ -1372,7 +1387,7 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex) {
       } else if (common->numIterations >= MaxIterations) {
          common->matchSuccess = -1;
          finished = 1;
-         cout << "Too many iterations " << common->numIterations << endl;
+         cout << "Too many iterations " << common->numIterations << " " << common->goodCount << endl;
       }
    } else {
       //Match failed

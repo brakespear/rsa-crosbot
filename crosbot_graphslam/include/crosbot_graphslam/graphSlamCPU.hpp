@@ -61,6 +61,11 @@ private:
       double globalCovar[3][3];
       double internalCovar[3][3];
 
+      int indexNextNode;
+      double nextOffsetX;
+      double nextOffsetY;
+      double nextOffsetTh;
+
       double mapCentreX;
       double mapCentreY;
       double robotMapCentreX;
