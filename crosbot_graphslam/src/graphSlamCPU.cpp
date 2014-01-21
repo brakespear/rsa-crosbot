@@ -356,6 +356,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
    }
 
    if (parentLocalMap >= 0) {
+      parentLocalMap = currentLocalMap;
       getHessianMatch(-1);
       prepareLocalMap();
       cout << "Global covar of map is: ";
@@ -441,6 +442,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
                   finaliseInformationMatrix();
                   numConstraints++;
                   needOptimisation = true;
+                  parentLocalMap = common->potentialMatches[i];
                   //Only add one loop closing constraint
                   break;
                } else {
@@ -451,9 +453,9 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       }
       if (needOptimisation) {
          cout << "Optimising graph" << endl;
-         double posBeforeX = localMaps[currentLocalMap].currentGlobalPosX;
-         double posBeforeY = localMaps[currentLocalMap].currentGlobalPosY;
-         double posBeforeTh = localMaps[currentLocalMap].currentGlobalPosTh;
+         double posBeforeX = localMaps[parentLocalMap].currentGlobalPosX;
+         double posBeforeY = localMaps[parentLocalMap].currentGlobalPosY;
+         double posBeforeTh = localMaps[parentLocalMap].currentGlobalPosTh;
          cout << "pos before: " << posBeforeX << " " << posBeforeY << " " << posBeforeTh << endl;
          for (int numIterations = 1; numIterations < 6; numIterations++) {
             getGlobalHessianMatrix();
@@ -464,16 +466,19 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          resetMap = true;
          historySlamPoses.resize(0);
 
-         double posChangeX = localMaps[currentLocalMap].currentGlobalPosX - posBeforeX;
-         double posChangeY = localMaps[currentLocalMap].currentGlobalPosY - posBeforeY;
-         double posChangeTh = localMaps[currentLocalMap].currentGlobalPosTh - posBeforeTh;
+         double posChangeX;
+         double posChangeY;
+         double posChangeTh = localMaps[parentLocalMap].currentGlobalPosTh + common->currentOffsetTh;
+         convertToGlobalCoord(common->currentOffsetX, common->currentOffsetY,
+               localMaps[parentLocalMap].currentGlobalPosX, localMaps[parentLocalMap].currentGlobalPosY,
+               localMaps[parentLocalMap].currentGlobalPosTh, &posChangeX, &posChangeY);
          cout << "pos change: " << posChangeX << " " << posChangeY << " " << posChangeTh << endl;
 
-         slamPose.position.x += posChangeX;
-         slamPose.position.y += posChangeY;
+         slamPose.position.x = posChangeX;
+         slamPose.position.y = posChangeY;
          double ys, ps, rs;
          slamPose.getYPR(ys, ps, rs);
-         ys += posChangeTh;
+         ys = posChangeTh;
          ANGNORM(ys);
          slamPose.setYPR(ys, ps, rs);
 
@@ -483,16 +488,16 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       }
    } else {
       prepareLocalMap();
+      parentLocalMap = currentLocalMap;
       nextLocalMap++;
    }      
-   cout << "Maps are: old: " << oldLocalMap << " new: " << nextLocalMap << " parent:" << currentLocalMap << endl;
-   createNewLocalMap(oldLocalMap, nextLocalMap, currentLocalMap, angleError, icpTh);
+   cout << "Maps are: old: " << oldLocalMap << " new: " << nextLocalMap << " parent:" << parentLocalMap << endl;
+   createNewLocalMap(oldLocalMap, nextLocalMap, parentLocalMap, angleError, icpTh);
    offsetFromParentX = 0;
    offsetFromParentY = 0;
    offsetFromParentTh = 0;
    currentLocalMapICPPose = icpPose;
    numGlobalPoints += numLocalPoints;
-   parentLocalMap = currentLocalMap;
    currentLocalMap = nextLocalMap;
 
 }}
@@ -615,8 +620,8 @@ void GraphSlamCPU::createNewLocalMap(int oldLocalMap, int newLocalMap, int paren
       localMaps[0].mapCentreX = (common->minMapRangeX + common->maxMapRangeX) / 2.0;
       localMaps[0].mapCentreY = (common->minMapRangeY + common->maxMapRangeY) / 2.0;
    }
-   localMaps[oldLocalMap].robotMapCentreX = common->currentOffsetX/2.0;
-   localMaps[oldLocalMap].robotMapCentreY = common->currentOffsetY/2.0;
+   //localMaps[oldLocalMap].robotMapCentreX = common->currentOffsetX/2.0;
+   //localMaps[oldLocalMap].robotMapCentreY = common->currentOffsetY/2.0;
    localMaps[newLocalMap].indexParentNode = parentLocalMap;
    localMaps[newLocalMap].treeLevel = localMaps[parentLocalMap].treeLevel + 1;
    common->minMapRangeX = INFINITY;
@@ -626,7 +631,7 @@ void GraphSlamCPU::createNewLocalMap(int oldLocalMap, int newLocalMap, int paren
    common->numPotentialMatches = 0;
    common->startICPTh = icpTh;
 
-   double cosTh = cos(angleError);
+   /*double cosTh = cos(angleError);
    double sinTh = sin(angleError);
    double tempX, tempY;
    tempX = cosTh * offsetFromParentX - sinTh * offsetFromParentY;
@@ -637,14 +642,26 @@ void GraphSlamCPU::createNewLocalMap(int oldLocalMap, int newLocalMap, int paren
       + tempY;
    localMaps[newLocalMap].currentGlobalPosTh = localMaps[parentLocalMap].currentGlobalPosTh
       + offsetFromParentTh;
+   ANGNORM(localMaps[newLocalMap].currentGlobalPosTh);*/
+
+
+   convertToGlobalCoord(common->currentOffsetX, common->currentOffsetY,
+         localMaps[parentLocalMap].currentGlobalPosX, localMaps[parentLocalMap].currentGlobalPosY,
+         localMaps[parentLocalMap].currentGlobalPosTh, &(localMaps[newLocalMap].currentGlobalPosX),
+         &(localMaps[newLocalMap].currentGlobalPosY));
+   localMaps[newLocalMap].currentGlobalPosTh = localMaps[parentLocalMap].currentGlobalPosTh +
+      common->currentOffsetTh;
    ANGNORM(localMaps[newLocalMap].currentGlobalPosTh);
 
    //Make the offset relative to the parent instead of the global coord system
-   cosTh = cos(-localMaps[parentLocalMap].currentGlobalPosTh);
+   /*cosTh = cos(-localMaps[parentLocalMap].currentGlobalPosTh);
    sinTh = sin(-localMaps[parentLocalMap].currentGlobalPosTh);
    localMaps[newLocalMap].parentOffsetX = cosTh * tempX - sinTh * tempY;
    localMaps[newLocalMap].parentOffsetY = sinTh * tempX + cosTh * tempY;
-   localMaps[newLocalMap].parentOffsetTh = offsetFromParentTh;
+   localMaps[newLocalMap].parentOffsetTh = offsetFromParentTh;*/
+   localMaps[newLocalMap].parentOffsetX = common->currentOffsetX;
+   localMaps[newLocalMap].parentOffsetY = common->currentOffsetY;
+   localMaps[newLocalMap].parentOffsetTh = common->currentOffsetTh;
 
    common->currentOffsetX = 0;
    common->currentOffsetY = 0;
@@ -798,6 +815,10 @@ double GraphSlamCPU::getMetricValue(double pointX, double pointY,
 
 
 void GraphSlamCPU::prepareLocalMap() {
+
+   localMaps[currentLocalMap].robotMapCentreX = common->currentOffsetX/2.0;
+   localMaps[currentLocalMap].robotMapCentreY = common->currentOffsetY/2.0;
+   
    //Finalise the histograms
    int i;
    for(int index = 0; index < NUM_ORIENTATION_BINS; index++) {
@@ -1426,6 +1447,13 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex) {
          common->loopConstraintYDisp[loopIndex] = (sinTh * -common->potentialMatchX[matchIndex] +
                                                   cosTh * -common->potentialMatchY[matchIndex]);
          ANGNORM(common->loopConstraintThetaDisp[loopIndex]);
+
+         common->currentOffsetTh += common->loopConstraintThetaDisp[loopIndex];
+         double tempX = common->currentOffsetX - common->potentialMatchX[matchIndex]; 
+         double tempY = common->currentOffsetY - common->potentialMatchY[matchIndex];
+         common->currentOffsetX = cosTh * tempX - sinTh * tempY;
+         common->currentOffsetY = sinTh * tempX + cosTh * tempY;
+          
          //common->loopConstraintXDisp[loopIndex] = - common->potentialMatchX[matchIndex];
          //common->loopConstraintYDisp[loopIndex] = - common->potentialMatchY[matchIndex];
          if(LocalMapCombine) {
