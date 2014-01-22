@@ -39,6 +39,9 @@ private:
    typedef struct {
       vector<Point> points;
       double covar[3][3];
+      double correctionX;
+      double correctionY;
+      double correctionTh;
    } Scan;
 
    /*
@@ -78,6 +81,11 @@ private:
       double pointsX[MAX_LOCAL_POINTS];
       double pointsY[MAX_LOCAL_POINTS];
       double pointsZ[MAX_LOCAL_POINTS];
+
+      double warpPointsX[MAX_LOCAL_POINTS];
+      double warpPointsY[MAX_LOCAL_POINTS];
+      double warpPointsZ[MAX_LOCAL_POINTS];
+      double numWarpPoints;
 
       vector<Scan *> scans;
    } LocalMap;

@@ -44,6 +44,7 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("HistoryTime", HistoryTime, 1000000);
    paramNH.param<int>("MinObservationCount", MinObservationCount, 30);
    paramNH.param<double>("InitHeight", InitHeight, 1.0);
+   paramNH.param<bool>("LocalMapWarp", LocalMapWarp, true);
 
    DimLocalOG = LocalMapSize / CellSize;
    DimGlobalOG = GlobalMapSize / CellSize;

@@ -106,6 +106,8 @@ protected:
    int MinObservationCount;
    //Initial height of the robot
    double InitHeight;
+   //Should local maps be warped?
+   bool LocalMapWarp;
 
 
 
