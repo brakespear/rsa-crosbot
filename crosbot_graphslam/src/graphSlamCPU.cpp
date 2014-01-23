@@ -230,6 +230,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
       invert3x3Matrix(tempCovar, newScan->covar);
       for (i = 0 ; i < 3; i++) {
          for (j = 0; j < 3; j++) {
+            newScan->covar[i][j] /= 10;
             localMaps[currentLocalMap].internalCovar[i][j] += newScan->covar[i][j];
          }
       }
@@ -371,13 +372,13 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
 
    if (parentLocalMap >= 0) {
       parentLocalMap = currentLocalMap;
-      getHessianMatch(-1);
+      //getHessianMatch(-1);
       prepareLocalMap();
       cout << "Global covar of map is: ";
       int k, l;
       for (k = 0; k < 3; k++) {
          for (l = 0; l < 3; l++) {
-            cout << localMaps[currentLocalMap].globalCovar[k][l] << " ";
+            cout << localMaps[currentLocalMap].parentInfo[k][l] << " ";
          }
       }
       cout << endl;
@@ -505,7 +506,8 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       parentLocalMap = currentLocalMap;
       nextLocalMap++;
    }      
-   cout << "Maps are: old: " << oldLocalMap << " new: " << nextLocalMap << " parent:" << parentLocalMap << endl;
+   cout << "Maps are: old: " << oldLocalMap << " new: " << nextLocalMap << " parent: " 
+      << parentLocalMap << endl;
    createNewLocalMap(oldLocalMap, nextLocalMap, parentLocalMap, angleError, icpTh);
    offsetFromParentX = 0;
    offsetFromParentY = 0;
@@ -897,7 +899,7 @@ void GraphSlamCPU::prepareLocalMap() {
    double a[3][3];
    double b[3][3];
    double c[3][3];
-   if (currentLocalMap > 0) {
+   //if (currentLocalMap > 0) {
       //Need to rotate the hessian matrix as it was calculated in the opposite displacement
       //to the actual move - rotate info matrix b by RbR^T where R is the homogeneous 
       //rotation matrix of the angle of the last move
@@ -909,7 +911,29 @@ void GraphSlamCPU::prepareLocalMap() {
       localMaps[currentLocalMap].mapCentreY = 
          (common->minMapRangeY + common->maxMapRangeY) / 2.0;
 
-      double cosTh = cos(- localMaps[currentLocalMap].parentOffsetTh);
+      //Set the parentInfo matrix and the global covar
+      invert3x3Matrix(localMaps[currentLocalMap].internalCovar, localMaps[currentLocalMap].parentInfo);
+      double cosTh = cos(localMaps[currentLocalMap].currentGlobalPosTh);
+      double sinTh = sin(localMaps[currentLocalMap].currentGlobalPosTh);
+      a[0][0] = cosTh;
+      a[1][1] = cosTh;
+      a[1][0] = sinTh;
+      a[0][1] = -sinTh;
+      a[2][2] = 1;
+      a[0][2] = 0;
+      a[1][2] = 0;
+      a[2][0] = 0;
+      a[2][1] = 0;
+      mult3x3Matrix(a, localMaps[currentLocalMap].internalCovar, c);
+      //transpose the parent rotation matrix
+      double temp = a[1][0];
+      a[1][0] = a[0][1];
+      a[0][1] = temp;
+      mult3x3Matrix(c, a, localMaps[currentLocalMap].globalCovar);
+
+       
+
+      /*double cosTh = cos(- localMaps[currentLocalMap].parentOffsetTh);
       double sinTh = sin(- localMaps[currentLocalMap].parentOffsetTh);
       a[0][0] = cosTh;
       a[1][1] = cosTh;
@@ -979,9 +1003,10 @@ void GraphSlamCPU::prepareLocalMap() {
       }
       //Fiddle with the covar to make it nicer
       covarFiddle(localMaps[currentLocalMap].globalCovar);
-      
+      */
       common->infoCount = 0;
 
+   if (currentLocalMap > 0) {
       //Start combining nodes
       int combined = 0;
       if (common->combineIndex >= 0) {
@@ -1505,6 +1530,21 @@ void GraphSlamCPU::finaliseInformationMatrix() {
 
    int cIndex = common->constraintIndex[common->numConstraints - 1];
 
+   /*invert3x3Matrix(common->loopConstraintInfo[cIndex], a);
+   for (int y = 0; y < 3; y++) {
+      for (int x = 0; x < 3; x++) {
+         a[y][x] /= 10;
+      }
+   }
+   invert3x3Matrix(a, common->loopConstraintInfo[cIndex]);*/
+   cout << "the info matrix of the loop closing is: ";
+   for (int y = 0; y < 3; y++) {
+      for (int x = 0; x < 3; x++) {
+         cout << common->loopConstraintInfo[cIndex][y][x] << " ";
+      }
+   }
+   cout << endl;
+
    double cosTh = cos(- common->loopConstraintThetaDisp[cIndex]);
    double sinTh = sin(- common->loopConstraintThetaDisp[cIndex]);
    a[0][0] = cosTh;
@@ -1517,6 +1557,7 @@ void GraphSlamCPU::finaliseInformationMatrix() {
    a[2][0] = 0;
    a[2][1] = 0;
 
+
    if (common->infoCount < InformationScaleFactor) {
       common->infoCount = InformationScaleFactor;
    }
@@ -1526,8 +1567,9 @@ void GraphSlamCPU::finaliseInformationMatrix() {
  
          //Adjust the parent info matrix to be relative to the parent instead
          //of relative to the current node
-         b[y][x] = common->loopConstraintInfo[cIndex][y][x] /= 
-                        ((double)common->infoCount / (double)InformationScaleFactor);
+         //b[y][x] = common->loopConstraintInfo[cIndex][y][x] /= 
+         //               ((double)common->infoCount / (double)InformationScaleFactor);
+         b[y][x] = common->loopConstraintInfo[cIndex][y][x];
       }
    }
    mult3x3Matrix(a, b, c);
@@ -1577,7 +1619,8 @@ void GraphSlamCPU::getGlobalHessianMatrix() {
          jNode = constraintIndex;
          for (int y = 0; y < 3; y++) {
             for(int x = 0; x < 3; x++) {
-               b[y][x] = localMaps[constraintIndex].parentInfo[y][x];
+               //b[y][x] = localMaps[constraintIndex].parentInfo[y][x];
+               b[y][x] = localMaps[iNode].parentInfo[y][x];
             }
          }
       }
@@ -1651,7 +1694,7 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
          jNode = constraintIndex;
          for (y = 0; y < 3; y++) {
             for (x = 0; x < 3; x++) {
-               b[y][x] = localMaps[constraintIndex].parentInfo[y][x];
+               b[y][x] = localMaps[iNode].parentInfo[y][x];
             }
          }
          constraint[0] = localMaps[constraintIndex].parentOffsetX;
@@ -1802,7 +1845,23 @@ void GraphSlamCPU::updateGlobalMap() {
    int x,y;
 
    for (i = 1; i < nextLocalMap; i++) {
-      double parentAngle = localMaps[localMaps[i].indexParentNode]
+      double cosTh = cos(localMaps[i].currentGlobalPosTh);
+      double sinTh = sin(localMaps[i].currentGlobalPosTh);
+      a[0][0] = cosTh;
+      a[1][1] = cosTh;
+      a[1][0] = sinTh;
+      a[0][1] = -sinTh;
+      a[2][2] = 1;
+      a[0][2] = 0;
+      a[1][2] = 0;
+      a[2][0] = 0;
+      a[2][1] = 0;
+      mult3x3Matrix(a, localMaps[i].internalCovar, c);
+      a[1][0] *= -1;
+      a[0][1] *= -1;
+      mult3x3Matrix(c, a, localMaps[i].globalCovar);
+
+      /*double parentAngle = localMaps[localMaps[i].indexParentNode]
                                     .currentGlobalPosTh;
       double cosTh = cos(parentAngle);
       double sinTh = sin(parentAngle);
@@ -1838,7 +1897,7 @@ void GraphSlamCPU::updateGlobalMap() {
          }
       }
       //Fiddle with the covar to make it nicer
-      covarFiddle(localMaps[i].globalCovar);
+      covarFiddle(localMaps[i].globalCovar);*/
    }
       
    //Local map warping
