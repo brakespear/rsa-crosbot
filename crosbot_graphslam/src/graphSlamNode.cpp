@@ -94,7 +94,8 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
          globalMaps.push_back(new LocalMap(dim, dim, graph_slam.CellSize, slam_frame));
       }
       //Debugging publisher
-      dim = (uint32_t)(graph_slam.DimLocalOG);
+      //dim = (uint32_t)(graph_slam.DimLocalOG);
+      dim = (uint32_t)(graph_slam.DimGlobalOG);
       testMap = new LocalMap(dim, dim, graph_slam.CellSize, slam_frame);
       graph_slam.testMap = testMap;
    } else {

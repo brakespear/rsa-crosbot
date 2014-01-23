@@ -39,9 +39,8 @@ private:
    typedef struct {
       vector<Point> points;
       double covar[3][3];
-      double correctionX;
-      double correctionY;
-      double correctionTh;
+      double pose[3];
+      double correction[3];
    } Scan;
 
    /*
@@ -85,6 +84,7 @@ private:
       double warpPointsX[MAX_LOCAL_POINTS];
       double warpPointsY[MAX_LOCAL_POINTS];
       double warpPointsZ[MAX_LOCAL_POINTS];
+      int lastObserved[MAX_LOCAL_POINTS];
       double numWarpPoints;
 
       vector<Scan *> scans;
@@ -232,6 +232,8 @@ private:
    void updateGlobalMap();
    //Combines two local maps
    void combineNodes(double alignError, int numOtherGlobalPoints);
+
+   void warpLocalMap(int mapIndex, double errX, double errY, double errTh);
 
 
    //Debugging publisher

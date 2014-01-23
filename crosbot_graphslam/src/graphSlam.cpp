@@ -14,7 +14,7 @@ using namespace NEWMAT;
 
 void GraphSlam::initialise(ros::NodeHandle &nh) {
    ros::NodeHandle paramNH("~");
-   paramNH.param<double>("GlobalMapSize", GlobalMapSize, 60);
+   paramNH.param<double>("GlobalMapSize", GlobalMapSize, 50);
    paramNH.param<double>("CellSize", CellSize, 0.05);
    paramNH.param<int>("ImgTransmitTime", ImgTransmitTime, 2000000);
    paramNH.param<double>("MinAddHeight", MinAddHeight, 1.2);

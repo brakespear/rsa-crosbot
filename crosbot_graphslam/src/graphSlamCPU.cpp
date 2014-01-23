@@ -182,9 +182,12 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
 
    Scan *newScan = new Scan();
    memset(newScan->covar, 0, sizeof(double) * 9);
-   newScan->correctionX = 0;
-   newScan->correctionY = 0;
-   newScan->correctionTh = 0;
+   newScan->correction[0] = 0;
+   newScan->correction[1] = 0;
+   newScan->correction[2] = 0;
+   newScan->pose[0] = common->currentOffsetX;
+   newScan->pose[1] = common->currentOffsetY;
+   newScan->pose[2] = common->currentOffsetTh;
    double tempCovar[3][3];
    for (i = 0; i < cloud->cloud.size(); ++i) {
       double dist = cloud->cloud[i].x * cloud->cloud[i].x + cloud->cloud[i].y * cloud->cloud[i].y;
@@ -310,6 +313,10 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
             localMaps[currentLocalMap].numPoints++;
             localMaps[currentLocalMap].numWarpPoints++;
          }
+         if (common->localOG[ogIndex] > -1) {
+            localMaps[currentLocalMap].lastObserved[common->localOG[ogIndex]] =
+               localMaps[currentLocalMap].scans.size();
+         }
       }
    }
    localMaps[currentLocalMap].scans.push_back(newScan);
@@ -432,7 +439,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             cout << endl << "************" << endl;
 
             //Debugging map print
-            updateTestMap();
+            //updateTestMap();
 
             for (i = 0; i < common->numPotentialMatches; i++) {
                int matchSuccess = 0;
@@ -1843,6 +1850,7 @@ void GraphSlamCPU::updateGlobalMap() {
             double errX = localMaps[j].currentGlobalPosX - localMaps[i].currentGlobalPosX;
             double errY = localMaps[j].currentGlobalPosY - localMaps[i].currentGlobalPosY;
             double diffTh = localMaps[j].currentGlobalPosTh - localMaps[i].currentGlobalPosTh;
+            ANGNORM(diffTh);
 
             //transform global diffs to be relative to the local map
             double cosTh = cos(- localMaps[i].currentGlobalPosTh);
@@ -1853,16 +1861,23 @@ void GraphSlamCPU::updateGlobalMap() {
             errX = diffX - localMaps[i].nextOffsetX;
             errY = diffY - localMaps[i].nextOffsetY;
             double errTh = diffTh - localMaps[i].nextOffsetTh;
+            ANGNORM(errTh);
 
-            diffX = localMaps[i].scans[localMaps[i].scans.size() - 1]->correctionX - errX;
-            diffY = localMaps[i].scans[localMaps[i].scans.size() - 1]->correctionY - errY;
-            diffTh = localMaps[i].scans[localMaps[i].scans.size() - 1]->correctionTh - errTh;
+            diffX = localMaps[i].scans[localMaps[i].scans.size() - 1]->correction[0] - errX;
+            diffY = localMaps[i].scans[localMaps[i].scans.size() - 1]->correction[1] - errY;
+            diffTh = localMaps[i].scans[localMaps[i].scans.size() - 1]->correction[2] - errTh;
+            ANGNORM(diffTh);
 
-            //If diffX/diffY/diffTh exceeds a certain threshold, warp the map
-              
+            cout << "**Looking at map: " << i << ": " << diffX << " " << diffY << " " << diffTh << ": " << errTh << " " << localMaps[i].nextOffsetTh << endl;
+
+            if (fabs(diffX > 0.03) || fabs(diffY) > 0.03 || fabs(diffTh) > 0.005) {
+               cout << "Warping map: " << i << endl;
+               warpLocalMap(i, errX, errY, errTh);
+            }
          }
       }
    }
+   updateTestMap();
 
 
    //Now update the global map
@@ -1878,6 +1893,54 @@ void GraphSlamCPU::updateGlobalMap() {
          globalMapHeights[globalOffset + index] = localMaps[i].warpPointsZ[index];
       }
       globalOffset += localMaps[i].numWarpPoints;
+   }
+}
+
+void GraphSlamCPU::warpLocalMap(int mapIndex, double errX, double errY, double errTh) {
+   int i, j, k;
+   //Warp each scan
+   double tempCovar[3][3];
+   double den[3];
+   for (i = 3; i < 3; i++) {
+      for (j = 0; j < 3; j++) {
+         tempCovar[i][j] = 0;
+      }
+      den[i] = errX * localMaps[mapIndex].internalCovar[i][0] +
+         errY * localMaps[mapIndex].internalCovar[i][1] +
+         errTh * localMaps[mapIndex].internalCovar[i][2];
+   }
+   double err[3];
+   err[0] = errX;
+   err[1] = errY;
+   err[2] = errTh;
+   for (i = 0; i < localMaps[mapIndex].scans.size(); i++) {
+      for (j = 0; j < 3; j++) {
+         for (k = 0; k < 3; k++) {
+            tempCovar[j][k] += localMaps[mapIndex].scans[i]->covar[j][k];
+         }
+      }
+      for (j = 0; j < 3; j++) {
+         double num = errX * tempCovar[j][0] + errY * tempCovar[j][1] +
+            errTh * tempCovar[j][2];
+         localMaps[mapIndex].scans[i]->correction[j] = (num / den[j]) * err[j];
+      }
+   }
+
+   //Now actually warp the points
+   for (i = 0; i < localMaps[mapIndex].numWarpPoints; i++) {
+      int scanIndex = localMaps[mapIndex].lastObserved[i];
+      double tempX = localMaps[mapIndex].pointsX[i] - localMaps[mapIndex].scans[scanIndex]->pose[0];
+      double tempY = localMaps[mapIndex].pointsY[i] - localMaps[mapIndex].scans[scanIndex]->pose[1];
+      double cosTh = cos(-localMaps[mapIndex].scans[scanIndex]->pose[2]);
+      double sinTh = sin(-localMaps[mapIndex].scans[scanIndex]->pose[2]);
+      double relX = cosTh * tempX - sinTh * tempY;
+      double relY = sinTh * tempX + cosTh * tempY;
+      cosTh = cos(localMaps[mapIndex].scans[scanIndex]->pose[2] + errTh);
+      sinTh = sin(localMaps[mapIndex].scans[scanIndex]->pose[2] + errTh);
+      localMaps[mapIndex].warpPointsX[i] = cosTh * relX - sinTh * relY
+         + localMaps[mapIndex].scans[scanIndex]->pose[0] + errX;
+      localMaps[mapIndex].warpPointsY[i] = sinTh * relX + cosTh * relY
+         + localMaps[mapIndex].scans[scanIndex]->pose[1] + errY;
    }
 }
 
@@ -2155,7 +2218,7 @@ void GraphSlamCPU::combineNodes(double alignError, int numOtherGlobalPoints) {
    common->combineMode = 1;
 }
 
-void GraphSlamCPU::updateTestMap() {
+/*void GraphSlamCPU::updateTestMap() {
 
    int x,y;
    for (y = 0; y < testMap->height; y++) {
@@ -2166,17 +2229,13 @@ void GraphSlamCPU::updateTestMap() {
          cellsP++;
       }
    }
-   /*testMap->origin.position.x = curPose.position.x - 
-      (testMap->width * testMap->resolution) / 2;
-   testMap->origin.position.y = curPose.position.y - 
-      (testMap->height * testMap->resolution) / 2;*/
    int mapWidth = LocalMapSize / CellSize;
    double off = (mapWidth * CellSize) / 2.0 - CellSize / 2.0;
    int k;
    for (k = 0; k < localMaps[currentLocalMap].numPoints; k++) {
       double xd, yd;
-      xd = localMaps[currentLocalMap].pointsX[k]/* - off*/;
-      yd = localMaps[currentLocalMap].pointsY[k]/* - off*/;
+      xd = localMaps[currentLocalMap].pointsX[k];
+      yd = localMaps[currentLocalMap].pointsY[k];
       int i,j;
       i = testMap->width/2 + xd / testMap->resolution;
       j = testMap->height/2 - yd / testMap->resolution;
@@ -2226,5 +2285,32 @@ void GraphSlamCPU::updateTestMap() {
       }
       
    }
+}*/
+void GraphSlamCPU::updateTestMap() {
+
+   int x, y;
+   crosbot::LocalMap::Cell *cellsP;
+   for(y = 0; y < testMap->height; y++) {
+      cellsP = &(testMap->cells[y][0]);
+      for(x = 0; x< testMap->width; x++) {
+         cellsP->current = false;
+         cellsP->hits = 0;
+         cellsP++;
+      }
+   }
+   int i, j;
+   for (i = 0; i < nextLocalMap; i++) {
+      double cosTh = cos(localMaps[i].currentGlobalPosTh);
+      double sinTh = sin(localMaps[i].currentGlobalPosTh);
+      for (j = 0; j < localMaps[i].numPoints; j++) {
+         int index = convertToGlobalPosition(localMaps[i].pointsX[j], localMaps[i].pointsY[j], 
+                           i, cosTh, sinTh);
+         int yi = index / DimGlobalOG;
+         int xi = index % DimGlobalOG;
+         cellsP = &(testMap->cells[yi][xi]);
+         cellsP->hits = testMap->maxHits;
+      }
+   }
 }
+
 
