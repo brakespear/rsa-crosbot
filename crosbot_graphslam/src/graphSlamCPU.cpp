@@ -637,6 +637,8 @@ void GraphSlamCPU::createNewLocalMap(int oldLocalMap, int newLocalMap, int paren
    if (oldLocalMap == 0) {
       localMaps[0].mapCentreX = (common->minMapRangeX + common->maxMapRangeX) / 2.0;
       localMaps[0].mapCentreY = (common->minMapRangeY + common->maxMapRangeY) / 2.0;
+      localMaps[0].robotMapCentreX = common->currentOffsetX/2.0;
+      localMaps[0].robotMapCentreY = common->currentOffsetY/2.0;
    }
    double cosTh = cos(-common->startICPTh);
    double sinTh = sin(-common->startICPTh);
@@ -1179,14 +1181,14 @@ void GraphSlamCPU::findPotentialMatches() {
          double mapCurPosY;
          double mapOtherPosX;
          double mapOtherPosY;
-         convertToGlobalCoord(localMaps[currentLocalMap].mapCentreX, 
-                           localMaps[currentLocalMap].mapCentreY, 
+         convertToGlobalCoord(localMaps[currentLocalMap].robotMapCentreX, 
+                           localMaps[currentLocalMap].robotMapCentreY, 
                            localMaps[currentLocalMap].currentGlobalPosX,
                            localMaps[currentLocalMap].currentGlobalPosY,
                            localMaps[currentLocalMap].currentGlobalPosTh,
                            &mapCurPosX, &mapCurPosY);
-         convertToGlobalCoord(localMaps[globalWarp].mapCentreX, 
-                           localMaps[globalWarp].mapCentreY, 
+         convertToGlobalCoord(localMaps[globalWarp].robotMapCentreX, 
+                           localMaps[globalWarp].robotMapCentreY, 
                            localMaps[globalWarp].currentGlobalPosX,
                            localMaps[globalWarp].currentGlobalPosY,
                            localMaps[globalWarp].currentGlobalPosTh,
@@ -1558,9 +1560,9 @@ void GraphSlamCPU::finaliseInformationMatrix() {
    a[2][1] = 0;
 
 
-   if (common->infoCount < InformationScaleFactor) {
+   /*if (common->infoCount < InformationScaleFactor) {
       common->infoCount = InformationScaleFactor;
-   }
+   }*/
    
    for(int y = 0; y < 3; y++) {
       for(int x = 0; x < 3; x++) {
@@ -1576,12 +1578,19 @@ void GraphSlamCPU::finaliseInformationMatrix() {
    a[1][0] *= -1;
    a[0][1] *= -1;
    mult3x3Matrix(c, a, b);
+
+   /*double det = b[0][0] * (b[1][1] * b[2][2] - b[1][2] * b[2][1]) -
+                b[0][1] * (b[1][0] * b[2][2] - b[1][2] * b[2][0]) +
+                b[0][2] * (b[1][0] * b[2][1] - b[1][1] * b[2][0]);*/
+   double det = 1;
+
    for(int y = 0; y < 3; y++) {
       for(int x = 0; x < 3; x++) {
-         common->loopConstraintInfo[cIndex][y][x] = b[y][x];
+         common->loopConstraintInfo[cIndex][y][x] = b[y][x] / det;
       }
    }
    common->infoCount = 0;
+
 
 }
 
@@ -1603,6 +1612,10 @@ void GraphSlamCPU::getGlobalHessianMatrix() {
       int iNode;
       int jNode;
       int parentIndex;
+
+      if (constraintType == 1) {
+         continue;
+      }
       
       if (constraintType == 1) {
          iNode = common->loopConstraintI[constraintIndex];
@@ -1640,6 +1653,7 @@ void GraphSlamCPU::getGlobalHessianMatrix() {
       a[1][0] *= -1;
       a[0][1] *= -1;      
       mult3x3Matrix(c, a, b);
+
       //Now have info matrix for constraint in global reference frame in b[warpNum]
       for (int warpIndex = 0; warpIndex < 3; warpIndex++) {
          int tempNode = iNode;
@@ -1666,6 +1680,9 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
    double constraint[3];
    double residual[3];
 
+   cout << "Scale factor is: " << common->scaleFactor[0] << " " << common->scaleFactor[1] << " " <<
+      common->scaleFactor[2] << endl;
+
    for (int globalWarp = 0; globalWarp < common->numConstraints; globalWarp++) {
       
       int constraintType = common->constraintType[globalWarp];
@@ -1674,6 +1691,10 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
       int jNode;
       int parentIndex;
       int x,y;
+
+      if (constraintType != 1) {
+         continue;
+      }
       
       if (constraintType == 1) {
          iNode = common->loopConstraintI[constraintIndex];
@@ -1728,7 +1749,7 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
 
       ANGNORM(constraint[2]);
       for(int warpIndex = 0; warpIndex < 3; warpIndex++) {
-         dm[warpIndex];
+         dm[warpIndex] = 0;
          residual[warpIndex] = 0;
          tempNode = iNode;
          while (tempNode != parentIndex) {
@@ -1759,7 +1780,7 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
          dm[warpIndex] = 1/dm[warpIndex];
 
       }
-
+      cout << globalWarp << " Residual is: " << residual[0] << " " << residual[1] << " " << residual[2] << endl;
       mult3x3Matrix(a, b, c);
       a[1][0] *= -1;
       a[0][1] *= -1;
@@ -1771,7 +1792,10 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
                        b[warpIndex][2] * residual[2];
 
          scaleFactor[warpIndex] = 1 / ((double) numIterations * 
-               common->scaleFactor[warpIndex] * ((double) nextLocalMap - 1));
+               common->scaleFactor[warpIndex]/* * ((double) nextLocalMap - 1)*/);
+
+         cout << "Vals are: " << commonValue[warpIndex] << " " << scaleFactor[warpIndex] << " " <<
+            dm[warpIndex] << endl;
       
          //Now do the calculations for each node in the constraint
          double adjust = scaleFactor[warpIndex] * pathLength * commonValue[warpIndex];
@@ -1792,6 +1816,7 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
          while (tempNode != parentIndex) {
             double value = adjust * dm[warpIndex] * 
                           1/common->graphHessian[tempNode][warpIndex];
+            //cout << "Individual: " << 1/common->graphHessian[tempNode][warpIndex] << " " << value << endl;
             localMaps[tempNode].changeInPos[warpIndex] += value;
             tempNode = localMaps[tempNode].indexParentNode;
          }
