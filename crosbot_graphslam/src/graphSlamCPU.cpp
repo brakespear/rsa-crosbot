@@ -1931,7 +1931,6 @@ void GraphSlamCPU::updateGlobalMap() {
       int j;
       for (i = 0; i < nextLocalMap; i++) {
          j = localMaps[i].indexNextNode;
-         cout << "j is: " << j << " i is " << i << endl;
          if (j > -1) {
             double errX = localMaps[j].currentGlobalPosX - localMaps[i].currentGlobalPosX;
             double errY = localMaps[j].currentGlobalPosY - localMaps[i].currentGlobalPosY;
@@ -1954,16 +1953,13 @@ void GraphSlamCPU::updateGlobalMap() {
             diffTh = localMaps[i].scans[localMaps[i].scans.size() - 1]->correction[2] - errTh;
             ANGNORM(diffTh);
 
-            cout << "**Looking at map: " << i << ": " << diffX << " " << diffY << " " << diffTh << ": " << errTh << " " << localMaps[i].nextOffsetTh << endl;
+            //cout << "**Looking at map: " << i << ": " << diffX << " " << diffY << " " << diffTh << ": " << errTh << " " << localMaps[i].nextOffsetTh << endl;
 
             if (fabs(diffX > 0.03) || fabs(diffY) > 0.03 || fabs(diffTh) > 0.005) {
-               cout << "Warping map: " << i << endl;
                warpLocalMap(i, errX, errY, errTh);
             }
          }
-         cout << "next local map is: " << nextLocalMap << endl;
       }
-      cout << "Out of local map warp loop" << endl;
    }
    updateTestMap();
 
@@ -1989,7 +1985,7 @@ void GraphSlamCPU::warpLocalMap(int mapIndex, double errX, double errY, double e
    //Warp each scan
    double tempCovar[3][3];
    double den[3];
-   for (i = 3; i < 3; i++) {
+   for (i = 0; i < 3; i++) {
       for (j = 0; j < 3; j++) {
          tempCovar[i][j] = 0;
       }
@@ -1997,6 +1993,7 @@ void GraphSlamCPU::warpLocalMap(int mapIndex, double errX, double errY, double e
          errY * localMaps[mapIndex].internalCovar[i][1] +
          errTh * localMaps[mapIndex].internalCovar[i][2];
    }
+      
    double err[3];
    err[0] = errX;
    err[1] = errY;
