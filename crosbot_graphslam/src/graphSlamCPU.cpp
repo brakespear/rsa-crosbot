@@ -1794,8 +1794,8 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
          scaleFactor[warpIndex] = 1 / ((double) numIterations * 
                common->scaleFactor[warpIndex]/* * ((double) nextLocalMap - 1)*/);
 
-         cout << "Vals are: " << commonValue[warpIndex] << " " << scaleFactor[warpIndex] << " " <<
-            dm[warpIndex] << endl;
+         //cout << "Vals are: " << commonValue[warpIndex] << " " << scaleFactor[warpIndex] << " " <<
+         //   dm[warpIndex] << endl;
       
          //Now do the calculations for each node in the constraint
          double adjust = scaleFactor[warpIndex] * pathLength * commonValue[warpIndex];
@@ -1858,6 +1858,7 @@ void GraphSlamCPU::updateGlobalPositions() {
       localMaps[index].currentGlobalPosY += posChangeY;
       localMaps[index].currentGlobalPosTh += posChangeTh;
       ANGNORM(localMaps[index].currentGlobalPosTh);
+      cout << "Map: " << index << " change in pos: " << posChangeX << " " << posChangeY << " " << posChangeTh << endl;
    }
 }
 
@@ -1930,6 +1931,7 @@ void GraphSlamCPU::updateGlobalMap() {
       int j;
       for (i = 0; i < nextLocalMap; i++) {
          j = localMaps[i].indexNextNode;
+         cout << "j is: " << j << " i is " << i << endl;
          if (j > -1) {
             double errX = localMaps[j].currentGlobalPosX - localMaps[i].currentGlobalPosX;
             double errY = localMaps[j].currentGlobalPosY - localMaps[i].currentGlobalPosY;
@@ -1959,7 +1961,9 @@ void GraphSlamCPU::updateGlobalMap() {
                warpLocalMap(i, errX, errY, errTh);
             }
          }
+         cout << "next local map is: " << nextLocalMap << endl;
       }
+      cout << "Out of local map warp loop" << endl;
    }
    updateTestMap();
 
