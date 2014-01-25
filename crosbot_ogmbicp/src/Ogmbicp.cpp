@@ -14,12 +14,12 @@ using namespace NEWMAT;
 
 void Ogmbicp::initialise(ros::NodeHandle &nh) {
    ros::NodeHandle paramNH("~");
-   paramNH.param<double>("MapSize", MapSize, 10);
+   paramNH.param<double>("MapSize", MapSize, 14);
    paramNH.param<double>("CellSize", CellSize, 0.05);
    paramNH.param<double>("CellHeight", CellHeight, 0.05);
    paramNH.param<double>("MaxSegLen", MaxSegLen, 0.1);
    MaxSegLen *= MaxSegLen;
-   paramNH.param<int>("MaxIterations", MaxIterations, 200);
+   paramNH.param<int>("MaxIterations", MaxIterations, 40);
    paramNH.param<double>("MaxErrorXY", MaxErrorXY, 0.0001);
    paramNH.param<double>("MaxErrorTh", MaxErrorTh, 0.01);
    paramNH.param<double>("MaxErrorZ", MaxErrorZ, 0.001);
@@ -44,11 +44,12 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("MaxAlignDistance", MaxAlignDistance, 0.3);
    MaxAlignDistance *= MaxAlignDistance;
    paramNH.param<int>("InitialScans", InitialScans, 20);
-   paramNH.param<double>("LifeRatio", LifeRatio, 2.0);
+   //paramNH.param<double>("LifeRatio", LifeRatio, 2.0);
+   paramNH.param<double>("LifeRatio", LifeRatio, 5.0);
    paramNH.param<double>("InitHeight", InitHeight, 1.0);
 
    paramNH.param<double>("MaxMoveXYZ", MaxMoveXYZ, 0.5);
-   paramNH.param<double>("MaxMoveTh", MaxMoveTh, 40.0);
+   paramNH.param<double>("MaxMoveTh", MaxMoveTh, 0.5);
    paramNH.param<int>("MaxScanSkip", MaxScanSkip, 1);
    paramNH.param<int>("AddSkipCount", AddSkipCount, 50);
    paramNH.param<int>("MaxFail", MaxFail, 5);
