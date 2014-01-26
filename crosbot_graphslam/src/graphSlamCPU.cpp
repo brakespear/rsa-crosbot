@@ -479,6 +479,17 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             getGlobalHessianMatrix();
             calculateOptimisationChange(numIterations);
             updateGlobalPositions();
+
+   /*for (int index = 0; index < MaxNumConstraints + 1; index++) {
+      common->graphHessian[index][0] = 0;
+      common->graphHessian[index][1] = 0;
+      common->graphHessian[index][2] = 0;
+   }
+   common->scaleFactor[0] = INFINITY;
+   common->scaleFactor[1] = INFINITY;
+   common->scaleFactor[2] = INFINITY;*/
+
+
          }
          updateGlobalMap();
          resetMap = true;
@@ -1683,6 +1694,25 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
    double constraint[3];
    double residual[3];
 
+   /*int order[10];
+   int parentLevel[10];
+   int num = 0;
+   for (int i = 0; i < common->numConstraints; i++) {
+      if (common->constraintType[i] == 1) {
+         int j, k;
+         int par = localMaps[common->loopConstraintParent[common->constraintIndex[i]]].treeLevel;
+         for (j = num; j > 0 && parentLevel[j-1] > par; j--) {
+            parentLevel[j] = parentLevel[j-1];
+            order[j] = order[j-1];
+         }
+         parentLevel[j] = par;
+         order[j] = i;
+         num++;
+      }
+   }
+         
+   for (int kk = 0; kk < num; kk++) {
+      int globalWarp = order[kk];*/
    for (int globalWarp = 0; globalWarp < common->numConstraints; globalWarp++) {
 
       int constraintType = common->constraintType[globalWarp];
@@ -1780,7 +1810,7 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
          dm[warpIndex] = 1/dm[warpIndex];
 
       }
-      cout << globalWarp << " Residual is: " << residual[0] << " " << residual[1] << " " << residual[2] << endl;
+      cout << globalWarp << " " << localMaps[parentIndex].treeLevel << " Residual is: " << residual[0] << " " << residual[1] << " " << residual[2] << endl;
       mult3x3Matrix(a, b, c);
       a[1][0] *= -1;
       a[0][1] *= -1;
@@ -1821,6 +1851,7 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
             tempNode = localMaps[tempNode].indexParentNode;
          }
       }
+      //updateGlobalPositions();
    }
 }
 
@@ -1849,9 +1880,9 @@ void GraphSlamCPU::updateGlobalPositions() {
       double posChangeY = 0;
       double posChangeTh = 0;
       while (curMap >= 0) {
-         posChangeX += localMaps[curMap].changeInPos[0];
-         posChangeY += localMaps[curMap].changeInPos[1];
-         posChangeTh += localMaps[curMap].changeInPos[2];
+         posChangeX += localMaps[curMap].changeInPos[0] / common->numLoopConstraints;
+         posChangeY += localMaps[curMap].changeInPos[1] / common->numLoopConstraints;
+         posChangeTh += localMaps[curMap].changeInPos[2] / common->numLoopConstraints;
          curMap = localMaps[curMap].indexParentNode;
       }
       localMaps[index].currentGlobalPosX += posChangeX;
@@ -2011,11 +2042,14 @@ void GraphSlamCPU::warpLocalMap(int mapIndex, double errX, double errY, double e
          localMaps[mapIndex].scans[i]->correction[j] = (num / den[j]) * err[j];
       }
    }
-
+   int tt = localMaps[mapIndex].scans.size() - 1;
+   cout << "Correction of final scan is: " << localMaps[mapIndex].scans[tt]->correction[0] << " " <<
+      localMaps[mapIndex].scans[tt]->correction[1] << " " << localMaps[mapIndex].scans[tt]->correction[2] << endl;
+   cout << "Num warp points before is: " << localMaps[mapIndex].numWarpPoints << endl;
    //Now actually warp the points
    
    //Method 1: warp the already selected points
-   for (i = 0; i < localMaps[mapIndex].numWarpPoints; i++) {
+   /*for (i = 0; i < localMaps[mapIndex].numWarpPoints; i++) {
       int scanIndex = localMaps[mapIndex].lastObserved[i];
       double tempX = localMaps[mapIndex].pointsX[i] - localMaps[mapIndex].scans[scanIndex]->pose[0];
       double tempY = localMaps[mapIndex].pointsY[i] - localMaps[mapIndex].scans[scanIndex]->pose[1];
@@ -2023,25 +2057,27 @@ void GraphSlamCPU::warpLocalMap(int mapIndex, double errX, double errY, double e
       double sinTh = sin(-localMaps[mapIndex].scans[scanIndex]->pose[2]);
       double relX = cosTh * tempX - sinTh * tempY;
       double relY = sinTh * tempX + cosTh * tempY;
-      cosTh = cos(localMaps[mapIndex].scans[scanIndex]->pose[2] + errTh);
-      sinTh = sin(localMaps[mapIndex].scans[scanIndex]->pose[2] + errTh);
+      cosTh = cos(localMaps[mapIndex].scans[scanIndex]->pose[2] + localMaps[mapIndex].scans[scanIndex]->correction[2]);
+      sinTh = sin(localMaps[mapIndex].scans[scanIndex]->pose[2] + localMaps[mapIndex].scans[scanIndex]->correction[2]);
       localMaps[mapIndex].warpPointsX[i] = cosTh * relX - sinTh * relY
-         + localMaps[mapIndex].scans[scanIndex]->pose[0] + errX;
+         + localMaps[mapIndex].scans[scanIndex]->pose[0] + localMaps[mapIndex].scans[scanIndex]->correction[0];
       localMaps[mapIndex].warpPointsY[i] = sinTh * relX + cosTh * relY
-         + localMaps[mapIndex].scans[scanIndex]->pose[1] + errY;
-   }
+         + localMaps[mapIndex].scans[scanIndex]->pose[1] + localMaps[mapIndex].scans[scanIndex]->correction[1];
+   }*/
 
    //Method 2: Warp all the points
    ////TODO: note this doesn't handle Z properly
-   /*int *ogMap = new int[DimLocalOG * DimLocalOG];
+   double z = (MinAddHeight + MaxAddHeight) / 2.0;
+   int *ogMap = new int[DimLocalOG * DimLocalOG];
    memset(ogMap, 0, sizeof(int) * DimLocalOG * DimLocalOG);
    localMaps[mapIndex].numWarpPoints = 0;
    for (i = 0; i < localMaps[mapIndex].scans.size(); i++) {
       double posX = localMaps[mapIndex].scans[i]->pose[0] + localMaps[mapIndex].scans[i]->correction[0];
       double posY = localMaps[mapIndex].scans[i]->pose[1] + localMaps[mapIndex].scans[i]->correction[1];
       double posTh = localMaps[mapIndex].scans[i]->pose[2] + localMaps[mapIndex].scans[i]->correction[2];
+      ANGNORM(posTh);
       double cosTh = cos(posTh);
-      double sinTh = cos(posTh);
+      double sinTh = sin(posTh);
       for (j = 0; j < localMaps[mapIndex].scans[i]->points.size(); j++) {
          double tempX = localMaps[mapIndex].scans[i]->points[j].x;
          double tempY = localMaps[mapIndex].scans[i]->points[j].y;
@@ -2050,16 +2086,17 @@ void GraphSlamCPU::warpLocalMap(int mapIndex, double errX, double errY, double e
          int index = getLocalOGIndex(x, y);
          if (index >= 0) {
             ogMap[index]++;
-            if (ogMap[Index] == MinObservationCount && localMaps[mapIndex].numWarpPoints < MAX_LOCAL_POINTS) {
+            if (ogMap[index] == MinObservationCount && localMaps[mapIndex].numWarpPoints < MAX_LOCAL_POINTS) {
                localMaps[mapIndex].warpPointsX[localMaps[mapIndex].numWarpPoints] = x;
                localMaps[mapIndex].warpPointsY[localMaps[mapIndex].numWarpPoints] = y;
-               localMaps[mapIndex].warpPointsZ[localMaps[mapIndex].numWarpPoints] = localMaps[mapIndex].scans[i]->points[j].z;
+               localMaps[mapIndex].warpPointsZ[localMaps[mapIndex].numWarpPoints] = z;
                localMaps[mapIndex].numWarpPoints++;
             }
          }
       }
    }
-   delete[] ogMap;*/
+   cout << "Num warp points after is: " << localMaps[mapIndex].numWarpPoints << endl;
+   delete[] ogMap;
 }
 
 void GraphSlamCPU::combineNodes(double alignError, int numOtherGlobalPoints) {

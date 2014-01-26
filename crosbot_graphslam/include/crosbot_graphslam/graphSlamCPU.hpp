@@ -85,7 +85,7 @@ private:
       double warpPointsY[MAX_LOCAL_POINTS];
       double warpPointsZ[MAX_LOCAL_POINTS];
       int lastObserved[MAX_LOCAL_POINTS];
-      double numWarpPoints;
+      int numWarpPoints;
 
       vector<Scan *> scans;
    } LocalMap;
