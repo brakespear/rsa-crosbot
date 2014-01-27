@@ -213,7 +213,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
                double mapGradY = common->grid[ogIndex].gradY / length;
                if (length > 0) {
 
-                  double temp = x * mapGradX + y * mapGradY;
+                  double temp = x * mapGradX + y * mapGradY * 0.1;
                   tempCovar[0][0] += mapGradX * mapGradX;
                   tempCovar[0][1] += mapGradX * mapGradY;
                   tempCovar[0][2] += mapGradX * temp;
@@ -366,12 +366,12 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
       cout << totalTime.toSec() * 1000.0f / (double) numIterations << "ms Pos: " << slamPose.position.x
         << " " << slamPose.position.y << " " << ys << " icp: " << icpPose.position.x << " " <<
        icpPose.position.y << " " << yi << endl;
-      for (i = 0; i < 3; i++) {
+      /*for (i = 0; i < 3; i++) {
          for (j = 0; j < 3; j++) {
             cout << localMaps[currentLocalMap].internalCovar[i][j] << " ";
          }
       }
-      cout << endl;
+      cout << endl;*/
    }
 
    finishedSetup = true;
@@ -961,19 +961,19 @@ void GraphSlamCPU::prepareLocalMap() {
 
       //Set the parentInfo matrix and the global covar
 
-      int lastI = localMaps[currentLocalMap].scans.size() - 1;
-      /*for (y = 0; y < 3; y++) {
+      int lastI = localMaps[currentLocalMap].scans.size();
+      for (y = 0; y < 3; y++) {
          for (x = 0; x < 3; x++) {
             //a[y][x] = localMaps[currentLocalMap].internalCovar[y][x] / (double)lastI;
-            a[y][x] = (localMaps[currentLocalMap].scans[lastI]->covar[y][x] * 
-               localMaps[currentLocalMap].scans[lastI]->covar[y][x]) * 1000000;
-            //a[y][x] = ((localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 
-            //   (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI)) * 1000000;
+            //a[y][x] = (localMaps[currentLocalMap].scans[lastI]->covar[y][x] * 
+            //   localMaps[currentLocalMap].scans[lastI]->covar[y][x]) * 1000000;
+            a[y][x] = ((localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 
+               (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI)) * 1000000;
          }
       }
 
-      invert3x3Matrix(a, localMaps[currentLocalMap].parentInfo);*/
-      invert3x3Matrix(localMaps[currentLocalMap].scans[lastI]->covar, localMaps[currentLocalMap].parentInfo);
+      invert3x3Matrix(a, localMaps[currentLocalMap].parentInfo);
+      //invert3x3Matrix(localMaps[currentLocalMap].scans[lastI]->covar, localMaps[currentLocalMap].parentInfo);
       
             
       //invert3x3Matrix(localMaps[currentLocalMap].internalCovar, localMaps[currentLocalMap].parentInfo);
@@ -2040,7 +2040,8 @@ void GraphSlamCPU::updateGlobalMap() {
             diffTh = localMaps[i].scans[localMaps[i].scans.size() - 1]->correction[2] - errTh;
             ANGNORM(diffTh);
 
-            cout << "**Looking at map: " << i << ": " << diffX << " " << diffY << " " << diffTh << ": " << errTh << " " << localMaps[i].nextOffsetTh << endl;
+            cout << "**Looking at map: " << i << ": " << diffX << " " << diffY << " " << diffTh << ": " << errX << " " << errY
+              << " " << errTh << endl; 
 
             if (fabs(diffX) > 0.03 || fabs(diffY) > 0.03 || fabs(diffTh) > 0.005) {
                cout << "Warping map: " << i << endl;
@@ -2087,6 +2088,7 @@ void GraphSlamCPU::warpLocalMap(int mapIndex, double errX, double errY, double e
       den[i] = errX * localMaps[mapIndex].internalCovar[i][0] +
          errY * localMaps[mapIndex].internalCovar[i][1] +
          errTh * localMaps[mapIndex].internalCovar[i][2];
+      //den[i] = localMaps[mapIndex].internalCovar[i][i];
    }
       
    double err[3];
@@ -2102,7 +2104,8 @@ void GraphSlamCPU::warpLocalMap(int mapIndex, double errX, double errY, double e
       for (j = 0; j < 3; j++) {
          double num = errX * tempCovar[j][0] + errY * tempCovar[j][1] +
             errTh * tempCovar[j][2];
-         localMaps[mapIndex].scans[i]->correction[j] = (num / den[j]) * err[j];
+         //double num = tempCovar[j][j];
+         localMaps[mapIndex].scans[i]->correction[j] = fabs(num / den[j]) * err[j];
       }
    }
    int tt = localMaps[mapIndex].scans.size() - 1;

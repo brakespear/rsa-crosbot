@@ -29,7 +29,7 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("InformationScaleFactor", InformationScaleFactor, 15);
    paramNH.param<double>("MaxCovar", MaxCovar, 1.5);
    //paramNH.param<double>("CorrelationThreshold", CorrelationThreshold, 3.4);
-   paramNH.param<double>("CorrelationThreshold", CorrelationThreshold, 3.5);
+   paramNH.param<double>("CorrelationThreshold", CorrelationThreshold, 3.6);
    paramNH.param<int>("MinGoodCount", MinGoodCount, 10);
    //paramNH.param<int>("FinalMinGoodCount", FinalMinGoodCount, 175);
    paramNH.param<int>("FinalMinGoodCount", FinalMinGoodCount, 225);
