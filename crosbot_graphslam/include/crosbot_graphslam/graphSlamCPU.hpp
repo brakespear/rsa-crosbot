@@ -63,6 +63,7 @@ private:
       double globalCovar[3][3];
       double internalCovar[3][3];
 
+      int numConstraints;
       int indexNextNode;
       double nextOffsetX;
       double nextOffsetY;
