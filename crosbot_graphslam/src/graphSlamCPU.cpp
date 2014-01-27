@@ -260,18 +260,6 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
          common->grid[ogIndex].gradX += mapGradY; //Note these are swapped
          common->grid[ogIndex].gradY += mapGradX;
 
-         if (scanPoints[i].x < common->minMapRangeX) {
-            common->minMapRangeX = scanPoints[i].x;
-         }
-         if (scanPoints[i].x > common->maxMapRangeX) {
-            common->maxMapRangeX = scanPoints[i].x;
-         }
-         if (scanPoints[i].y < common->minMapRangeY) {
-            common->minMapRangeY = scanPoints[i].y;
-         }
-         if (scanPoints[i].y > common->maxMapRangeY) {
-            common->maxMapRangeY = scanPoints[i].y;
-         }
          //Update the histograms
          double orien = atan2(mapGradY, mapGradX);
          orien += M_PI/2;
@@ -301,6 +289,19 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
                localMaps[currentLocalMap].numPoints < MAX_LOCAL_POINTS) {
             common->activeCells[localMaps[currentLocalMap].numPoints] = ogIndex;
             common->localOG[ogIndex] = localMaps[currentLocalMap].numPoints;
+         
+            if (scanPoints[i].x < common->minMapRangeX) {
+               common->minMapRangeX = scanPoints[i].x;
+            }
+            if (scanPoints[i].x > common->maxMapRangeX) {
+               common->maxMapRangeX = scanPoints[i].x;
+            }
+            if (scanPoints[i].y < common->minMapRangeY) {
+               common->minMapRangeY = scanPoints[i].y;
+            }
+            if (scanPoints[i].y > common->maxMapRangeY) {
+               common->maxMapRangeY = scanPoints[i].y;
+            }
 
             //Add the point to the global map
             int globalIndex = convertToGlobalPosition(scanPoints[i].x, scanPoints[i].y, 
@@ -326,11 +327,32 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
 
    double temp = sqrt(offsetFromParentX * offsetFromParentX +
          offsetFromParentY * offsetFromParentY);
-   if (temp >= LocalMapDistance) {
-      cout << "Creating a new local map " << currentLocalMap << " points: " 
-         << localMaps[currentLocalMap].numPoints << endl;
+
+   //Different estimation of new local maps
+   double edgeDist = (LocalMapSize / 2.0) - 1.0;
+   double sumX = localMaps[currentLocalMap].internalCovar[0][0] + 
+      fabs(localMaps[currentLocalMap].internalCovar[0][1]) + fabs(localMaps[currentLocalMap].internalCovar[0][2]);
+   double sumY = fabs(localMaps[currentLocalMap].internalCovar[1][0]) + 
+      localMaps[currentLocalMap].internalCovar[1][1] + fabs(localMaps[currentLocalMap].internalCovar[1][2]);
+   double sumTh = fabs(localMaps[currentLocalMap].internalCovar[2][0]) + 
+      fabs(localMaps[currentLocalMap].internalCovar[2][1]) + localMaps[currentLocalMap].internalCovar[2][2];
+
+   if (sumX > 1.0 || sumY > 1.0 || sumTh > 1.0) {
+      cout << "New local map because of covariances" << endl;
+      finishMap(angleError, yi, icpPose);
+   } else if (temp > LocalMapDistance * 1.5) {
+      cout << "New local map because of local map distance only" << endl;
+      finishMap(angleError, yi, icpPose);
+   } else if (temp > LocalMapDistance && (fabs(common->minMapRangeX) > edgeDist || fabs(common->minMapRangeY) > edgeDist ||
+            fabs(common->maxMapRangeX) > edgeDist || fabs(common->maxMapRangeY) > edgeDist)) {
+      cout << "New local map because of distance and edges " << temp << " " << common->minMapRangeX << " " << 
+         common->minMapRangeY << " " << common->maxMapRangeX << " " << common->maxMapRangeY << endl;
       finishMap(angleError, yi, icpPose);
    }
+
+   /*if (temp >= LocalMapDistance) {
+      finishMap(angleError, yi, icpPose);
+   }*/
 
    oldICPPose = icpPose;
 
@@ -353,6 +375,8 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
 void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
 
 {{ Lock lock(masterLockSmith);
+   cout << "Creating a new local map " << currentLocalMap << " points: " 
+      << localMaps[currentLocalMap].numPoints << endl;
 
    int numLocalPoints = localMaps[currentLocalMap].numPoints;
 
@@ -371,6 +395,8 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       localMaps[currentLocalMap].warpPointsY[i] = localMaps[currentLocalMap].pointsY[i];
       localMaps[currentLocalMap].warpPointsZ[i] = localMaps[currentLocalMap].pointsZ[i];
    }
+
+   updateTestMap();
 
    if (parentLocalMap >= 0) {
       parentLocalMap = currentLocalMap;
@@ -928,7 +954,23 @@ void GraphSlamCPU::prepareLocalMap() {
          (common->minMapRangeY + common->maxMapRangeY) / 2.0;
 
       //Set the parentInfo matrix and the global covar
-      invert3x3Matrix(localMaps[currentLocalMap].internalCovar, localMaps[currentLocalMap].parentInfo);
+
+      int lastI = localMaps[currentLocalMap].scans.size();
+      for (y = 0; y < 3; y++) {
+         for (x = 0; x < 3; x++) {
+            //a[y][x] = localMaps[currentLocalMap].internalCovar[y][x] / (double)lastI;
+            //a[y][x] = (localMaps[currentLocalMap].scans[lastI]->covar[y][x] * 
+            //   localMaps[currentLocalMap].scans[lastI]->covar[y][x]) * 1000000;
+            a[y][x] = ((localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 
+               (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI)) * 1000000;
+         }
+      }
+
+      invert3x3Matrix(a, localMaps[currentLocalMap].parentInfo);
+      //invert3x3Matrix(localMaps[currentLocalMap].scans[lastI]->covar, localMaps[currentLocalMap].parentInfo);
+      
+            
+      //invert3x3Matrix(localMaps[currentLocalMap].internalCovar, localMaps[currentLocalMap].parentInfo);
       double cosTh = cos(localMaps[currentLocalMap].currentGlobalPosTh);
       double sinTh = sin(localMaps[currentLocalMap].currentGlobalPosTh);
       a[0][0] = cosTh;
@@ -1993,7 +2035,7 @@ void GraphSlamCPU::updateGlobalMap() {
          }
       }
    }
-   updateTestMap();
+   //updateTestMap();
 
 
    //Now update the global map
@@ -2086,7 +2128,9 @@ void GraphSlamCPU::warpLocalMap(int mapIndex, double errX, double errY, double e
          int index = getLocalOGIndex(x, y);
          if (index >= 0) {
             ogMap[index]++;
-            if (ogMap[index] == MinObservationCount && localMaps[mapIndex].numWarpPoints < MAX_LOCAL_POINTS) {
+            //TODO: Increase the number of global points instead of capping the points at numPoints
+            //if (ogMap[index] == MinObservationCount && localMaps[mapIndex].numWarpPoints < MAX_LOCAL_POINTS) {
+            if (ogMap[index] == MinObservationCount && localMaps[mapIndex].numWarpPoints < localMaps[mapIndex].numPoints) {
                localMaps[mapIndex].warpPointsX[localMaps[mapIndex].numWarpPoints] = x;
                localMaps[mapIndex].warpPointsY[localMaps[mapIndex].numWarpPoints] = y;
                localMaps[mapIndex].warpPointsZ[localMaps[mapIndex].numWarpPoints] = z;
@@ -2373,7 +2417,7 @@ void GraphSlamCPU::combineNodes(double alignError, int numOtherGlobalPoints) {
    common->combineMode = 1;
 }
 
-/*void GraphSlamCPU::updateTestMap() {
+void GraphSlamCPU::updateTestMap() {
 
    int x,y;
    for (y = 0; y < testMap->height; y++) {
@@ -2402,7 +2446,7 @@ void GraphSlamCPU::combineNodes(double alignError, int numOtherGlobalPoints) {
       }
    }
 
-   int otherMap = common->potentialMatches[0];
+   /*int otherMap = common->potentialMatches[0];
    double offsetX = common->potentialMatchX[0];
    double offsetY = common->potentialMatchY[0];
    double offsetTh = common->potentialMatchTh[0];
@@ -2439,9 +2483,9 @@ void GraphSlamCPU::combineNodes(double alignError, int numOtherGlobalPoints) {
          
       }
       
-   }
-}*/
-void GraphSlamCPU::updateTestMap() {
+   }*/
+}
+/*void GraphSlamCPU::updateTestMap() {
 
    int x, y;
    crosbot::LocalMap::Cell *cellsP;
@@ -2466,6 +2510,6 @@ void GraphSlamCPU::updateTestMap() {
          cellsP->hits = testMap->maxHits;
       }
    }
-}
+}*/
 
 
