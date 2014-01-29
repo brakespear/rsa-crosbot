@@ -283,4 +283,3 @@ void GraphSlam::fixSlamHistoryPositions(int combineIndex, double alignX,
    }
 }
 
-

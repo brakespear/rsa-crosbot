@@ -14,6 +14,7 @@
 #include <tf/transform_broadcaster.h>
 #include <sensor_msgs/LaserScan.h>
 #include <geometry_msgs/PoseStamped.h>
+#include "sensor_msgs/PointCloud2.h"
 #include <nav_msgs/Path.h>
 
 #include <crosbot/data.hpp>
@@ -77,6 +78,19 @@ private:
    tf::TransformListener tfListener;
    tf::TransformBroadcaster tfPub;
 
+   //Kinect ros options
+   bool useKinect;
+   string kinect_sub;
+   string world_pub;
+   ros::Subscriber kinectSub;
+   ros::Publisher worldMap;
+   int globalMapPublishRate;
+   int kinectCaptureRate;
+   //Other kinect values
+   ros::Time lastCaptured;
+   ros::Time lastPublishedMap;
+   sensor_msgs::PointCloud2 worldScan;
+
    //Debugging publisher
    ros::Publisher imageTestPub;
    LocalMapPtr testMap;
@@ -123,6 +137,10 @@ private:
     */
    geometry_msgs::TransformStamped getTransform(const Pose& pose,
          std::string childFrame, std::string frameName, ros::Time stamp);
+
+   //Kinect callback
+   void callbackKinect(const sensor_msgs::PointCloud2ConstPtr& ptCloud);
+   
 
 };
 

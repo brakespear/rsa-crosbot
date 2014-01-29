@@ -26,7 +26,7 @@ public:
    void start();
    void stop();
    void initialiseTrack(Pose icpPose, PointCloudPtr cloud);
-   void updateTrack(Pose icpPose, PointCloudPtr cloud);
+   void updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stamp);
 
    GraphSlamCPU();
    ~GraphSlamCPU();
@@ -35,12 +35,21 @@ protected:
    void getGlobalMapPosition(int mapIndex, double& gx, double& gy, 
          double& gth);
 private:
+   //Kinect data structure
+   typedef struct {
+      vector<Point> points;
+      vector<float> rgb;
+      int localMapIndex;
+      int scanIndex;
+   } KinectScan;
+
    //Slam data structures:
    typedef struct {
       vector<Point> points;
       double covar[3][3];
       double pose[3];
       double correction[3];
+      ros::Time stamp;
    } Scan;
 
    /*
@@ -239,6 +248,14 @@ private:
 
    //Debugging publisher
    void updateTestMap();
+
+   //Kinect bit
+   vector<KinectScan *> kinectScans;
+   int lastCloudPublished;
+   int messageSize;
+   int activeMapIndex;
+   void getPoints(vector<uint8_t>& points);
+   void captureScan(const vector<uint8_t>& points, Pose correction);
 
 };
 

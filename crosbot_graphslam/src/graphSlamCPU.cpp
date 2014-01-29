@@ -29,6 +29,11 @@ GraphSlamCPU::GraphSlamCPU() {
    nextLocalMap = 0;
    combineMode = 0;
    numConstraints = 0;
+
+   //kinect params
+   lastCloudPublished = 0;
+   messageSize = 0;
+   activeMapIndex = -1;
 }
 
 void GraphSlamCPU::initialise(ros::NodeHandle &nh) {
@@ -129,7 +134,7 @@ void GraphSlamCPU::initialiseTrack(Pose icpPose, PointCloudPtr cloud) {
 
 }
 
-void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
+void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stamp) {
    //cout << "The icp pose from slam is: " << icpPose << endl;
 
    ros::WallTime t1 = ros::WallTime::now();
@@ -188,6 +193,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
    newScan->pose[0] = common->currentOffsetX;
    newScan->pose[1] = common->currentOffsetY;
    newScan->pose[2] = common->currentOffsetTh;
+   newScan->stamp = stamp;
    vector<Point> scanPoints;
    double tempCovar[3][3];
    for (i = 0; i < cloud->cloud.size(); ++i) {
@@ -324,6 +330,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
       }
    }
    localMaps[currentLocalMap].scans.push_back(newScan);
+   activeMapIndex = currentLocalMap;
 
    double temp = sqrt(offsetFromParentX * offsetFromParentX +
          offsetFromParentY * offsetFromParentY);
@@ -525,6 +532,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          }
          updateGlobalMap();
          resetMap = true;
+         lastCloudPublished = 0;
          historySlamPoses.resize(0);
 
          double posChangeX;
@@ -2438,6 +2446,96 @@ void GraphSlamCPU::combineNodes(double alignError, int numOtherGlobalPoints) {
    slamPose.setYPR(ys, ps, rs);
 
    common->combineMode = 1;
+}
+
+void GraphSlamCPU::captureScan(const vector<uint8_t>& points, Pose correction) {
+
+   int row, col;
+   int off;
+   
+   int step = 1;
+   //maximum number of points per scan
+   int pointsPerScan = (640 / step) * (480 / step);
+
+   tf::Transform trans = correction.toTF();
+
+   KinectScan *newScan = new KinectScan();
+   newScan->points.resize(pointsPerScan);
+   newScan->rgb.resize(pointsPerScan);
+
+   if (activeMapIndex < 0) {
+      return;
+   }
+   newScan->localMapIndex = activeMapIndex;
+   newScan->scanIndex = localMaps[newScan->localMapIndex].scans.size() - 1;
+
+   int i = 0;
+   for (row = 0; row < 480; row+=step) {
+      off = 20480 * row;
+      for (col = 0; col < 640; col+=step) {
+         int start = off + col * 32;
+         float *arr = (float *) &(points[start]);
+         Point p;
+         p.x = arr[0];
+         p.y = arr[1];
+         p.z = arr[2];
+
+         if (!isnan(p.x)) {
+            newScan->points[i] = trans * p.toTF();
+            if (newScan->points[i].x > 0.3 && newScan->points[i].y > 0.3 && newScan->points[i].z > 0.1 
+                  && newScan->points[i].z < 2.0) {
+               newScan->rgb[i] = arr[4];
+               i++;
+            }
+         }
+      }
+   }
+   newScan->points.resize(i);
+   newScan->points.resize(i);
+   kinectScans.push_back(newScan);
+   messageSize += i * 32;
+}
+
+void GraphSlamCPU::getPoints(vector<uint8_t>& points) {
+   
+   int curSize = points.size();
+   points.resize(messageSize);
+
+   int i;
+   for (i = lastCloudPublished; i < kinectScans.size(); i++) {
+      int curMap = kinectScans[i]->localMapIndex;
+      int scanIndex = kinectScans[i]->scanIndex;
+      double scanX = localMaps[curMap].scans[scanIndex]->pose[0] +
+         localMaps[curMap].scans[scanIndex]->correction[0];
+      double scanY = localMaps[curMap].scans[scanIndex]->pose[1] +
+         localMaps[curMap].scans[scanIndex]->correction[1];
+      double scanTh = localMaps[curMap].scans[scanIndex]->pose[2] +
+         localMaps[curMap].scans[scanIndex]->correction[2];
+      double cosTh = cos(localMaps[curMap].currentGlobalPosTh);
+      double sinTh = sin(localMaps[curMap].currentGlobalPosTh);
+      double mapPosX =  scanX * cosTh - scanY * sinTh +
+         localMaps[curMap].currentGlobalPosX;
+      double mapPosY =  scanX * sinTh + scanY * cosTh +
+         localMaps[curMap].currentGlobalPosY;
+      double mapPosTh = localMaps[curMap].currentGlobalPosTh + scanTh;
+      int j;
+      int size = kinectScans[i]->points.size();
+      cosTh = cos(mapPosTh);
+      sinTh = sin(mapPosTh);
+      for (j = 0; j < size; j++) {
+         float *arr = (float *) &(points[curSize]);
+         Point p = kinectScans[i]->points[j];
+         arr[0] = p.x * cosTh - p.y * sinTh + mapPosX;
+         arr[1] = p.x * sinTh + p.y * cosTh + mapPosY;
+         arr[2] = p.z;
+         arr[4] = kinectScans[i]->rgb[j];
+
+         curSize += 32;
+      }
+      
+   }
+
+   lastCloudPublished = i;
 }
 
 /*void GraphSlamCPU::updateTestMap() {

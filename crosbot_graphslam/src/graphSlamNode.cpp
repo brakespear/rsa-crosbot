@@ -17,6 +17,8 @@ GraphSlamNode::GraphSlamNode(GraphSlam &graphSlam): icp_frame(DEFAULT_ICPFRAME),
                             graph_slam(graphSlam)
 {
    isInit = false;
+   lastCaptured = ros::Time::now();
+   lastPublishedMap = ros::Time::now();
 }
 
 void GraphSlamNode::initialise(ros::NodeHandle &nh) {
@@ -32,6 +34,13 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("snap_list_srv", snap_list_srv, "snaps_list");
    paramNH.param<std::string>("snap_update_srv", snap_update_srv, "snap_update");
    paramNH.param<std::string>("snap_get_srv", snap_get_srv, "snap_get");
+
+   paramNH.param<bool>("useKinect", useKinect, true);
+   paramNH.param<std::string>("kinect_sub", kinect_sub, "/camera/depth_registered/points");
+   paramNH.param<std::string>("world_pub", world_pub, "worldMap");
+   paramNH.param<int>("kinectCaptureRate", kinectCaptureRate, 1000000);
+   paramNH.param<int>("globalMapPublishRate", globalMapPublishRate, 20000000);
+
 
    paramNH.param<bool>("IncludeHighMapsSlice", IncludeHighMapSlice, false);
    paramNH.param<double>("HighMapSliceHeight", HighMapSliceHeight, 2.0);
@@ -53,6 +62,28 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    snapListServer = nh.advertiseService(snap_list_srv, &GraphSlamNode::getSnapsList, this);
    snapUpdateServer = nh.advertiseService(snap_update_srv, &GraphSlamNode::snapUpdate, this);
    snapGetServer = nh.advertiseService(snap_get_srv, &GraphSlamNode::snapGet, this);
+
+   //Kinect subscriber
+   if (useKinect) {
+      kinectSub = nh.subscribe(kinect_sub, 1, &GraphSlamNode::callbackKinect, this);
+      worldMap = nh.advertise<sensor_msgs::PointCloud2>(world_pub, 1);
+      worldScan.header.frame_id = slam_frame;
+      worldScan.is_bigendian = false;
+      worldScan.is_dense = true;
+      worldScan.height = 1;
+      worldScan.fields.resize(4);
+      worldScan.fields[0].name = "x";
+      worldScan.fields[1].name = "y";
+      worldScan.fields[2].name = "z";
+      worldScan.fields[3].name = "rgb";
+      for (int i = 0; i < 4; i++) {
+         worldScan.fields[i].offset = i * sizeof(float);
+         worldScan.fields[i].datatype = 7;
+         worldScan.fields[i].count = 1;
+      }
+      worldScan.fields[3].offset = 16;
+      worldScan.point_step = sizeof(float) * 6;
+   }
 
    //Debugging publisher
    imageTestPub = nh.advertise<sensor_msgs::Image>("slamTest", 1);
@@ -82,7 +113,7 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
  		fprintf(stderr, "graph slam: Error getting transform. (%s) (%d.%d)\n", ex.what(),
    		latestScan->header.stamp.sec, latestScan->header.stamp.nsec);
    	return;
-   }
+   } 
    //cout << "Got transform" << endl;
    PointCloudPtr cloud = new PointCloud(base_frame, PointCloud(latestScan, true), sensorPose);
    if (!isInit) {
@@ -99,7 +130,7 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
       testMap = new LocalMap(dim, dim, graph_slam.CellSize, slam_frame);
       graph_slam.testMap = testMap;
    } else {
-      graph_slam.updateTrack(icpPose, cloud);
+      graph_slam.updateTrack(icpPose, cloud, latestScan->header.stamp);
    }
    ImagePtr image = graph_slam.drawMap(globalMaps, icpPose, mapSlices);
    if (image != NULL) {
@@ -188,4 +219,49 @@ geometry_msgs::TransformStamped GraphSlamNode::getTransform(const Pose& pose, st
    return ts;
 
 }
+
+void GraphSlamNode::callbackKinect(const sensor_msgs::PointCloud2ConstPtr& ptCloud) {
+
+   if (ptCloud->header.stamp > lastCaptured + ros::Duration(kinectCaptureRate / 1000000.0)) {
+      cout << "capturing scan" << endl;
+      lastCaptured = ptCloud->header.stamp;
+
+      Pose sensorPose;
+  	   tf::StampedTransform kin2Base;
+     	try {
+  	   	tfListener.waitForTransform(base_frame, ptCloud->header.frame_id,
+                ptCloud->header.stamp, ros::Duration(1, 0));
+     		tfListener.lookupTransform(base_frame,
+      				ptCloud->header.frame_id, ptCloud->header.stamp, kin2Base);
+  		   sensorPose = kin2Base;
+  	   } catch (tf::TransformException& ex) {
+ 		   fprintf(stderr, "graph slam: Error getting transform. (%s) (%d.%d)\n", ex.what(),
+   		   ptCloud->header.stamp.sec, ptCloud->header.stamp.nsec);
+      	return;
+      } 
+      graph_slam.captureScan(ptCloud->data, sensorPose);
+
+      /*cout << "Length is: " << ptCloud->fields.size() << " " << ptCloud->point_step<< endl;
+      cout << ptCloud->row_step << " " << ptCloud->width << " " << ptCloud->height << " " << (int)ptCloud->is_dense << " " << (int)ptCloud->is_bigendian << endl;
+      cout << ptCloud->fields[0].name << " " << (int)ptCloud->fields[0].datatype << " " << (int)ptCloud->fields[0].offset << " " << (int)ptCloud->fields[0].count << endl;
+      cout << ptCloud->fields[1].name << " " << (int)ptCloud->fields[1].datatype << " " << (int)ptCloud->fields[1].offset << " " << (int)ptCloud->fields[1].count << endl;
+      cout << ptCloud->fields[2].name << " " << (int)ptCloud->fields[2].datatype << " " << (int)ptCloud->fields[2].offset << " " << (int)ptCloud->fields[2].count << endl;
+      cout << ptCloud->fields[3].name << " " << (int)ptCloud->fields[3].datatype << " " << (int)ptCloud->fields[3].offset << " " << (int)ptCloud->fields[3].count << endl;*/
+
+      ros::Time currentTime = ros::Time::now();
+      if ((currentTime - lastPublishedMap).toSec() > globalMapPublishRate / 1000000.0) {
+         cout << "Publishing point cloud" << endl;
+         //Publish the point cloud
+         worldScan.header.stamp = ros::Time::now();
+         graph_slam.getPoints(worldScan.data);
+         worldScan.row_step = worldScan.data.size();
+         worldScan.width = worldScan.row_step / worldScan.point_step;
+         worldMap.publish(worldScan);
+         lastPublishedMap = currentTime;
+      }
+   }
+
+
+}
+
 

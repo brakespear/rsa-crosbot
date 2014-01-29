@@ -209,7 +209,7 @@ public:
    /*
     * Update graph slam with the lastest scan
     */
-   virtual void updateTrack(Pose icpPose, PointCloudPtr cloud) = 0;
+   virtual void updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stamp) = 0;
 
    /*
     * Grabs the current map
@@ -244,6 +244,10 @@ public:
     * Adds the track the robot took to the image displayed
     */
    void addSlamTrack(ImagePtr mapImage);
+
+   //Kinect added
+   virtual void getPoints(vector<uint8_t>& points) = 0;
+   virtual void captureScan(const vector<uint8_t>& points, Pose correction) = 0;
 
    //Debugging functions
    LocalMapPtr testMap;
