@@ -38,8 +38,8 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<bool>("useKinect", useKinect, true);
    paramNH.param<std::string>("kinect_sub", kinect_sub, "/camera/depth_registered/points");
    paramNH.param<std::string>("world_pub", world_pub, "worldMap");
-   paramNH.param<int>("kinectCaptureRate", kinectCaptureRate, 1000000);
-   paramNH.param<int>("globalMapPublishRate", globalMapPublishRate, 20000000);
+   paramNH.param<int>("kinectCaptureRate", kinectCaptureRate, 3000000);
+   paramNH.param<int>("globalMapPublishRate", globalMapPublishRate, 25000000);
 
 
    paramNH.param<bool>("IncludeHighMapsSlice", IncludeHighMapSlice, false);
@@ -82,7 +82,7 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
          worldScan.fields[i].count = 1;
       }
       worldScan.fields[3].offset = 16;
-      worldScan.point_step = sizeof(float) * 6;
+      worldScan.point_step = sizeof(float) * 8;
    }
 
    //Debugging publisher
@@ -223,7 +223,6 @@ geometry_msgs::TransformStamped GraphSlamNode::getTransform(const Pose& pose, st
 void GraphSlamNode::callbackKinect(const sensor_msgs::PointCloud2ConstPtr& ptCloud) {
 
    if (ptCloud->header.stamp > lastCaptured + ros::Duration(kinectCaptureRate / 1000000.0)) {
-      cout << "capturing scan" << endl;
       lastCaptured = ptCloud->header.stamp;
 
       Pose sensorPose;
@@ -238,7 +237,7 @@ void GraphSlamNode::callbackKinect(const sensor_msgs::PointCloud2ConstPtr& ptClo
  		   fprintf(stderr, "graph slam: Error getting transform. (%s) (%d.%d)\n", ex.what(),
    		   ptCloud->header.stamp.sec, ptCloud->header.stamp.nsec);
       	return;
-      } 
+      }
       graph_slam.captureScan(ptCloud->data, sensorPose);
 
       /*cout << "Length is: " << ptCloud->fields.size() << " " << ptCloud->point_step<< endl;

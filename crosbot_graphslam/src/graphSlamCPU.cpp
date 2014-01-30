@@ -2453,7 +2453,7 @@ void GraphSlamCPU::captureScan(const vector<uint8_t>& points, Pose correction) {
    int row, col;
    int off;
    
-   int step = 1;
+   int step = 4;
    //maximum number of points per scan
    int pointsPerScan = (640 / step) * (480 / step);
 
@@ -2468,7 +2468,6 @@ void GraphSlamCPU::captureScan(const vector<uint8_t>& points, Pose correction) {
    }
    newScan->localMapIndex = activeMapIndex;
    newScan->scanIndex = localMaps[newScan->localMapIndex].scans.size() - 1;
-
    int i = 0;
    for (row = 0; row < 480; row+=step) {
       off = 20480 * row;
@@ -2480,7 +2479,7 @@ void GraphSlamCPU::captureScan(const vector<uint8_t>& points, Pose correction) {
          p.y = arr[1];
          p.z = arr[2];
 
-         if (!isnan(p.x)) {
+         if (!isnan(p.x)/* && !isnan(p.y) && !isnan(p.z)*/) {
             newScan->points[i] = trans * p.toTF();
             if (newScan->points[i].x > 0.3 && newScan->points[i].y > 0.3 && newScan->points[i].z > 0.1 
                   && newScan->points[i].z < 2.0) {
@@ -2498,8 +2497,14 @@ void GraphSlamCPU::captureScan(const vector<uint8_t>& points, Pose correction) {
 
 void GraphSlamCPU::getPoints(vector<uint8_t>& points) {
    
-   int curSize = points.size();
+   int curSize;
+   if (lastCloudPublished == 0) {
+      curSize = 0;
+   } else {
+      curSize = points.size();
+   }
    points.resize(messageSize);
+
 
    int i;
    for (i = lastCloudPublished; i < kinectScans.size(); i++) {
@@ -2529,7 +2534,10 @@ void GraphSlamCPU::getPoints(vector<uint8_t>& points) {
          arr[1] = p.x * sinTh + p.y * cosTh + mapPosY;
          arr[2] = p.z;
          arr[4] = kinectScans[i]->rgb[j];
-
+         //arr[3] = 0;
+         //arr[5] = 0;
+         //arr[6] = 0;
+         //arr[7] = 0;
          curSize += 32;
       }
       
