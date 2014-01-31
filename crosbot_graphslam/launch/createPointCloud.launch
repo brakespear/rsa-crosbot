@@ -10,7 +10,8 @@
     <!-- Explicit topic remappings, shouldn't need all of these -->
     <remap from="rgb/camera_info"             to="/camera/rgb/camera_info" />
     <remap from="depth/camera_info"           to="/camera/depth/camera_info" />
-    <remap from="depth/image_rect"            to="/camera/depth/image_raw" />
+    <remap from="depth/image_rect"            to="/camera/depth/image" />
+    <!--remap from="depth/image_rect"            to="/camera/depth/image_raw" /-->
     
     <remap from="depth_registered/camera_info"    to="/camera/depth_registered/camera_info" />
     <remap from="depth_registered/image_rect"     to="/camera/depth_registered/image_raw" />

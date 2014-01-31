@@ -408,7 +408,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       localMaps[currentLocalMap].warpPointsZ[i] = localMaps[currentLocalMap].pointsZ[i];
    }
 
-   //updateTestMap();
+   updateTestMap();
 
    if (parentLocalMap >= 0) {
       parentLocalMap = currentLocalMap;
@@ -1266,8 +1266,8 @@ void GraphSlamCPU::findPotentialMatches() {
          /*cout << "covar of map " << currentLocalMap << " to map " << globalWarp <<
             " is " << totalCovar[0][0] << " " << totalCovar[1][1] << " pos " <<
             mapCurPosX << " " << mapCurPosY << " " << mapOtherPosX << " " << mapOtherPosY << endl;*/
-         if (fabs(mapCurPosX - mapOtherPosX) < totalCovar[0][0] &&
-               fabs(mapCurPosY - mapOtherPosY) < totalCovar[1][1]) {
+         if (fabs(mapCurPosX - mapOtherPosX) < totalCovar[0][0] + LocalMapDistance &&
+               fabs(mapCurPosY - mapOtherPosY) < totalCovar[1][1] + LocalMapDistance) {
             //In the right area for a match, so do histogram correlation
             int i, j;
             //Perform the correlations for the entropy and orientation histograms
@@ -1841,8 +1841,8 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
          tempNode = iNode;
          while (tempNode != parentIndex) {
             tempPos = getGlobalPosIndex(tempNode, warpIndex);
-            tempNode = localMaps[tempNode].indexParentNode;
             dm[warpIndex] += 1 / common->graphHessian[tempNode][warpIndex];
+            tempNode = localMaps[tempNode].indexParentNode;
             residual[warpIndex] += getGlobalPosIndex(
                   tempNode, warpIndex) - tempPos;
          }
@@ -1880,6 +1880,9 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
 
          scaleFactor[warpIndex] = 1 / ((double) numIterations * 
                common->scaleFactor[warpIndex]/* * ((double) nextLocalMap - 1)*/);
+         /*if (constraintType != 1) {
+            scaleFactor[warpIndex] /= 100;
+         }*/
 
          //cout << "Vals are: " << commonValue[warpIndex] << " " << scaleFactor[warpIndex] << " " <<
          //   dm[warpIndex] << endl;
@@ -1939,14 +1942,14 @@ void GraphSlamCPU::updateGlobalPositions() {
       double posChangeY = 0;
       double posChangeTh = 0;
       while (curMap >= 0) {
-         if (localMaps[curMap].numConstraints > 0) {
+         /*if (localMaps[curMap].numConstraints > 0) {
             posChangeX += localMaps[curMap].changeInPos[0] / localMaps[curMap].numConstraints;
             posChangeY += localMaps[curMap].changeInPos[1] / localMaps[curMap].numConstraints;
             posChangeTh += localMaps[curMap].changeInPos[2] / localMaps[curMap].numConstraints;
-         }
-         /*posChangeX += localMaps[curMap].changeInPos[0] / common->numLoopConstraints;
+         }*/
+         posChangeX += localMaps[curMap].changeInPos[0] / common->numLoopConstraints;
          posChangeY += localMaps[curMap].changeInPos[1] / common->numLoopConstraints;
-         posChangeTh += localMaps[curMap].changeInPos[2] / common->numLoopConstraints;*/
+         posChangeTh += localMaps[curMap].changeInPos[2] / common->numLoopConstraints;
          curMap = localMaps[curMap].indexParentNode;
       }
       localMaps[index].currentGlobalPosX += posChangeX;
@@ -2065,7 +2068,7 @@ void GraphSlamCPU::updateGlobalMap() {
       globalMapHeights.resize(numGlobalPoints); 
       numGlobalPoints -= localMaps[currentLocalMap].numWarpPoints;
    }
-   updateTestMap();
+   //updateTestMap();
 
 
    //Now update the global map
@@ -2546,7 +2549,7 @@ void GraphSlamCPU::getPoints(vector<uint8_t>& points) {
    lastCloudPublished = i;
 }
 
-/*void GraphSlamCPU::updateTestMap() {
+void GraphSlamCPU::updateTestMap() {
 
    int x,y;
    for (y = 0; y < testMap->height; y++) {
@@ -2575,7 +2578,7 @@ void GraphSlamCPU::getPoints(vector<uint8_t>& points) {
       }
    }
 
-   int otherMap = common->potentialMatches[0];
+   /*int otherMap = common->potentialMatches[0];
    double offsetX = common->potentialMatchX[0];
    double offsetY = common->potentialMatchY[0];
    double offsetTh = common->potentialMatchTh[0];
@@ -2612,9 +2615,9 @@ void GraphSlamCPU::getPoints(vector<uint8_t>& points) {
          
       }
       
-   }
-}*/
-void GraphSlamCPU::updateTestMap() {
+   }*/
+}
+/*void GraphSlamCPU::updateTestMap() {
 
    int x, y;
    crosbot::LocalMap::Cell *cellsP;
@@ -2639,6 +2642,6 @@ void GraphSlamCPU::updateTestMap() {
          cellsP->hits = testMap->maxHits;
       }
    }
-}
+}*/
 
 

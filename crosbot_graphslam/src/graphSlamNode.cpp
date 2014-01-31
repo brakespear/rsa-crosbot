@@ -35,10 +35,10 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("snap_update_srv", snap_update_srv, "snap_update");
    paramNH.param<std::string>("snap_get_srv", snap_get_srv, "snap_get");
 
-   paramNH.param<bool>("useKinect", useKinect, true);
+   paramNH.param<bool>("useKinect", useKinect, false);
    paramNH.param<std::string>("kinect_sub", kinect_sub, "/camera/depth_registered/points");
    paramNH.param<std::string>("world_pub", world_pub, "worldMap");
-   paramNH.param<int>("kinectCaptureRate", kinectCaptureRate, 3000000);
+   paramNH.param<int>("kinectCaptureRate", kinectCaptureRate, 2000000);
    paramNH.param<int>("globalMapPublishRate", globalMapPublishRate, 25000000);
 
 
@@ -125,8 +125,8 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
          globalMaps.push_back(new LocalMap(dim, dim, graph_slam.CellSize, slam_frame));
       }
       //Debugging publisher
-      //dim = (uint32_t)(graph_slam.DimLocalOG);
-      dim = (uint32_t)(graph_slam.DimGlobalOG);
+      dim = (uint32_t)(graph_slam.DimLocalOG);
+      //dim = (uint32_t)(graph_slam.DimGlobalOG);
       testMap = new LocalMap(dim, dim, graph_slam.CellSize, slam_frame);
       graph_slam.testMap = testMap;
    } else {
