@@ -139,7 +139,7 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    if (isnan(gx) || isnan(gy) || isnan(gz) || isnan(gth) || fabs(gx) > MaxMoveXYZ ||
          fabs(gy) > MaxMoveXYZ || fabs(gz) > MaxMoveXYZ || fabs(gth) > MaxMoveTh) {
       failCount++;
-      cout << "***********Failed scan" << endl;
+      cout << "***********Failed scan " << gx << " " << gy << " " << gth << endl;
       if (failCount < MaxFail) {
          return;
       } else {
