@@ -87,6 +87,8 @@ private:
       double projectionHist[NUM_ORIENTATION_BINS][NUM_PROJECTION_BINS];
       double entropyHist[NUM_ORIENTATION_BINS];
 
+      double *freeArea;
+
       double pointsX[MAX_LOCAL_POINTS];
       double pointsY[MAX_LOCAL_POINTS];
       double pointsZ[MAX_LOCAL_POINTS];
@@ -244,6 +246,8 @@ private:
    void combineNodes(double alignError, int numOtherGlobalPoints);
 
    void warpLocalMap(int mapIndex, double errX, double errY, double errTh);
+
+   void addToFreeArea(double px, double py);
 
 
    //Debugging publisher

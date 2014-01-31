@@ -639,12 +639,16 @@ void GraphSlamCPU::clearMap(int mapIndex) {
    localMaps[mapIndex].numPoints = 0;
    localMaps[mapIndex].numWarpPoints = 0;
    localMaps[mapIndex].indexNextNode = -1;
+   localMaps[mapIndex].freeArea = new double[DimLocalOG*DimLocalOG];
    memset(localMaps[mapIndex].orientationHist, 0, sizeof(double) * NUM_ORIENTATION_BINS);
    memset(localMaps[mapIndex].entropyHist, 0, sizeof(double) * NUM_ORIENTATION_BINS);
    memset(localMaps[mapIndex].projectionHist, 0, sizeof(double) * NUM_ORIENTATION_BINS
          * NUM_PROJECTION_BINS);
    memset(localMaps[mapIndex].parentInfo, 0, sizeof(double) * 9);
    memset(localMaps[mapIndex].internalCovar, 0, sizeof(double) * 9);
+   for (int i = 0; i < DimLocalOG * DimLocalOG; i++) {
+      localMaps[mapIndex].freeArea[i] = -1;
+   }
 }
 
 int GraphSlamCPU::getLocalOGIndex(double x, double y) {
@@ -750,6 +754,79 @@ void GraphSlamCPU::createNewLocalMap(int oldLocalMap, int newLocalMap, int paren
    common->currentOffsetTh = 0;
 
 }
+
+void GraphSlamCPU::addToFreeArea(double px, double py) {
+   double dx = fabs(common->currentOffsetX - px);
+   double dy = fabs(common->currentOffsetY - py);
+
+   int x = int(floor(px));
+   int y = int(floor(py));
+}
+
+//0 is point, 1 is robot
+/*void raytrace(double x0, double y0, double x1, double y1) {
+    double dx = fabs(x1 - x0);
+    double dy = fabs(y1 - y0);
+
+    int x = int(floor(x0));
+    int y = int(floor(y0));
+
+    int n = 1;
+    int x_inc, y_inc;
+    double error;
+
+    if (dx == 0)
+    {
+        x_inc = 0;
+        error = std::numeric_limits<double>::infinity();
+    }
+    else if (x1 > x0)
+    {
+        x_inc = 1;
+        n += int(floor(x1)) - x;
+        error = (floor(x0) + 1 - x0) * dy;
+    }
+    else
+    {
+        x_inc = -1;
+        n += x - int(floor(x1));
+        error = (x0 - floor(x0)) * dy;
+    }
+
+    if (dy == 0)
+    {
+        y_inc = 0;
+        error -= std::numeric_limits<double>::infinity();
+    }
+    else if (y1 > y0)
+    {
+        y_inc = 1;
+        n += int(floor(y1)) - y;
+        error -= (floor(y0) + 1 - y0) * dx;
+    }
+    else
+    {
+        y_inc = -1;
+        n += y - int(floor(y1));
+        error -= (y0 - floor(y0)) * dx;
+    }
+
+    for (; n > 0; --n)
+    {
+        visit(x, y);
+
+        if (error > 0)
+        {
+            y += y_inc;
+            error -= dx;
+        }
+        else
+        {
+            x += x_inc;
+            error += dy;
+        }
+    }
+}*/
 
 void GraphSlamCPU::getHessianMatch(int constraintIndex) {
    int i,j;
