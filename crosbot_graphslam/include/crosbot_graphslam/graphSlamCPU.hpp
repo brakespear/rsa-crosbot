@@ -185,13 +185,13 @@ private:
    //Clears a local map for use
    void clearMap(int mapIndex);
    //returns the index of a 2D point in a local map, or -1 if the point does not fit inside the map
-   int getLocalOGIndex(double x, double y);
+   inline int getLocalOGIndex(double x, double y);
    //converts to x and y coord of a local map to its global index
-   int convertToGlobalPosition(double x, double y, int mapIndex, double cosTh, double sinTh);
+   inline int convertToGlobalPosition(double x, double y, int mapIndex, double cosTh, double sinTh);
    //Creates and sets up a new local map
    void createNewLocalMap(int oldLocalMap, int newLocalMap, int parentLocalMap, double angleError, double icpTh);
    //Converts point pX, pY to the reference frame of another local map
-   void convertReferenceFrame(double pX, double pY, double offsetX, double offsetY,
+   inline void convertReferenceFrame(double pX, double pY, double offsetX, double offsetY,
          double cosTh, double sinTh, double *pointX, double *pointY);
    //Finds the best matching point in the occupancy grid of the current local map
    int findMatchingPoint(double pointX, double pointY, int searchFactor);
@@ -206,7 +206,7 @@ private:
    // information matrix
    void covarFiddle(double m[3][3]);
    //Converts a point from local map coords to global coords  
-   void convertToGlobalCoord(double x, double y, double localPosX,
+   inline void convertToGlobalCoord(double x, double y, double localPosX,
       double localPosY, double localPosTh, double *resX, double *resY);
    //Finds if an index in a histogram correlation is a peak
    bool findIfPeak(double *corr, int i);
@@ -215,7 +215,8 @@ private:
          double proj2[NUM_ORIENTATION_BINS][NUM_PROJECTION_BINS], int startIndex,
          int offset, int *maxIndex);
    //gets part of the global position of node
-   double getGlobalPosIndex(int node, int index);
+   inline double getGlobalPosIndex(int node, int index);
+
 
    /*
     * Loop closing methods
@@ -248,6 +249,10 @@ private:
    void warpLocalMap(int mapIndex, double errX, double errY, double errTh);
 
    void addToFreeArea(double px, double py);
+   //Evalute the match between two maps based on the empty regions. off is the transform
+   //needs to convert points in test map to ref map so they can be evaluated against
+   //ref maps empty regions. off is the test -> ref offset
+   double evaluateMapMatch(int ref, int test, double offX, double offY, double offTh);
 
 
    //Debugging publisher

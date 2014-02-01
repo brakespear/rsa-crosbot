@@ -108,6 +108,9 @@ protected:
    double InitHeight;
    //Should local maps be warped?
    bool LocalMapWarp;
+   //Threshold for which scoring a match against free areas is considered
+   //acceptable
+   double FreeAreaThreshold;
 
 
 
