@@ -195,6 +195,17 @@ void RobotWidget::keyReleaseEvent(QKeyEvent *e) {
 			turn -= turnThrottle;
 		panel.setCurrentSpeeds(speed, turn);
 	}
+
+	for (uint32_t i = 0; i < renders.size(); ++i) {
+		if (renders[i]->keyReleaseEvent(e)) {
+			return;
+		}
+	}
+	for (size_t i = 0; i < listeners.size(); ++i) {
+		KeyListener* l = listeners[i];
+		if (l != NULL && l->keyReleaseEvent(e))
+			return;
+	}
 }
 
 void  RobotWidget::focusOutEvent(QFocusEvent *) {
@@ -323,6 +334,7 @@ void RobotRender::postRender() {
 }
 
 bool RobotRender::keyPressEvent(QKeyEvent *e) { return false; }
+bool RobotRender::keyReleaseEvent(QKeyEvent *e) { return false; }
 bool RobotRender::mousePressEvent(QMouseEvent *) { return false; }
 bool RobotRender::mouseReleaseEvent(QMouseEvent *) { return false; }
 bool RobotRender::mouseMoveEvent(QMouseEvent *) { return false; }
@@ -444,6 +456,48 @@ public:
 	bool keyReleaseEvent(QKeyEvent *e) { return false; }
 };
 
+class JointVelocity : public RobotWidget::KeyListener {
+public:
+	std::string joint;
+	int up, down;
+	double velocity;
+
+	JointVelocity(ConfigElementPtr cfg) : up(-1), down(-1), velocity(0.5) {
+		joint = cfg->getParam("joint");
+		joint = cfg->getParam("name", joint);
+
+		string str = cfg->getParam("up", "");
+		if (str != "") {
+			up = Panel::getKeyForChar(str[0]);
+		}
+		str = cfg->getParam("down", "");
+		if (str != "") {
+			down = Panel::getKeyForChar(str[0]);
+		}
+
+		velocity = cfg->getParamAsDouble("velocity", velocity);
+	}
+
+	bool keyPressEvent(QKeyEvent *e) {
+		if (up == e->key()) {
+			JointController::setVel(joint, velocity);
+			return true;
+		} else if (down == e->key()) {
+			JointController::setVel(joint, -velocity);
+			return true;
+		}
+		return false;
+	}
+
+	bool keyReleaseEvent(QKeyEvent *e) {
+		if (up == e->key() || down == e->key()) {
+			JointController::setVel(joint, 0);
+			return true;
+		}
+		return false;
+	}
+};
+
 void RobotWidget::addInputListener(ConfigElementPtr cfg) {
 	if (strcasecmp(cfg->name.c_str(), ELEMENT_KEY) == 0) {
 		listeners.push_back(new TopicMessageKey(cfg));
@@ -454,6 +508,9 @@ void RobotWidget::addInputListener(ConfigElementPtr cfg) {
 		} else {
 			listeners.push_back(new JointKey(cfg));
 		}
+	} else if (strcasecmp(cfg->name.c_str(), ELEMENT_VELOCITY) == 0) {
+		JointController::connect();
+		listeners.push_back(new JointVelocity(cfg));
 	}
 }
 

@@ -31,6 +31,7 @@ public:
 	static void shutdown();
 	static double getPos(const std::string& joint);
 	static void setPos(const std::string& joint, double pos);
+	static void setVel(const std::string& joint, double vel);
 	static void zero(const std::vector< std::string >& joints);
 
 	friend class JointControlConnection;
