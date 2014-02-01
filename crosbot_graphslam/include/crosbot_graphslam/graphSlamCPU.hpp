@@ -96,6 +96,7 @@ private:
       double warpPointsZ[MAX_LOCAL_POINTS];
       int lastObserved[MAX_LOCAL_POINTS];
       int numWarpPoints;
+      bool isFeatureless;
 
       vector<Scan *> scans;
    } LocalMap;
