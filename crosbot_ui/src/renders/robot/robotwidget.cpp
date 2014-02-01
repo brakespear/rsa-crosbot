@@ -126,7 +126,6 @@ void RobotWidget::setUpdateInterval(int updateInterval) {
 }
 
 void RobotWidget::keyPressEvent(QKeyEvent *e) {
-
 	if (e->key() == Qt::Key_W || e->key() == Qt::Key_Up ||
 			e->key() == Qt::Key_S || e->key() == Qt::Key_Down ||
 			e->key() == Qt::Key_A || e->key() == Qt::Key_Left ||
@@ -490,6 +489,8 @@ public:
 	}
 
 	bool keyReleaseEvent(QKeyEvent *e) {
+		if (e->isAutoRepeat())
+			return false;
 		if (up == e->key() || down == e->key()) {
 			JointController::setVel(joint, 0);
 			return true;
