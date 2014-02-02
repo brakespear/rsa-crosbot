@@ -83,6 +83,9 @@ private:
       double robotMapCentreX;
       double robotMapCentreY;
 
+      double globalRobotMapCentreX;
+      double globalRobotMapCentreY;
+
       double orientationHist[NUM_ORIENTATION_BINS];
       double projectionHist[NUM_ORIENTATION_BINS][NUM_PROJECTION_BINS];
       double entropyHist[NUM_ORIENTATION_BINS];
@@ -171,6 +174,13 @@ private:
    double offsetFromParentY;
    double offsetFromParentTh;
 
+   int lastFullLoopIndex;
+   int previousINode;
+   int previousJNode;
+   double previousScore;
+   bool didOptimise;
+   bool tempO;
+
 
    //debugging for timings
    ros::WallDuration totalTime;
@@ -232,7 +242,7 @@ private:
    //Perform an icp match between the current local map and otherMap
    void alignICP(int otherMap, int matchIndex);
    //Calculates the overall icp alignment matrix from alignICP
-   void calculateICPMatrix(int matchIndex);
+   void calculateICPMatrix(int matchIndex, bool fullLoop);
    //Finalises the information matrix of a loop constraint
    void finaliseInformationMatrix();
    //Calculates the global hessian matrix for the map optimisation
@@ -251,9 +261,12 @@ private:
 
    void addToFreeArea(double px, double py);
    //Evalute the match between two maps based on the empty regions. off is the transform
-   //needs to convert points in test map to ref map so they can be evaluated against
+   //needed to convert points in test map to ref map so they can be evaluated against
    //ref maps empty regions. off is the test -> ref offset
-   double evaluateMapMatch(int ref, int test, double offX, double offY, double offTh);
+   double evaluateMapMatch(int ref, int test, double offX, double offY, double offTh, int *overlapNum);
+
+   bool findTempMatches();
+   bool performTempMatch(int currentMap, int testMap);
 
 
    //Debugging publisher

@@ -55,7 +55,7 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
       slamGridPubs.push_back(nh.advertise<nav_msgs::OccupancyGrid>(name, 1));
       mapSlices.push_back(HighMapSliceHeight);
    }
-   scanSubscriber = nh.subscribe(scan_sub, 1, &GraphSlamNode::callbackScan, this);
+   scanSubscriber = nh.subscribe(scan_sub, 10, &GraphSlamNode::callbackScan, this);
    snapSub = nh.subscribe(snap_sub, 1, &GraphSlamNode::callbackSnaps, this);
    imagePub = nh.advertise<sensor_msgs::Image>(global_map_image_pub, 1);
    slamHistoryPub = nh.advertise<nav_msgs::Path>(slam_history_pub, 1);

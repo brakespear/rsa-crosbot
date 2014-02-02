@@ -111,6 +111,8 @@ protected:
    //Threshold for which scoring a match against free areas is considered
    //acceptable
    double FreeAreaThreshold;
+   //Should temp loop closures be used
+   bool UseTempLoopClosures;
 
 
 
