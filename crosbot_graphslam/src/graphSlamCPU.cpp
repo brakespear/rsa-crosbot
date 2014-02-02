@@ -32,8 +32,7 @@ GraphSlamCPU::GraphSlamCPU() {
 
    previousScore = 0;
    lastFullLoopIndex = -1;
-   previousINode = -1;
-   previousJNode = -1;
+   previousINode = 0;
 
 
    tempO = false;
@@ -63,6 +62,8 @@ void GraphSlamCPU::start() {
    common->loopConstraintXDisp = new double[MaxNumLoopConstraints];
    common->loopConstraintYDisp = new double[MaxNumLoopConstraints];
    common->loopConstraintThetaDisp = new double[MaxNumLoopConstraints];
+   common->loopConstraintWeight = new double[MaxNumLoopConstraints];
+   common->loopConstraintFull = new bool[MaxNumLoopConstraints];
    common->loopConstraintInfo = new (double[MaxNumLoopConstraints][3][3]);
    common->graphHessian = new (double[MaxNumConstraints + 1][3]);
 }
@@ -249,6 +250,9 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
       for (i = 0 ; i < 3; i++) {
          for (j = 0; j < 3; j++) {
             newScan->covar[i][j] /= 10;
+            if (i == j && newScan->covar[i][i] < 0) {
+               cout << "We have a big fucking problem " << i << endl;
+            }
             localMaps[currentLocalMap].internalCovar[i][j] += newScan->covar[i][j];
          }
       }
@@ -509,7 +513,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
                }
                cout << "Number of iterations in alignment: " << c << " " << matchSuccess << endl;
                if (matchSuccess == 1) {
-                  //updateTestMap();
+                  updateTestMap();
                   getHessianMatch(numConstraints);
                   finaliseInformationMatrix();
                   numConstraints++;
@@ -535,6 +539,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          cout << "Optimising graph" << endl;
          double posBeforeX, posBeforeY, posBeforeTh;
          if (loopClosed) {
+            cout << "Loop was closed" << endl;
             posBeforeX = localMaps[parentLocalMap].currentGlobalPosX;
             posBeforeY = localMaps[parentLocalMap].currentGlobalPosY;
             posBeforeTh = localMaps[parentLocalMap].currentGlobalPosTh;
@@ -555,9 +560,17 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          //}
 
          ros::WallTime t1 = ros::WallTime::now();
+         int optType = 1;
+         if (!loopClosed) {
+            optType = -1;
+         }
          for (int numIterations = 1; numIterations < 20; numIterations++) {
             getGlobalHessianMatrix();
-            calculateOptimisationChange(numIterations);
+            if (numIterations == 10 && loopClosed) {
+               optType = 0;
+               evaluateTempConstraints();
+            }
+            calculateOptimisationChange(numIterations, optType);
             updateGlobalPositions();
 
    /*for (int index = 0; index < MaxNumConstraints + 1; index++) {
@@ -672,9 +685,17 @@ void GraphSlamCPU::getGlobalMap(vector<LocalMapPtr> curMap, vector<double> mapSl
          x = 0;
       }
       for(; x < numGlobalPoints + numLocalPoints; x++) {
+         if (x >= globalMap.size()) {
+            cout << "Bother. global map size " << globalMap.size() << " " << x << endl;
+         }
          int index = globalMap[x];
          int yi = index / DimGlobalOG;
          int xi = index % DimGlobalOG;
+         if (xi > DimGlobalOG || yi > DimGlobalOG) {
+            cout << "global map indicies are out: " << xi << " " << yi << " " << index << " " << x << " " << globalMap.size() << endl;
+         }
+
+
          for(mapNum = 0; mapNum < curMap.size(); mapNum++) {
             cellsP = &(curMap[mapNum]->cells[yi][xi]);
             if (globalMapHeights[x] >= mapSlices[mapNum]) {
@@ -1674,7 +1695,7 @@ void GraphSlamCPU::alignICP(int otherMap, int mIndex) {
    for (int index = 0; index < localMaps[otherMap].numPoints; index++) {
       int searchFactor = 1;
       if (common->numIterations < 2) {
-         searchFactor = 3;
+         searchFactor = 4;
       } else if (common->numIterations < 4) {
          searchFactor = 2;
       }
@@ -1793,13 +1814,13 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex, bool fullLoop) {
          double constraintY = (sinTh * -common->potentialMatchX[matchIndex] +
                                                   cosTh * -common->potentialMatchY[matchIndex]);
          ANGNORM(constraintTh);
-         int temp;
+         int overlapNum;
          if (!fullLoop) { tempO = true; }
          double score = evaluateMapMatch(currentLocalMap, common->potentialMatches[matchIndex],
-               constraintX, constraintY, constraintTh, &temp);
+               constraintX, constraintY, constraintTh, &overlapNum);
          if (!fullLoop) { tempO = false; }
          cout << "The matching score is......" << score << endl;
-         if ((fullLoop && score < FreeAreaThreshold) || (!fullLoop && score < previousScore && score < FreeAreaThreshold * 2.0 && score != -1)) {
+         if ((fullLoop && score < FreeAreaThreshold) || (!fullLoop && score < previousScore && score < FreeAreaThreshold && score != -1)) {
 
             //If successful match, add match information to data structures
             int mIndex = common->numConstraints;
@@ -1812,6 +1833,8 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex, bool fullLoop) {
             common->loopConstraintJ[loopIndex] = currentLocalMap;
             if (fullLoop) {
                common->loopConstraintParent[loopIndex] = common->potentialMatchParent[matchIndex];
+               common->loopConstraintFull[loopIndex] = true;
+               common->loopConstraintWeight[loopIndex] = 1;
             } else {
                int minLevel = min(localMaps[currentLocalMap].treeLevel, localMaps[common->potentialMatches[matchIndex]].treeLevel);
 
@@ -1828,6 +1851,11 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex, bool fullLoop) {
                   mapIndexGlobal = localMaps[mapIndexGlobal].indexParentNode;
                }
                common->loopConstraintParent[loopIndex] = mapIndex;
+               common->loopConstraintFull[loopIndex] = false;
+               common->loopConstraintWeight[loopIndex] = overlapNum / (double) localMaps[common->potentialMatches[matchIndex]].numPoints;
+               cout << "Loop constraint weight is: " << common->loopConstraintWeight[loopIndex] << " " << 
+                  localMaps[common->potentialMatches[matchIndex]].numPoints << endl;
+
             }
             common->loopConstraintInfo[loopIndex][0][0] = 0;
             common->loopConstraintInfo[loopIndex][0][1] = 0;
@@ -1851,7 +1879,6 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex, bool fullLoop) {
 
                lastFullLoopIndex = mIndex;
                previousINode = common->loopConstraintI[loopIndex];
-               previousJNode = common->loopConstraintJ[loopIndex];
             }
           
             //common->loopConstraintXDisp[loopIndex] = - common->potentialMatchX[matchIndex];
@@ -2018,6 +2045,35 @@ bool GraphSlamCPU::performTempMatch(int currentMap, int testMap) {
    return false;
 }
 
+void GraphSlamCPU::evaluateTempConstraints() {
+
+   double dispThresh = 0.5;
+   double thThresh = 0.3;
+
+   for (int i = 0; i < common->numLoopConstraints; i++) {
+      if (!common->loopConstraintFull[i]) {
+         int iNode = common->loopConstraintI[i];
+         int jNode = common->loopConstraintJ[i];
+         double cosTh = cos(localMaps[iNode].currentGlobalPosTh);
+         double sinTh = sin(localMaps[iNode].currentGlobalPosTh);
+         double tempX = cosTh * common->loopConstraintXDisp[i] - sinTh * common->loopConstraintYDisp[i] 
+            + localMaps[iNode].currentGlobalPosX;
+         double tempY = sinTh * common->loopConstraintXDisp[i] + cosTh * common->loopConstraintYDisp[i]
+            + localMaps[iNode].currentGlobalPosY;
+         double tempTh = common->loopConstraintThetaDisp[i] + localMaps[iNode].currentGlobalPosTh;
+         ANGNORM(tempTh);
+         if (fabs(tempX - localMaps[jNode].currentGlobalPosX) > dispThresh ||
+               fabs(tempY - localMaps[jNode].currentGlobalPosY) > dispThresh ||
+               fabs(tempTh - localMaps[jNode].currentGlobalPosTh) > thThresh) {
+            cout << "Removing link " << jNode << " " << iNode << " " << tempX << " " << tempY << " " << tempTh << " " <<
+              localMaps[jNode].currentGlobalPosX << " " << localMaps[jNode].currentGlobalPosY << " " <<
+              localMaps[jNode].currentGlobalPosTh << endl;
+            common->loopConstraintWeight[i] = 0;
+         }
+      }
+   }
+}
+
 void GraphSlamCPU::getGlobalHessianMatrix() {
    //Reset the changeInPos variables before the optimise step
    for (int index = 0; index < nextLocalMap; index++) {
@@ -2098,7 +2154,7 @@ void GraphSlamCPU::getGlobalHessianMatrix() {
    }
 }
 
-void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
+void GraphSlamCPU::calculateOptimisationChange(int numIterations, int type) {
    double a[3][3];
    double b[3][3];
    double c[3][3];
@@ -2124,7 +2180,11 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
          
    for (int kk = 0; kk < num; kk++) {
       int globalWarp = order[kk];*/
-   for (int globalWarp = 0; globalWarp < common->numConstraints; globalWarp++) {
+   int startIndex = 0;
+   if (type == -1) {
+      startIndex = lastFullLoopIndex + 1;
+   }
+   for (int globalWarp = startIndex; globalWarp < common->numConstraints; globalWarp++) {
 
       int constraintType = common->constraintType[globalWarp];
       int constraintIndex = common->constraintIndex[globalWarp];
@@ -2132,12 +2192,16 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
       int jNode;
       int parentIndex;
       int x,y;
+      double weight;
 
       if (constraintType != 1) {
          continue;
       }
       
       if (constraintType == 1) {
+         if (type == 1 && !common->loopConstraintFull[constraintIndex]) {
+            continue;
+         }
          iNode = common->loopConstraintI[constraintIndex];
          parentIndex = common->loopConstraintParent[constraintIndex];
          jNode = common->loopConstraintJ[constraintIndex];
@@ -2149,6 +2213,10 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
          constraint[0] = common->loopConstraintXDisp[constraintIndex];
          constraint[1] = common->loopConstraintYDisp[constraintIndex];
          constraint[2] = common->loopConstraintThetaDisp[constraintIndex];
+         weight = common->loopConstraintWeight[constraintIndex];
+         if (weight == 0) {
+            continue;
+         }
          
       } else {
          iNode = localMaps[constraintIndex].indexParentNode;
@@ -2162,9 +2230,14 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
          constraint[0] = localMaps[constraintIndex].parentOffsetX;
          constraint[1] = localMaps[constraintIndex].parentOffsetY;
          constraint[2] = localMaps[constraintIndex].parentOffsetTh;
+         weight = 1;
       }
       int pathLength = (localMaps[iNode].treeLevel - localMaps[parentIndex].treeLevel) +
                        (localMaps[jNode].treeLevel - localMaps[parentIndex].treeLevel);
+
+      if (type == -1) {
+         pathLength = localMaps[jNode].treeLevel - localMaps[previousINode].treeLevel;
+      }
 
       //Calculate the rotated information matrix for the constraint 
       //answer is in b - available to all nodes in the warp
@@ -2195,14 +2268,22 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
          tempNode = iNode;
          while (tempNode != parentIndex) {
             tempPos = getGlobalPosIndex(tempNode, warpIndex);
-            dm[warpIndex] += 1 / common->graphHessian[tempNode][warpIndex];
+            if (type != -1) {
+               dm[warpIndex] += 1 / common->graphHessian[tempNode][warpIndex];
+            }
             tempNode = localMaps[tempNode].indexParentNode;
             residual[warpIndex] += getGlobalPosIndex(
                   tempNode, warpIndex) - tempPos;
          }
          tempNode = jNode;
+         bool reachedEnd = false;
          while (tempNode != parentIndex) {
-            dm[warpIndex] += 1 / common->graphHessian[tempNode][warpIndex];
+            if (type == -1 && tempNode == previousINode) {
+               reachedEnd = true;
+            }
+            if (!reachedEnd) {
+               dm[warpIndex] += 1 / common->graphHessian[tempNode][warpIndex];
+            }
             tempPos = getGlobalPosIndex(tempNode, warpIndex);
             tempNode = localMaps[tempNode].indexParentNode;
             residual[warpIndex] += tempPos - 
@@ -2252,17 +2333,23 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations) {
             adjust = residual[warpIndex];
          }
          tempNode = iNode;
-         while (tempNode != parentIndex) {
-            //tempNode = localMaps[tempNode].indexParentNode;
-            double value = adjust * dm[warpIndex] * 
-                          1/common->graphHessian[tempNode][warpIndex] * -1;
-            localMaps[tempNode].changeInPos[warpIndex] += value;
-            localMaps[tempNode].numConstraints++;
-            tempNode = localMaps[tempNode].indexParentNode;
+
+         if (type != -1) {
+            while (tempNode != parentIndex) {
+               //tempNode = localMaps[tempNode].indexParentNode;
+               double value = weight * adjust * dm[warpIndex] * 
+                             1/common->graphHessian[tempNode][warpIndex] * -1;
+               localMaps[tempNode].changeInPos[warpIndex] += value;
+               localMaps[tempNode].numConstraints++;
+               tempNode = localMaps[tempNode].indexParentNode;
+            }
          }
          tempNode = jNode;
          while (tempNode != parentIndex) {
-            double value = adjust * dm[warpIndex] * 
+            if (type == -1 && tempNode == previousINode) {
+               break;
+            }
+            double value = weight * adjust * dm[warpIndex] * 
                           1/common->graphHessian[tempNode][warpIndex];
             localMaps[tempNode].changeInPos[warpIndex] += value;
             localMaps[tempNode].numConstraints++;
@@ -2465,16 +2552,17 @@ void GraphSlamCPU::warpLocalMap(int mapIndex, double errX, double errY, double e
       for (j = 0; j < 3; j++) {
          tempCovar[i][j] = 0;
       }
-      den[i] = errX * localMaps[mapIndex].internalCovar[i][0] +
+      /*den[i] = errX * localMaps[mapIndex].internalCovar[i][0] +
          errY * localMaps[mapIndex].internalCovar[i][1] +
-         errTh * localMaps[mapIndex].internalCovar[i][2];
-      //den[i] = localMaps[mapIndex].internalCovar[i][i];
+         errTh * localMaps[mapIndex].internalCovar[i][2];*/
+      den[i] = localMaps[mapIndex].internalCovar[i][i];
    }
       
    double err[3];
    err[0] = errX;
    err[1] = errY;
    err[2] = errTh;
+   double prevFrac[3] = {0, 0, 0};
    for (i = 0; i < localMaps[mapIndex].scans.size(); i++) {
       for (j = 0; j < 3; j++) {
          for (k = 0; k < 3; k++) {
@@ -2482,10 +2570,14 @@ void GraphSlamCPU::warpLocalMap(int mapIndex, double errX, double errY, double e
          }
       }
       for (j = 0; j < 3; j++) {
-         double num = errX * tempCovar[j][0] + errY * tempCovar[j][1] +
-            errTh * tempCovar[j][2];
-         //double num = tempCovar[j][j];
+         /*double num = errX * tempCovar[j][0] + errY * tempCovar[j][1] +
+            errTh * tempCovar[j][2];*/
+         double num = tempCovar[j][j];
          localMaps[mapIndex].scans[i]->correction[j] = fabs(num / den[j]) * err[j];
+         if (fabs(num / den[j]) < prevFrac[j]) {
+            cout << "^^^^^^^^^ " << j << " " << num << " " << den[j] << " " << mapIndex << endl;
+         }
+         prevFrac[j] = fabs(num / den[j]);
       }
    }
    int tt = localMaps[mapIndex].scans.size() - 1;

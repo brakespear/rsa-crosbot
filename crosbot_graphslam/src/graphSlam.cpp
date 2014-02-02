@@ -37,8 +37,8 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("MaxIterations", MaxIterations, 50);
    paramNH.param<double>("MaxErrorTheta", MaxErrorTheta, 0.03);
    paramNH.param<double>("MaxErrorDisp", MaxErrorDisp, 0.0005);
-   paramNH.param<int>("MaxNumConstraints", MaxNumConstraints, 200);
-   paramNH.param<int>("MaxNumLoopConstraints", MaxNumLoopConstraints, 50);
+   paramNH.param<int>("MaxNumConstraints", MaxNumConstraints, 250);
+   paramNH.param<int>("MaxNumLoopConstraints", MaxNumLoopConstraints, 100);
    paramNH.param<bool>("LocalMapCombine", LocalMapCombine, false);
    paramNH.param<double>("MaxThetaOptimise", MaxThetaOptimise, M_PI / 2.0);
    paramNH.param<int>("HistoryTime", HistoryTime, 1000000);

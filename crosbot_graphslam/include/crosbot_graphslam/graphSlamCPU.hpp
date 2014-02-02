@@ -159,6 +159,8 @@ private:
       double *loopConstraintXDisp;
       double *loopConstraintYDisp;
       double *loopConstraintThetaDisp;
+      double *loopConstraintWeight;
+      bool *loopConstraintFull;
       double (*loopConstraintInfo)[3][3];
       double (*graphHessian)[3];
    } SlamCommon;
@@ -176,7 +178,6 @@ private:
 
    int lastFullLoopIndex;
    int previousINode;
-   int previousJNode;
    double previousScore;
    bool didOptimise;
    bool tempO;
@@ -248,7 +249,9 @@ private:
    //Calculates the global hessian matrix for the map optimisation
    void getGlobalHessianMatrix();
    //Performs the optimisation of the graph
-   void calculateOptimisationChange(int numIterations);
+   //type of 0 is normal, 1 is just full loop closures, -1 is only since last
+   //full loop closure
+   void calculateOptimisationChange(int numIterations, int type);
    //Updates the global positions of all local maps
    void updateGlobalPositions();
    //Updates the global covariances of each local map and updates
@@ -267,6 +270,7 @@ private:
 
    bool findTempMatches();
    bool performTempMatch(int currentMap, int testMap);
+   void evaluateTempConstraints();
 
 
    //Debugging publisher
