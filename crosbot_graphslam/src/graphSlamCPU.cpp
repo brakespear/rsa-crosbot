@@ -206,6 +206,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
    newScan->stamp = stamp;
    vector<Point> scanPoints;
    double tempCovar[3][3];
+   int count = 0;
    for (i = 0; i < cloud->cloud.size(); ++i) {
       double dist = cloud->cloud[i].x * cloud->cloud[i].x + cloud->cloud[i].y * cloud->cloud[i].y;
       if (dist > LaserMinDist * LaserMinDist && dist < LaserMaxDist * LaserMaxDist &&
@@ -240,22 +241,32 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
                   tempCovar[2][0] += mapGradX * temp;
                   tempCovar[2][1] += mapGradY * temp;
                   tempCovar[2][2] += temp * temp;
+                  count++;
                }
             }
          }
       }
    }
    if (localMaps[currentLocalMap].scans.size() > 0) {
+      for (i = 0; i < 3; i++) {
+         for(j = 0; j < 3; j++) {
+            tempCovar[i][j] /= count;
+            //cout << tempCovar[i][j] << " ";
+         }
+      }
+      //cout << endl << "* ";
       invert3x3Matrix(tempCovar, newScan->covar);
       for (i = 0 ; i < 3; i++) {
          for (j = 0; j < 3; j++) {
-            newScan->covar[i][j] /= 10;
+            newScan->covar[i][j] /= 5000;
+            //cout << newScan->covar[i][j] << " ";
             if (i == j && newScan->covar[i][i] < 0) {
                cout << "We have a big fucking problem " << i << endl;
             }
             localMaps[currentLocalMap].internalCovar[i][j] += newScan->covar[i][j];
          }
       }
+      //cout << endl;
    }
 
    for (i = 0; i < scanPoints.size(); ++i) {
@@ -360,10 +371,10 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
       fabs(localMaps[currentLocalMap].internalCovar[2][1]) + localMaps[currentLocalMap].internalCovar[2][2]*/;
 
    if (sumX > 1.0 || sumY > 1.0 || sumTh > 1.0) {
-      cout << "New local map because of covariances" << endl;
+      cout << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^New local map because of covariances" << endl;
       localMaps[currentLocalMap].isFeatureless = true;
       finishMap(angleError, yi, icpPose);
-   } else if (temp > LocalMapDistance * 1.5 /*|| fabs(offsetFromParentTh) > 3*M_PI/4.0*/) {
+   } else if (temp > LocalMapDistance * 1.0 /*|| fabs(offsetFromParentTh) > 3*M_PI/4.0*/) {
       cout << "New local map because of local map distance only" << endl;
       finishMap(angleError, yi, icpPose);
    } else if ((temp > LocalMapDistance) && (fabs(common->minMapRangeX) > edgeDist || fabs(common->minMapRangeY) > edgeDist ||
@@ -392,12 +403,12 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
       cout << totalTime.toSec() * 1000.0f / (double) numIterations << "ms Pos: " << slamPose.position.x
         << " " << slamPose.position.y << " " << ys << " icp: " << icpPose.position.x << " " <<
        icpPose.position.y << " " << yi << endl;
-      /*for (i = 0; i < 3; i++) {
+      for (i = 0; i < 3; i++) {
          for (j = 0; j < 3; j++) {
             cout << localMaps[currentLocalMap].internalCovar[i][j] << " ";
          }
       }
-      cout << endl;*/
+      cout << endl;
    }
 
    finishedSetup = true;
@@ -1233,6 +1244,7 @@ void GraphSlamCPU::prepareLocalMap() {
             //   localMaps[currentLocalMap].scans[lastI]->covar[y][x]) * 1000000;
             a[y][x] = ((localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 
                (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI)) * 1000000;
+            //a[y][x] = (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 10000;
          }
       }
 
@@ -2351,6 +2363,8 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations, int type) {
             }
             double value = weight * adjust * dm[warpIndex] * 
                           1/common->graphHessian[tempNode][warpIndex];
+            //cout << "Fraction for node " << tempNode << " is " << dm[warpIndex] * 1/common->graphHessian[tempNode][warpIndex] << 
+            //   " " << dm[warpIndex] << " " << warpIndex << " " << localMaps[tempNode].parentInfo[warpIndex][warpIndex] << endl;
             localMaps[tempNode].changeInPos[warpIndex] += value;
             localMaps[tempNode].numConstraints++;
             tempNode = localMaps[tempNode].indexParentNode;
