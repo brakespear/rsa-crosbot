@@ -435,6 +435,9 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       localMaps[currentLocalMap].warpPointsX[i] = localMaps[currentLocalMap].pointsX[i];
       localMaps[currentLocalMap].warpPointsY[i] = localMaps[currentLocalMap].pointsY[i];
       localMaps[currentLocalMap].warpPointsZ[i] = localMaps[currentLocalMap].pointsZ[i];
+
+      localMaps[currentLocalMap].gradX[i] = common->grid[ogIndex].gradX;
+      localMaps[currentLocalMap].gradY[i] = common->grid[ogIndex].gradY;
    }
 
    //updateTestMap();
@@ -459,8 +462,8 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             int nI = 0;
             int matchSuccess = 0;
             while (matchSuccess == 0) {
-               alignICP(combineIndex, 0);
-               calculateICPMatrix(0, true);
+               alignICP(combineIndex, 0, currentLocalMap);
+               calculateICPMatrix(0, true, currentLocalMap);
                matchSuccess = common->matchSuccess;
                nI++;
             }
@@ -516,8 +519,8 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
                int matchSuccess = 0;
                int c = 0;
                while (matchSuccess == 0) {
-                  alignICP(common->potentialMatches[i], i);
-                  calculateICPMatrix(i, true);
+                  alignICP(common->potentialMatches[i], i, currentLocalMap);
+                  calculateICPMatrix(i, true, currentLocalMap);
                   matchSuccess = common->matchSuccess;
                   c++;
                }
@@ -561,13 +564,13 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
 
          cout << "pos before: " << posBeforeX << " " << posBeforeY << " " << posBeforeTh << endl;
          //for (int numIterations = 1; numIterations < 6; numIterations++) {
-         //for (int k = 0; k < nextLocalMap; k++) {
+         for (int k = 0; k < nextLocalMap; k++) {
          //   cout << "Pose before of map: " << k << " is: " << localMaps[k].currentGlobalPosX << " " <<
          //      localMaps[k].currentGlobalPosY << " " << localMaps[k].currentGlobalPosTh << endl;
-            /*localMaps[k].totalChange[0] = 0;
-            localMaps[k].totalChange[1] = 0;
-            localMaps[k].totalChange[2] = 0;*/
-         //}
+            localMaps[k].startingPos[0] = localMaps[k].currentGlobalPosX;
+            localMaps[k].startingPos[1] = localMaps[k].currentGlobalPosY;
+            localMaps[k].startingPos[2] = localMaps[k].currentGlobalPosTh;
+         }
 
          ros::WallTime t1 = ros::WallTime::now();
          int optType = 1;
@@ -594,15 +597,34 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
 
 
          }
+         updateRobotMapCentres();
          ros::WallTime t2 = ros::WallTime::now();
          ros::WallDuration tote = t2 - t1;
          cout << "Time to optimise " << tote.toSec() * 1000.0f << "ms" << endl;
-         //for (int k = 0; k < nextLocalMap; k++) {
+         bool foundMoreLoops = false;
+         for (int k = 0; loopClosed && k < nextLocalMap; k++) {
+            if (fabs(localMaps[k].currentGlobalPosX - localMaps[k].startingPos[0]) > 0.5 ||
+                  fabs(localMaps[k].currentGlobalPosY - localMaps[k].startingPos[1]) > 0.5 ||
+                  fabs(localMaps[k].currentGlobalPosTh - localMaps[k].startingPos[2]) > 0.5) {
+                     
+               cout << "Map " << k << " moved a lot" << endl;
+               foundMoreLoops = findChangedPosMatches(k) || foundMoreLoops;
+            }
          //   cout << "Pose after of map: " << k << " is: " << localMaps[k].currentGlobalPosX << " " <<
          //      localMaps[k].currentGlobalPosY << " " << localMaps[k].currentGlobalPosTh << endl;
             //cout << "   Change was: " << localMaps[k].totalChange[0] << " " << localMaps[k].totalChange[1] << " " 
             //   << localMaps[k].totalChange[2] << endl;
-         //}
+         }
+         if (foundMoreLoops) {
+            cout << "****Optimising again" << endl;
+            for (int numIterations = 1; numIterations < 10; numIterations++) {
+               getGlobalHessianMatrix();
+               calculateOptimisationChange(numIterations, 0);
+               updateGlobalPositions();
+            }
+            updateRobotMapCentres();
+         }
+
          t1 = ros::WallTime::now();
          updateGlobalMap();
          t2 = ros::WallTime::now();
@@ -716,6 +738,13 @@ void GraphSlamCPU::getGlobalMap(vector<LocalMapPtr> curMap, vector<double> mapSl
                   cellsP->current = true;
                   cellsP->hits = curMap[mapNum]->maxHits;
                }
+
+               //test
+               if (localMaps.size() > 3 && x > localMaps[0].numPoints + localMaps[1].numPoints && x < localMaps[0].numPoints + localMaps[1].numPoints + localMaps[2].numPoints) {
+                  cellsP->current = true;
+               }
+
+
             }
          }
       }
@@ -938,8 +967,17 @@ void GraphSlamCPU::addToFreeArea(double px, double py) {
    localMaps[currentLocalMap].freeArea[startIndex] = 0;
 }
 
+void GraphSlamCPU::updateRobotMapCentres() {
+   for (int i = 0; i < nextLocalMap; i++) {
+      convertToGlobalCoord(localMaps[i].robotMapCentreX, localMaps[i].robotMapCentreY,
+            localMaps[i].currentGlobalPosX, localMaps[i].currentGlobalPosY,
+            localMaps[i].currentGlobalPosTh, &(localMaps[i].globalRobotMapCentreX),
+            &(localMaps[i].globalRobotMapCentreY));
+   }
+}
+
 double GraphSlamCPU::evaluateMapMatch(int ref, int test, double offX, double offY, double offTh, int *overlapNum) {
-   if (tempO) {
+   //if (tempO) {
    int x,y;
    for (y = 0; y < testMap->height; y++) {
       crosbot::LocalMap::Cell *cellsP = &(testMap->cells[y][0]);
@@ -954,8 +992,8 @@ double GraphSlamCPU::evaluateMapMatch(int ref, int test, double offX, double off
    int k;
    for (k = 0; k < localMaps[currentLocalMap].numPoints; k++) {
       double xd, yd;
-      xd = localMaps[currentLocalMap].pointsX[k];
-      yd = localMaps[currentLocalMap].pointsY[k];
+      xd = localMaps[ref].pointsX[k];
+      yd = localMaps[ref].pointsY[k];
       int i,j;
       i = testMap->width/2 + xd / testMap->resolution;
       j = testMap->height/2 - yd / testMap->resolution;
@@ -965,7 +1003,7 @@ double GraphSlamCPU::evaluateMapMatch(int ref, int test, double offX, double off
          cellsP->current = true;
       }
    }
-   }
+   //}
 
 
 
@@ -990,7 +1028,7 @@ double GraphSlamCPU::evaluateMapMatch(int ref, int test, double offX, double off
          }
       }
 
-      if (tempO) {
+      //if (tempO) {
       int pi,pj;
       pi = testMap->width/2 + px / testMap->resolution;
       pj = testMap->height/2 - py / testMap->resolution;
@@ -998,7 +1036,7 @@ double GraphSlamCPU::evaluateMapMatch(int ref, int test, double offX, double off
          crosbot::LocalMap::Cell *cellsP = &(testMap->cells[testMap->height - pj - 1][pi]);
          cellsP->hits = testMap->maxHits;
       }
-      }
+      //}
 
    }
    cout << "In evaluate match " << tt << " points exactly match and " << numOverlap - tt << " points are over free areas" << endl;
@@ -1108,7 +1146,7 @@ inline void GraphSlamCPU::convertReferenceFrame(double pX, double pY, double off
    *pointY = tempX * sinTh + tempY * cosTh;
 }
 
-int GraphSlamCPU::findMatchingPoint(double pointX, double pointY, int searchFactor) {
+int GraphSlamCPU::findMatchingPoint(double pointX, double pointY, int searchFactor, int currentMap) {
    int ogIndex = getLocalOGIndex(pointX, pointY);
    if (ogIndex >= 0) {
       int ogX = ogIndex % DimLocalOG;
@@ -1124,8 +1162,8 @@ int GraphSlamCPU::findMatchingPoint(double pointX, double pointY, int searchFact
                if (common->localOG[ogIndex] >= 0) {
                   double ogPointX;
                   double ogPointY;
-                  ogPointX = localMaps[currentLocalMap].pointsX[common->localOG[ogIndex]];
-                  ogPointY = localMaps[currentLocalMap].pointsY[common->localOG[ogIndex]];
+                  ogPointX = localMaps[currentMap].pointsX[common->localOG[ogIndex]];
+                  ogPointY = localMaps[currentMap].pointsY[common->localOG[ogIndex]];
                   double min = getMetricValue(pointX, pointY, ogPointX, ogPointY);
                   if (min < minWeight) {
                      minWeight = min;
@@ -1687,7 +1725,7 @@ double GraphSlamCPU::correlateProjection(double proj1[NUM_ORIENTATION_BINS][NUM_
    return maxCorr;
 }
 
-void GraphSlamCPU::alignICP(int otherMap, int mIndex) {
+void GraphSlamCPU::alignICP(int otherMap, int mIndex, int currentMap) {
    int x,y;
    for(y = 0; y < 3; y++) {
       for(x = 0; x < 3; x++) {
@@ -1719,14 +1757,14 @@ void GraphSlamCPU::alignICP(int otherMap, int mIndex) {
       transformedPointX = (pX * cosTh - pY * sinTh) + offsetX;
       transformedPointY = (pX * sinTh + pY * cosTh) + offsetY;
       //TODO: looks at the number of beighbouring cells examined to find a matching point
-      int matchIndex = findMatchingPoint(transformedPointX, transformedPointY, searchFactor);
+      int matchIndex = findMatchingPoint(transformedPointX, transformedPointY, searchFactor, currentMap);
       //If found a matching point, calculate its contribution to the match
       if (matchIndex >= 0) {
          double x12, y12, k, temp;
          //lPoint is the point on the map ie. mapPoint
          //point is the laser point not in the map ie. transformedPoint
-         double mapPointX = localMaps[currentLocalMap].pointsX[matchIndex];
-         double mapPointY = localMaps[currentLocalMap].pointsY[matchIndex];
+         double mapPointX = localMaps[currentMap].pointsX[matchIndex];
+         double mapPointY = localMaps[currentMap].pointsY[matchIndex];
          //Doing this as per UseSimpleH in pogmbicp code as no 3d yet
          x12 = mapPointX * mapPointX;
          y12 = mapPointY * mapPointY;
@@ -1758,7 +1796,7 @@ void GraphSlamCPU::alignICP(int otherMap, int mIndex) {
    }
 }
 
-void GraphSlamCPU::calculateICPMatrix(int matchIndex, bool fullLoop) {
+void GraphSlamCPU::calculateICPMatrix(int matchIndex, bool fullLoop, int currentMap) {
    double shift[3];
    int index;
 
@@ -1827,7 +1865,7 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex, bool fullLoop) {
          ANGNORM(constraintTh);
          int overlapNum;
          if (!fullLoop) { tempO = true; }
-         double score = evaluateMapMatch(currentLocalMap, common->potentialMatches[matchIndex],
+         double score = evaluateMapMatch(currentMap, common->potentialMatches[matchIndex],
                constraintX, constraintY, constraintTh, &overlapNum);
          if (!fullLoop) { tempO = false; }
          cout << "The matching score is......" << score << endl;
@@ -1841,15 +1879,15 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex, bool fullLoop) {
             common->constraintType[mIndex] = 1;
             common->constraintIndex[mIndex] = loopIndex;
             common->loopConstraintI[loopIndex] = common->potentialMatches[matchIndex];
-            common->loopConstraintJ[loopIndex] = currentLocalMap;
+            common->loopConstraintJ[loopIndex] = currentMap;
             if (fullLoop) {
                common->loopConstraintParent[loopIndex] = common->potentialMatchParent[matchIndex];
                common->loopConstraintFull[loopIndex] = true;
                common->loopConstraintWeight[loopIndex] = 1;
             } else {
-               int minLevel = min(localMaps[currentLocalMap].treeLevel, localMaps[common->potentialMatches[matchIndex]].treeLevel);
+               int minLevel = min(localMaps[currentMap].treeLevel, localMaps[common->potentialMatches[matchIndex]].treeLevel);
 
-               int mapIndex = currentLocalMap;
+               int mapIndex = currentMap;
                while (localMaps[mapIndex].treeLevel > minLevel) {
                   mapIndex = localMaps[mapIndex].indexParentNode;
                }
@@ -1863,7 +1901,9 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex, bool fullLoop) {
                }
                common->loopConstraintParent[loopIndex] = mapIndex;
                common->loopConstraintFull[loopIndex] = false;
-               common->loopConstraintWeight[loopIndex] = overlapNum / (double) localMaps[common->potentialMatches[matchIndex]].numPoints;
+               //common->loopConstraintWeight[loopIndex] = overlapNum / (double) localMaps[common->potentialMatches[matchIndex]].numPoints;
+               common->loopConstraintWeight[loopIndex] = 1;
+
                cout << "Loop constraint weight is: " << common->loopConstraintWeight[loopIndex] << " " << 
                   localMaps[common->potentialMatches[matchIndex]].numPoints << endl;
 
@@ -1905,7 +1945,7 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex, bool fullLoop) {
          int cIndex = common->numConstraints;
          common->numConstraints++;
          common->constraintType[cIndex] = 0;
-         common->constraintIndex[cIndex] = currentLocalMap;
+         common->constraintIndex[cIndex] = currentMap;
          common->combineIndex = -1;
          common->combineMode = 0;
       }
@@ -1995,7 +2035,7 @@ bool GraphSlamCPU::findTempMatches() {
    double yCur = localMaps[currentLocalMap].globalRobotMapCentreY;
 
    bool returnVal = false;
-   double distanceThreshold = 5.0;
+   double distanceThreshold = 8.0;
    for (mIndex = 0; mIndex < nextLocalMap; mIndex++) {
       if (mIndex != currentLocalMap && localMaps[currentLocalMap].indexParentNode != mIndex &&
             !localMaps[mIndex].isFeatureless && fabs(xCur - localMaps[mIndex].globalRobotMapCentreX) < distanceThreshold
@@ -2024,7 +2064,7 @@ bool GraphSlamCPU::performTempMatch(int currentMap, int testMap) {
    double score = evaluateMapMatch(currentMap, testMap, offX, offY, globalOffTh, &overlapNum);
    cout << "Score for map " << currentMap << " to " << testMap << " is " << score << " with overlap " << overlapNum << endl;
 
-   if (overlapNum > 50) {
+   if (overlapNum > 30) {
       previousScore = score;
       double cosM = cos(-globalOffTh);
       double sinM = sin(-globalOffTh);
@@ -2037,8 +2077,8 @@ bool GraphSlamCPU::performTempMatch(int currentMap, int testMap) {
       int matchSuccess = 0;
       int c = 0;
       while (matchSuccess == 0) {
-         alignICP(testMap, 0);
-         calculateICPMatrix(0, false);
+         alignICP(testMap, 0, currentMap);
+         calculateICPMatrix(0, false, currentMap);
          matchSuccess = common->matchSuccess;
          c++;
       }
@@ -2083,6 +2123,47 @@ void GraphSlamCPU::evaluateTempConstraints() {
          }
       }
    }
+}
+
+bool GraphSlamCPU::findChangedPosMatches(int mapNum) {
+   if (localMaps[currentLocalMap].isFeatureless) {
+      return false;
+   }
+
+   int mIndex = 0;
+   double xCur = localMaps[mapNum].globalRobotMapCentreX;
+   double yCur = localMaps[mapNum].globalRobotMapCentreY;
+
+   bool returnVal = false;
+   double distanceThreshold = 8.0;
+   for (mIndex = 0; mIndex < mapNum; mIndex++) {
+      if (mIndex != currentLocalMap && localMaps[mapNum].indexParentNode != mIndex &&
+            !localMaps[mIndex].isFeatureless && fabs(xCur - localMaps[mIndex].globalRobotMapCentreX) < distanceThreshold
+            && fabs(yCur - localMaps[mIndex].globalRobotMapCentreY) < distanceThreshold) {
+         //Time to be super dodgy
+         for(int i = 0; i < DimLocalOG * DimLocalOG; i++) {
+            common->localOG[i] = -1;
+         }
+         for (int i = 0; i < localMaps[mapNum].numPoints; i++) {
+            int index = getLocalOGIndex(localMaps[mapNum].pointsX[i], localMaps[mapNum].pointsY[i]);
+            if (index >= 0) {
+               common->localOG[index] = i;
+               common->grid[index].gradX = localMaps[mapNum].gradX[i];
+               common->grid[index].gradY = localMaps[mapNum].gradY[i];
+            }
+         }
+
+         //Map is in the right area
+         if (performTempMatch(mapNum, mIndex)) {
+            returnVal = true;
+            cout << "****Found a match by going back through map. Maps: " << mapNum << " to " << mIndex << endl;
+         }
+      }
+   }
+   if (returnVal) {
+      lastFullLoopIndex = common->numConstraints - 1;
+   }
+   return returnVal;
 }
 
 void GraphSlamCPU::getGlobalHessianMatrix() {
@@ -2313,7 +2394,7 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations, int type) {
          dm[warpIndex] = 1/dm[warpIndex];
 
       }
-      /*if (numIterations == 1) {*/cout << iNode << " " << jNode << " Residual is: " << residual[0] << " " << residual[1] << " " << residual[2] << endl; //}
+      if (numIterations == 1) {cout << iNode << " " << jNode << " Residual is: " << residual[0] << " " << residual[1] << " " << residual[2] << endl; }
       //cout << "Constraint is: " << constraint[0] << " " << constraint[1] << " " << constraint[2] << endl;
       mult3x3Matrix(a, b, c);
       a[1][0] *= -1;
@@ -2448,10 +2529,10 @@ void GraphSlamCPU::updateGlobalMap() {
       a[0][1] *= -1;
       mult3x3Matrix(c, a, localMaps[i].globalCovar);
 
-      convertToGlobalCoord(localMaps[currentLocalMap].robotMapCentreX, localMaps[currentLocalMap].robotMapCentreY,
+      /*convertToGlobalCoord(localMaps[currentLocalMap].robotMapCentreX, localMaps[currentLocalMap].robotMapCentreY,
             localMaps[currentLocalMap].currentGlobalPosX, localMaps[currentLocalMap].currentGlobalPosY,
             localMaps[currentLocalMap].currentGlobalPosTh, &(localMaps[currentLocalMap].globalRobotMapCentreX),
-            &(localMaps[currentLocalMap].globalRobotMapCentreY));
+            &(localMaps[currentLocalMap].globalRobotMapCentreY));*/
 
 
       /*double parentAngle = localMaps[localMaps[i].indexParentNode]

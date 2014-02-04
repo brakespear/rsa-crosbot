@@ -72,6 +72,8 @@ private:
       double globalCovar[3][3];
       double internalCovar[3][3];
 
+      double startingPos[3];
+
       int numConstraints;
       int indexNextNode;
       double nextOffsetX;
@@ -91,6 +93,8 @@ private:
       double entropyHist[NUM_ORIENTATION_BINS];
 
       double *freeArea;
+      double gradX[MAX_LOCAL_POINTS];
+      double gradY[MAX_LOCAL_POINTS];
 
       double pointsX[MAX_LOCAL_POINTS];
       double pointsY[MAX_LOCAL_POINTS];
@@ -206,7 +210,7 @@ private:
    inline void convertReferenceFrame(double pX, double pY, double offsetX, double offsetY,
          double cosTh, double sinTh, double *pointX, double *pointY);
    //Finds the best matching point in the occupancy grid of the current local map
-   int findMatchingPoint(double pointX, double pointY, int searchFactor);
+   int findMatchingPoint(double pointX, double pointY, int searchFactor, int currentMap);
    //Gets the mbicp metric vallue for the match between laser point and og point
    double getMetricValue(double pointX, double pointY, double ogPointX, double ogPointY);
    //Multiply two 3x3 matrices
@@ -241,9 +245,9 @@ private:
    //Finds potentially matching local maps by position and histogram correlation
    void findPotentialMatches();
    //Perform an icp match between the current local map and otherMap
-   void alignICP(int otherMap, int matchIndex);
+   void alignICP(int otherMap, int matchIndex, int currentMap);
    //Calculates the overall icp alignment matrix from alignICP
-   void calculateICPMatrix(int matchIndex, bool fullLoop);
+   void calculateICPMatrix(int matchIndex, bool fullLoop, int currentMap);
    //Finalises the information matrix of a loop constraint
    void finaliseInformationMatrix();
    //Calculates the global hessian matrix for the map optimisation
@@ -271,6 +275,8 @@ private:
    bool findTempMatches();
    bool performTempMatch(int currentMap, int testMap);
    void evaluateTempConstraints();
+   bool findChangedPosMatches(int mapNum);
+   void updateRobotMapCentres();
 
 
    //Debugging publisher
