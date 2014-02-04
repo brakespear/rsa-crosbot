@@ -222,14 +222,13 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
             int ogIndex = getLocalOGIndex(p.x, p.y);
             if (ogIndex >= 0) {
                double x,y;
-               x = -sinTh * cloud->cloud[i].x - cosTh * cloud->cloud[i].y;
-               y = cosTh * cloud->cloud[i].x - sinTh * cloud->cloud[i].y;
+               x = -sinTh * p.x - cosTh * p.y;
+               y = cosTh * p.x - sinTh * p.y;
                double length = sqrt(common->grid[ogIndex].gradX * common->grid[ogIndex].gradX +
                      common->grid[ogIndex].gradY * common->grid[ogIndex].gradY);
                double mapGradX = common->grid[ogIndex].gradX / length;
                double mapGradY = common->grid[ogIndex].gradY / length;
                if (length > 0) {
-
                   //double temp = x * mapGradX + y * mapGradY * 0.1;
                   double temp = 0.5;
                   tempCovar[0][0] += mapGradX * mapGradX;
