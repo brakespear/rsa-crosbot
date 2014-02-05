@@ -440,7 +440,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       localMaps[currentLocalMap].gradY[i] = common->grid[ogIndex].gradY;
    }
 
-   //updateTestMap();
+   updateTestMap();
 
    if (parentLocalMap >= 0) {
       parentLocalMap = currentLocalMap;
@@ -526,7 +526,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
                }
                cout << "Number of iterations in alignment: " << c << " " << matchSuccess << endl;
                if (matchSuccess == 1) {
-                  updateTestMap();
+                  //updateTestMap();
                   getHessianMatch(numConstraints);
                   finaliseInformationMatrix();
                   numConstraints++;
@@ -978,7 +978,7 @@ void GraphSlamCPU::updateRobotMapCentres() {
 
 double GraphSlamCPU::evaluateMapMatch(int ref, int test, double offX, double offY, double offTh, int *overlapNum) {
    //if (tempO) {
-   int x,y;
+   /*int x,y;
    for (y = 0; y < testMap->height; y++) {
       crosbot::LocalMap::Cell *cellsP = &(testMap->cells[y][0]);
       for (x = 0; x < testMap->width; x++) {
@@ -1002,7 +1002,7 @@ double GraphSlamCPU::evaluateMapMatch(int ref, int test, double offX, double off
          cellsP->hits = testMap->maxHits;
          cellsP->current = true;
       }
-   }
+   }*/
    //}
 
 
@@ -1029,16 +1029,17 @@ double GraphSlamCPU::evaluateMapMatch(int ref, int test, double offX, double off
       }
 
       //if (tempO) {
-      int pi,pj;
+      /*int pi,pj;
       pi = testMap->width/2 + px / testMap->resolution;
       pj = testMap->height/2 - py / testMap->resolution;
       if (pi >= 0 && pi < testMap->width && pj >= 0 && pj < testMap->height) {
          crosbot::LocalMap::Cell *cellsP = &(testMap->cells[testMap->height - pj - 1][pi]);
          cellsP->hits = testMap->maxHits;
-      }
+      }*/
       //}
 
    }
+
    cout << "In evaluate match " << tt << " points exactly match and " << numOverlap - tt << " points are over free areas" << endl;
    *overlapNum = numOverlap;
    if (numOverlap == 0) {
@@ -2393,6 +2394,17 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations, int type) {
          residual[warpIndex] *= -1;
          dm[warpIndex] = 1/dm[warpIndex];
 
+
+      }
+
+      if (numIterations == 1 && residual[2] > 3.0 * M_PI / 4.0) {
+         cout << "Fixing residual angles" << endl;
+         continue;
+         //residual[2] -= M_PI;
+      } else if (residual[2] < - 3.0 * M_PI / 4.0) {
+         cout << "Fixing residual angles" << endl;
+         continue;
+         //residual[2] += M_PI;
       }
       if (numIterations == 1) {cout << iNode << " " << jNode << " Residual is: " << residual[0] << " " << residual[1] << " " << residual[2] << endl; }
       //cout << "Constraint is: " << constraint[0] << " " << constraint[1] << " " << constraint[2] << endl;
@@ -3135,11 +3147,11 @@ void GraphSlamCPU::updateTestMap() {
          crosbot::LocalMap::Cell *cellsP = &(testMap->cells[testMap->height - j - 1][i]);
 
          cellsP->hits = testMap->maxHits;
-         cellsP->current = true;
+         //cellsP->current = true;
       }
    }
 
-   int otherMap = common->potentialMatches[0];
+   /*int otherMap = common->potentialMatches[0];
    double offsetX = common->potentialMatchX[0];
    double offsetY = common->potentialMatchY[0];
    double offsetTh = common->potentialMatchTh[0];
@@ -3176,7 +3188,7 @@ void GraphSlamCPU::updateTestMap() {
          
       }
       
-   }
+   }*/
 }
 /*void GraphSlamCPU::updateTestMap() {
 
