@@ -2397,15 +2397,16 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations, int type) {
 
       }
 
-      if (numIterations == 1 && residual[2] > 3.0 * M_PI / 4.0) {
-         cout << "Fixing residual angles" << endl;
+      if (/*numIterations == 1 &&*/ residual[2] > 3.0 * M_PI / 4.0 || residual[2] < -3.0 * M_PI / 2.0) {
+         cout << "Fixing residual angles " << residual[2] << " " << iNode << " " << jNode << endl;
+         common->loopConstraintWeight[constraintIndex] = 0;
          continue;
          //residual[2] -= M_PI;
-      } else if (residual[2] < - 3.0 * M_PI / 4.0) {
+      } /*else if (residual[2] < - 3.0 * M_PI / 4.0) {
          cout << "Fixing residual angles" << endl;
          continue;
          //residual[2] += M_PI;
-      }
+      }*/
       if (numIterations == 1) {cout << iNode << " " << jNode << " Residual is: " << residual[0] << " " << residual[1] << " " << residual[2] << endl; }
       //cout << "Constraint is: " << constraint[0] << " " << constraint[1] << " " << constraint[2] << endl;
       mult3x3Matrix(a, b, c);
@@ -3023,7 +3024,7 @@ void GraphSlamCPU::captureScan(const vector<uint8_t>& points, Pose correction) {
    int row, col;
    int off;
    
-   int step = 4;
+   int step = 2;
    //maximum number of points per scan
    int pointsPerScan = (640 / step) * (480 / step);
 
@@ -3052,7 +3053,8 @@ void GraphSlamCPU::captureScan(const vector<uint8_t>& points, Pose correction) {
          if (!isnan(p.x)/* && !isnan(p.y) && !isnan(p.z)*/) {
             newScan->points[i] = trans * p.toTF();
             if (newScan->points[i].x > 0.3 && newScan->points[i].y > 0.3 && newScan->points[i].z > 0.1 
-                  && newScan->points[i].z < 2.0) {
+                  && newScan->points[i].z < 2.0 //) {
+                  && newScan->points[i].x * newScan->points[i].x + newScan->points[i].y * newScan->points[i].y < 36.0) {
                newScan->rgb[i] = arr[4];
                i++;
             }
