@@ -1,0 +1,16 @@
+<launch>
+	<param name="use_sim_time" value="true" />
+	
+	<node pkg="image_view" type="image_view" name="globalmap_view">
+      <remap from="image" to="globalImage" />
+		<!--remap from="image" to="/mbicp/image" /-->
+	</node>
+	<node pkg="image_view" type="image_view" name="testmap_view">
+      <remap from="image" to="slamTest" />
+	</node>
+
+	<node pkg="crosbot_graphslam" type="crosbot_graphslam" name="crosbot_graphslam" output="screen">
+		<param name="base_frame" value="base_footprint" />
+      <param name="icp_frame" value="map" />
+	</node>
+</launch>	

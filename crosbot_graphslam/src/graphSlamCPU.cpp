@@ -355,6 +355,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
       }
    }
    localMaps[currentLocalMap].scans.push_back(newScan);
+   //updateTestMap();
    activeMapIndex = currentLocalMap;
 
    double temp = sqrt(offsetFromParentX * offsetFromParentX +
@@ -3040,6 +3041,7 @@ void GraphSlamCPU::captureScan(const vector<uint8_t>& points, Pose correction) {
    newScan->localMapIndex = activeMapIndex;
    newScan->scanIndex = localMaps[newScan->localMapIndex].scans.size() - 1;
    int i = 0;
+   cout << "*********** Capturing scan" << endl;
    for (row = 0; row < 480; row+=step) {
       off = 20480 * row;
       for (col = 0; col < 640; col+=step) {
