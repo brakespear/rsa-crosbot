@@ -38,7 +38,7 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<bool>("useKinect", useKinect, false);
    paramNH.param<std::string>("kinect_sub", kinect_sub, "/camera/depth_registered/points");
    paramNH.param<std::string>("world_pub", world_pub, "worldMap");
-   paramNH.param<int>("kinectCaptureRate", kinectCaptureRate, 2000000);
+   paramNH.param<int>("kinectCaptureRate", kinectCaptureRate, 1500000);
    paramNH.param<int>("globalMapPublishRate", globalMapPublishRate, 25000000);
 
 

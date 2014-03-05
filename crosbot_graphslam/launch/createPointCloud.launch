@@ -25,5 +25,6 @@
     <remap from="rgb/camera_info"             to="/camera/rgb/camera_info" />
     <remap from="depth_registered/image_rect" to="/camera/depth_registered/image_raw" />
     <remap from="depth_registered/points"     to="/camera/depth_registered/points" />
+    <param name="queue_size" value="20" />
   </node>
 </launch>
