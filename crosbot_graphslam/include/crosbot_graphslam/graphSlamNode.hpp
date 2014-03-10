@@ -138,7 +138,9 @@ private:
    geometry_msgs::TransformStamped getTransform(const Pose& pose,
          std::string childFrame, std::string frameName, ros::Time stamp);
 
-   //Kinect callback
+   /*
+    * Kinect callback
+    */
    void callbackKinect(const sensor_msgs::PointCloud2ConstPtr& ptCloud);
    
 

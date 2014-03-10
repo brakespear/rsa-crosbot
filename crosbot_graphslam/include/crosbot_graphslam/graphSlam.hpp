@@ -113,6 +113,47 @@ protected:
    double FreeAreaThreshold;
    //Should temp loop closures be used
    bool UseTempLoopClosures;
+   //Distance away from occupied cell that the probbability of the cell being free is 1
+   double FreeAreaDistanceThreshold;
+   //Stop loop closures with a residual close to 180 degrees in case the
+   //operating environment has sections which are symetrical
+   bool PreventMatchesSymmetrical;
+
+   //Amount the info matrix of each scan should be scaled by
+   double PerScanInfoScaleFactor;
+   //Threshold that points are skipped if their x or y partial gradients are too large
+   double GradientDistanceThreshold;
+   //Total covariance at which a new local map will be created
+   double LocalMapCovarianceThreshold;
+   //Number of iterations of the graph optimiser
+   int NumOfOptimisationIts;
+   //Amount a local maps moves before it is evaluated for temp loop closures
+   double LargeMovementThreshold;
+   //amount two local maps have to overlap to be considered potentially matching
+   int OverlapThreshold;
+   //Amount of movement away from a temp constraint for it to be deleted
+   double TempConstraintMovementXY;
+   double TempConstraintMovementTh;
+   //Maximum distance apart the centre of two maps can be to be examined for a temp loop
+   //closure
+   double DistanceOverlapThreshold;
+   //Amount the last scan of a local map needs to be corrected before the local map is warped
+   double LocalMapWarpThreshXY;
+   double LocalMapWarpThreshTh;
+
+   //Kinect Params
+   
+   //Width and height of RGBD sensor
+   int RGBDWidth;
+   int RGBDHeight;
+   //Number of pixels to skip when saving scans
+   int SkipVal;
+   //Minimum and maximum heights of pixels to include in 3D map
+   double RGBDMinHeight;
+   double RGBDMaxHeight;
+   //Maximum and minimum distance of pixels from rgbd sensor to include in 3D map
+   double RGBDMaxDistance;
+   double RGBDMinDistance;
 
 
 

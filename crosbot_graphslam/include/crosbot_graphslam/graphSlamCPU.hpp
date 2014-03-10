@@ -184,8 +184,13 @@ private:
    int previousINode;
    double previousScore;
    bool didOptimise;
-   bool tempO;
+   //bool tempO;
 
+   //Kinect variables
+   vector<KinectScan *> kinectScans;
+   int lastCloudPublished;
+   int messageSize;
+   int activeMapIndex;
 
    //debugging for timings
    ros::WallDuration totalTime;
@@ -263,32 +268,34 @@ private:
    void updateGlobalMap();
    //Combines two local maps
    void combineNodes(double alignError, int numOtherGlobalPoints);
-
+   //Warps scan points inside each local map
    void warpLocalMap(int mapIndex, double errX, double errY, double errTh);
-
+   //Adds a point px,py to the empty regions grid of a local map
    void addToFreeArea(double px, double py);
    //Evalute the match between two maps based on the empty regions. off is the transform
    //needed to convert points in test map to ref map so they can be evaluated against
    //ref maps empty regions. off is the test -> ref offset
    double evaluateMapMatch(int ref, int test, double offX, double offY, double offTh, int *overlapNum);
-
+   //Find temp loop closures
    bool findTempMatches();
+   //Performs a temp loop closure between two local maps
    bool performTempMatch(int currentMap, int testMap);
+   //Remove temp loop closures if they are no longer likely to be correct
    void evaluateTempConstraints();
+   //Finds if any temp loop closures can be performed if a map has significantly
+   //changed position during an optimisation
    bool findChangedPosMatches(int mapNum);
+   //Updates the robotMapcentres for each local map after an optimisation
    void updateRobotMapCentres();
 
+   //Updates the position of kinect points and adds them to the point cloud
+   void getPoints(vector<uint8_t>& points);
+   //Stores the points from a kinect scan
+   void captureScan(const vector<uint8_t>& points, Pose correction);
 
    //Debugging publisher
    void updateTestMap();
 
-   //Kinect bit
-   vector<KinectScan *> kinectScans;
-   int lastCloudPublished;
-   int messageSize;
-   int activeMapIndex;
-   void getPoints(vector<uint8_t>& points);
-   void captureScan(const vector<uint8_t>& points, Pose correction);
 
 };
 

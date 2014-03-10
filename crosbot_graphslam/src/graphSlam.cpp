@@ -26,7 +26,7 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("SearchSize", SearchSize, 2);
    paramNH.param<double>("MaxAlignDistance", MaxAlignDistance, 0.3);
    paramNH.param<double>("LValue", LValue, 2);
-   paramNH.param<int>("InformationScaleFactor", InformationScaleFactor, 15);
+   paramNH.param<int>("InformationScaleFactor", InformationScaleFactor, 1000000);
    paramNH.param<double>("MaxCovar", MaxCovar, 1.5);
    paramNH.param<double>("CorrelationThreshold", CorrelationThreshold, 3.4);
    //paramNH.param<double>("CorrelationThreshold", CorrelationThreshold, 3.6);
@@ -47,6 +47,28 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<bool>("LocalMapWarp", LocalMapWarp, true);
    paramNH.param<double>("FreeAreaThreshold", FreeAreaThreshold, 0.2);
    paramNH.param<bool>("UseTempLoopClosures", UseTempLoopClosures, true);
+   paramNH.param<double>("FreeAreaDistanceThreshold", FreeAreaDistanceThreshold, 0.5);
+   paramNH.param<bool>("PreventMatchesSymmetrical", PreventMatchesSymmetrical, true);
+
+   paramNH.param<double>("PerScanInfoScaleFactor", PerScanInfoScaleFactor, 5000);
+   paramNH.param<double>("GradientDistanceThreshold", GradientDistanceThreshold, 0.2);
+   paramNH.param<double>("LocalMapCovarianceThreshold", LocalMapCovarianceThreshold, 1.0);
+   paramNH.param<int>("NumOfOptimisationIts", NumOfOptimisationIts, 10);
+   paramNH.param<double>("LargeMovementThreshold", LargeMovementThreshold, 0.5);
+   paramNH.param<int>("OverlapThreshold", OverlapThreshold, 30);
+   paramNH.param<double>("TempConstraintMovementXY", TempConstraintMovementXY, 0.5);
+   paramNH.param<double>("TempConstraintMovementTh", TempConstraintMovementTh, 0.3);
+   paramNH.param<double>("DistanceOverlapThreshold", DistanceOverlapThreshold, 8.0);
+   paramNH.param<double>("LocalMapWarpThreshXY", LocalMapWarpThreshXY, 0.03);
+   paramNH.param<double>("LocalMapWarpThreshTh", LocalMapWarpThreshXY, 0.005);
+
+   paramNH.param<int>("RGBDWidth", RGBDWidth, 640);
+   paramNH.param<int>("RGBDHeight", RGBDHeight, 480);
+   paramNH.param<int>("SkipVal", SkipVal, 2);
+   paramNH.param<double>("RGBDMinHeight", RGBDMinHeight, 0.1);
+   paramNH.param<double>("RGBDMaxHeight", RGBDMaxHeight, 2.0);
+   paramNH.param<double>("RGBDMaxDistance", RGBDMaxDistance, 36.0);
+   paramNH.param<double>("RGBDMinDistance", RGBDMinDistance, 0.3);
 
    DimLocalOG = LocalMapSize / CellSize;
    DimGlobalOG = GlobalMapSize / CellSize;
