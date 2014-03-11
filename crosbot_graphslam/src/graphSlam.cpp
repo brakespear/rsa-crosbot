@@ -60,7 +60,7 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("TempConstraintMovementTh", TempConstraintMovementTh, 0.3);
    paramNH.param<double>("DistanceOverlapThreshold", DistanceOverlapThreshold, 8.0);
    paramNH.param<double>("LocalMapWarpThreshXY", LocalMapWarpThreshXY, 0.03);
-   paramNH.param<double>("LocalMapWarpThreshTh", LocalMapWarpThreshXY, 0.005);
+   paramNH.param<double>("LocalMapWarpThreshTh", LocalMapWarpThreshXY, 0.01);
 
    paramNH.param<int>("RGBDWidth", RGBDWidth, 640);
    paramNH.param<int>("RGBDHeight", RGBDHeight, 480);
