@@ -1875,9 +1875,22 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex, bool fullLoop, int current
          //if (!fullLoop) { tempO = true; }
          double score = evaluateMapMatch(currentMap, common->potentialMatches[matchIndex],
                constraintX, constraintY, constraintTh, &overlapNum);
+
+         double angleDiff = localMaps[currentMap].currentGlobalPosTh - 
+            (localMaps[common->potentialMatches[matchIndex]].currentGlobalPosTh + constraintTh);
+         ANGNORM(angleDiff);
+         bool stopMatch = false;
+         if (PreventMatchesSymmetrical && (angleDiff < -3.0 * M_PI / 4.0 || angleDiff > 3.0 * M_PI / 4.0)) {
+            //cout << "***********************************************************" << endl;
+            cout << "***Skipping match " << currentMap << " " << angleDiff << endl;
+            //cout << "***********************************************************" << endl;
+            stopMatch = true;
+         }
+
+
          //if (!fullLoop) { tempO = false; }
          cout << "The matching score is......" << score << endl;
-         if ((fullLoop && score < FreeAreaThreshold) || (!fullLoop && score < previousScore && score < FreeAreaThreshold && score != -1)) {
+         if (((fullLoop && score < FreeAreaThreshold) || (!fullLoop && score < previousScore && score < FreeAreaThreshold && score != -1)) && !stopMatch) {
 
             //If successful match, add match information to data structures
             int mIndex = common->numConstraints;
@@ -2625,7 +2638,7 @@ void GraphSlamCPU::updateGlobalMap() {
 
             if (fabs(diffX) > LocalMapWarpThreshXY || fabs(diffY) > LocalMapWarpThreshXY || 
                   fabs(diffTh) > LocalMapWarpThreshTh) {
-               cout << "Warping map: " << i << endl;
+               cout << "Warping map: " << i << " " << diffX << " " << diffY <<  " " << diffTh << endl;
                warpLocalMap(i, errX, errY, errTh);
             }
          }
