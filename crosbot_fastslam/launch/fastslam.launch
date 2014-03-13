@@ -1,0 +1,24 @@
+<launch>
+	<param name="use_sim_time" value="true" />
+	
+	<node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp" output="screen"
+	      required="true" respawn="false" >
+		<param name="odom_frame" Xvalue="odom" value="" />
+		<param name="base_frame" value="base_footprint" />
+	</node>
+	
+	<node pkg="image_view" type="image_view" name="localmap_view">
+      <remap from="image" to="localImage" />
+		<!--remap from="image" to="/mbicp/image" /-->
+	</node>
+
+	<node pkg="image_view" type="image_view" name="image_view">
+		<remap from="image" to="/camera/rgb/image_color" />
+   </node>
+	
+	<node name="MapGui" pkg="crosbot_ui" type="gui"
+	      args="$(find crosbot_fastslam)/launch/fastslam.gui" output="screen"
+	      required="true" respawn="false"
+	      >
+	</node>
+</launch>

@@ -14,7 +14,7 @@ using namespace NEWMAT;
 
 void GraphSlam::initialise(ros::NodeHandle &nh) {
    ros::NodeHandle paramNH("~");
-   paramNH.param<double>("GlobalMapSize", GlobalMapSize, 60);
+   paramNH.param<double>("GlobalMapSize", GlobalMapSize, 50);
    paramNH.param<double>("CellSize", CellSize, 0.05);
    paramNH.param<int>("ImgTransmitTime", ImgTransmitTime, 2000000);
    paramNH.param<double>("MinAddHeight", MinAddHeight, 1.2);
@@ -26,23 +26,49 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("SearchSize", SearchSize, 2);
    paramNH.param<double>("MaxAlignDistance", MaxAlignDistance, 0.3);
    paramNH.param<double>("LValue", LValue, 2);
-   paramNH.param<int>("InformationScaleFactor", InformationScaleFactor, 15);
+   paramNH.param<int>("InformationScaleFactor", InformationScaleFactor, 1000000);
    paramNH.param<double>("MaxCovar", MaxCovar, 1.5);
    paramNH.param<double>("CorrelationThreshold", CorrelationThreshold, 3.4);
+   //paramNH.param<double>("CorrelationThreshold", CorrelationThreshold, 3.6);
    paramNH.param<int>("MinGoodCount", MinGoodCount, 10);
-   //paramNH.param<int>("FinalMinGoodCount", FinalMinGoodCount, 125);
-   paramNH.param<int>("FinalMinGoodCount", FinalMinGoodCount, 250);
-   //paramNH.param<int>("FinalMinGoodCount", FinalMinGoodCount, 40);
-   paramNH.param<int>("MaxIterations", MaxIterations, 60);
+   //paramNH.param<int>("FinalMinGoodCount", FinalMinGoodCount, 175);
+   //paramNH.param<int>("FinalMinGoodCount", FinalMinGoodCount, 225);
+   paramNH.param<int>("FinalMinGoodCount", FinalMinGoodCount, 200);
+   paramNH.param<int>("MaxIterations", MaxIterations, 50);
    paramNH.param<double>("MaxErrorTheta", MaxErrorTheta, 0.03);
    paramNH.param<double>("MaxErrorDisp", MaxErrorDisp, 0.0005);
-   paramNH.param<int>("MaxNumConstraints", MaxNumConstraints, 200);
-   paramNH.param<int>("MaxNumLoopConstraints", MaxNumLoopConstraints, 50);
+   paramNH.param<int>("MaxNumConstraints", MaxNumConstraints, 250);
+   paramNH.param<int>("MaxNumLoopConstraints", MaxNumLoopConstraints, 100);
    paramNH.param<bool>("LocalMapCombine", LocalMapCombine, false);
    paramNH.param<double>("MaxThetaOptimise", MaxThetaOptimise, M_PI / 2.0);
    paramNH.param<int>("HistoryTime", HistoryTime, 1000000);
    paramNH.param<int>("MinObservationCount", MinObservationCount, 30);
    paramNH.param<double>("InitHeight", InitHeight, 1.0);
+   paramNH.param<bool>("LocalMapWarp", LocalMapWarp, true);
+   paramNH.param<double>("FreeAreaThreshold", FreeAreaThreshold, 0.2);
+   paramNH.param<bool>("UseTempLoopClosures", UseTempLoopClosures, true);
+   paramNH.param<double>("FreeAreaDistanceThreshold", FreeAreaDistanceThreshold, 0.5);
+   paramNH.param<bool>("PreventMatchesSymmetrical", PreventMatchesSymmetrical, true);
+
+   paramNH.param<double>("PerScanInfoScaleFactor", PerScanInfoScaleFactor, 5000);
+   paramNH.param<double>("GradientDistanceThreshold", GradientDistanceThreshold, 0.2);
+   paramNH.param<double>("LocalMapCovarianceThreshold", LocalMapCovarianceThreshold, 1.0);
+   paramNH.param<int>("NumOfOptimisationIts", NumOfOptimisationIts, 10);
+   paramNH.param<double>("LargeMovementThreshold", LargeMovementThreshold, 0.5);
+   paramNH.param<int>("OverlapThreshold", OverlapThreshold, 30);
+   paramNH.param<double>("TempConstraintMovementXY", TempConstraintMovementXY, 0.5);
+   paramNH.param<double>("TempConstraintMovementTh", TempConstraintMovementTh, 0.3);
+   paramNH.param<double>("DistanceOverlapThreshold", DistanceOverlapThreshold, 8.0);
+   paramNH.param<double>("LocalMapWarpThreshXY", LocalMapWarpThreshXY, 0.03);
+   paramNH.param<double>("LocalMapWarpThreshTh", LocalMapWarpThreshTh, 0.01);
+
+   paramNH.param<int>("RGBDWidth", RGBDWidth, 640);
+   paramNH.param<int>("RGBDHeight", RGBDHeight, 480);
+   paramNH.param<int>("SkipVal", SkipVal, 2);
+   paramNH.param<double>("RGBDMinHeight", RGBDMinHeight, 0.1);
+   paramNH.param<double>("RGBDMaxHeight", RGBDMaxHeight, 2.0);
+   paramNH.param<double>("RGBDMaxDistance", RGBDMaxDistance, 36.0);
+   paramNH.param<double>("RGBDMinDistance", RGBDMinDistance, 0.3);
 
    DimLocalOG = LocalMapSize / CellSize;
    DimGlobalOG = GlobalMapSize / CellSize;
@@ -280,5 +306,4 @@ void GraphSlam::fixSlamHistoryPositions(int combineIndex, double alignX,
       historySlam[k].localPose.setYPR(yaw, pitch, roll);
    }
 }
-
 
