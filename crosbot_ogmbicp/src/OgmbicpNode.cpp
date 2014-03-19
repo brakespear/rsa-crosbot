@@ -103,6 +103,7 @@ bool OgmbicpNode::getRecentScans(crosbot_ogmbicp::GetRecentScans::Request& req,
 void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan) {
    Pose odomPose, sensorPose;
   	tf::StampedTransform laser2Base, base2Odom;
+   //odom_frame = "/odom";
   	bool haveOdometry = odom_frame != "";
   	try {
   		tfListener.waitForTransform(base_frame, latestScan->header.frame_id,
@@ -140,8 +141,14 @@ void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan)
 
    Pose icpPose = pos_tracker.curPose;
    //cout << "Pose from icp is: " << icpPose << endl;
-   geometry_msgs::TransformStamped icpTs = getTransform(icpPose, icp_frame, base_frame, latestScan->header.stamp);
-   tfPub.sendTransform(icpTs);
+   if (haveOdometry) {
+      icpPose = icpPose.toTF() * odomPose.toTF().inverse();
+      geometry_msgs::TransformStamped icpTs = getTransform(icpPose, odom_frame, icp_frame, latestScan->header.stamp);
+      tfPub.sendTransform(icpTs);
+   } else {
+      geometry_msgs::TransformStamped icpTs = getTransform(icpPose, icp_frame, base_frame, latestScan->header.stamp);
+      tfPub.sendTransform(icpTs);
+   }
 }
 
 void OgmbicpNode::callbackOrientation(const geometry_msgs::Quaternion& quat) {
