@@ -32,7 +32,10 @@ const string GraphSlamGPU::kernel_names[] = {
    "updateGlobalPositions", //11
    "updateGlobalMap", //12
    "combineNodes", //13
-   "add3DToMap", //14
+   "translateScanPoints", //14
+   "setLocalMap", //15
+   "evaluateMapMatch", //16
+   "addLoopClosure"
 };
 const int GraphSlamGPU::num_kernels = sizeof(kernel_names) / sizeof(kernel_names[0]);
 
@@ -55,6 +58,9 @@ GraphSlamGPU::GraphSlamGPU() {
    combineMode = 0;
    numConstraints = 0;
    maxNumLocalPoints = 0;
+   firstScan = 1;
+   numScans = 0;
+   lastFullLoopIndex = -1;
 
    totalLocalMaps = 100;
    totalGlobalPoints = 10000;
@@ -92,6 +98,12 @@ void GraphSlamGPU::start() {
    slam_config.LocalMapCombine = LocalMapCombine;
    slam_config.MaxThetaOptimise = MaxThetaOptimise;
    slam_config.MinObservationCount = MinObservationCount;
+   slam_config.PerScanInfoScaleFactor = PerScanInfoScaleFactor;
+   slam_config.GradientDistanceThreshold = GradientDistanceThreshold;
+   slam_config.FreeAreaDistanceThreshold = FreeAreaDistanceThreshold;
+   slam_config.LocalMapCovarianceThreshold = LocalMapCovarianceThreshold;
+   slam_config.FreeAreaThreshold = FreeAreaThreshold;
+   slam_config.PreventMatchSymmetrical = preventMatchSymmetrical;
 
    clSlamConfig = opencl_manager->deviceAlloc(sizeof(slamConfig), 
           CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &slam_config);
@@ -110,6 +122,7 @@ GraphSlamGPU::~GraphSlamGPU() {
    opencl_manager->deviceRelease(clGlobalMap);
    opencl_manager->deviceRelease(clGlobalMapHeights);
    opencl_manager->deviceRelease(clSlamConfig);
+   opencl_manager->deviceRelease(clFreeAreas);
 
    delete [] points->pointX;
    delete [] globalMap;
@@ -149,29 +162,28 @@ void GraphSlamGPU::initialiseTrack(Pose icpPose, PointCloudPtr cloud) {
 
 void GraphSlamGPU::initialisePoints() {
    points = new oclLaserPoints;
-   points->pointX = new ocl_float[numLaserPoints * 6];
+   points->pointX = new ocl_float[numLaserPoints * 3];
    points->pointY = &(points->pointX[numLaserPoints]);
    points->pointZ = &(points->pointX[numLaserPoints * 2]);
-   points->pointNextX = &(points->pointX[numLaserPoints * 3]);
-   points->pointNextY = &(points->pointX[numLaserPoints * 4]);
-   points->pointNextZ = &(points->pointX[numLaserPoints * 5]);
-   arrayPointsSize = sizeof(ocl_float) * numLaserPoints * 6;
+   arrayPointsSize = sizeof(ocl_float) * numLaserPoints * 3;
    clPoints = opencl_manager->deviceAlloc(arrayPointsSize, CL_MEM_READ_WRITE, NULL);
 }
 
 void GraphSlamGPU::initialiseSlamStructures() {
    
-   int numFloats = localOGSize +
+   int numFloats = localOGSize * 5 +
+                   numLaserPoints * 3 + 
                    MAX_LOCAL_POINTS * 2 +
                    NUM_ORIENTATION_BINS * 2 +
                    MAX_POTENTIAL_MATCHES * 3 +
-                   MaxNumLoopConstraints * 12 +
+                   MaxNumLoopConstraints * 13 +
                    (MaxNumConstraints + 1) * 3 +
-                   15;
+                   25;
    int numInts = localOGSize * 2 + 
+                 MAX_LOCAL_POINTS + 
                  MAX_POTENTIAL_MATCHES * 2 + 
                  MaxNumConstraints * 2 +
-                 MaxNumLoopConstraints * 5 + 9;
+                 MaxNumLoopConstraints * 6 + 12;
    size_t size = sizeof(ocl_float) * numFloats +
                  sizeof(ocl_int) * numInts +
                  sizeof(ocl_float4) +
@@ -180,6 +192,9 @@ void GraphSlamGPU::initialiseSlamStructures() {
 
    size = sizeof(slamLocalMap) * totalLocalMaps;
    clSlamLocalMap = opencl_manager->deviceAlloc(size, CL_MEM_READ_WRITE, NULL);
+
+   size = sizeof(ocl_float) * locaslOGSize * totalLocalMaps;
+   clFreeAreas = opencl_manager->deviceAlloc(size, CL_MEM_READ_WRITE, NULL);
 
    size = sizeof(ocl_int) * totalGlobalPoints;
    clGlobalMap = opencl_manager->deviceAlloc(size, CL_MEM_READ_WRITE, NULL);
@@ -192,7 +207,7 @@ void GraphSlamGPU::initialiseSlamStructures() {
 
    size = totalLocalMaps * sizeof(ocl_float) * 3;
    clGlobalMapPositions = opencl_manager->deviceAlloc(size, CL_MEM_READ_WRITE, NULL);
-   globalMapPositions = new ocl_float[totalLocalMaps * 3];
+   globalMapPositions = new ocl_float[totalLocalMaps * 5];
    globalMapPositions[0] = 0;
    globalMapPositions[1] = 0;
    globalMapPositions[2] = 0;
@@ -200,6 +215,7 @@ void GraphSlamGPU::initialiseSlamStructures() {
    opencl_task->setArg(0, 0, sizeof(cl_mem), &clSlamConfig);
    opencl_task->setArg(1, 0, sizeof(cl_mem), &clSlamLocalMap);
    opencl_task->setArg(2, 0, sizeof(cl_mem), &clSlamCommon);
+   opencl_task->setArg(3, 0, sizeof(cl_mem), &clFreeAreas);
    opencl_task->queueKernel(0, 1, MAX_LOCAL_POINTS, 0, 0, NULL, NULL, false);
 
    clRes = opencl_manager->deviceAlloc(sizeof(ocl_float) * 1000, CL_MEM_READ_WRITE, NULL);
@@ -220,31 +236,35 @@ void GraphSlamGPU::setKernelArgs() {
    //kernel 11: updateGlobalPositions
    //kernel 12: updateGlobalMap 
    //kernel 13: combineNodes
-   //kernel 14: add3DToMap
+   //kernel 14: translateScanPoints
+   //kernel 15: setLocalMap
+   //kernel 16: evaluateMapMapMatch
+   //kernel 17: addLoopClosure
    
    //kernel 1: addScanToMap
    opencl_task->setArg(0, 1, sizeof(cl_mem), &clSlamConfig);
    opencl_task->setArg(1, 1, sizeof(cl_mem), &clSlamLocalMap);
    opencl_task->setArg(2, 1, sizeof(cl_mem), &clSlamCommon);
-   opencl_task->setArg(3, 1, sizeof(cl_mem), &clPoints);
-   opencl_task->setArg(4, 1, sizeof(cl_mem), &clGlobalMap);
-   opencl_task->setArg(5, 1, sizeof(cl_mem), &clGlobalMapHeights);
+   opencl_task->setArg(3, 1, sizeof(cl_mem), &clGlobalMap);
+   opencl_task->setArg(4, 1, sizeof(cl_mem), &clGlobalMapHeights);
+   opencl_task->setArg(5, 1, sizeof(cl_mem), &clFreeAreas);
    //opencl_task->setArg(6, 1, sizeof(int), &currentLocalMap);
    //opencl_task->setArg(7, 1, sizeof(int), &numPoints);
    //opencl_task->setArg(8, 1, sizeof(int), &numGlobalPoints);
-   //opencl_task->setArg(9, 1, sizeof(ocl_float4), &currentoffset);
+   //opencl_task->setArg(9, 1, sizeof(int), &firstScan);
    opencl_task->setArg(10, 1, sizeof(cl_mem), &clRes);
 
    //kernel 2: createNewLocalMap 
    opencl_task->setArg(0, 2, sizeof(cl_mem), &clSlamConfig);
    opencl_task->setArg(1, 2, sizeof(cl_mem), &clSlamLocalMap);
    opencl_task->setArg(2, 2, sizeof(cl_mem), &clSlamCommon);
-   //opencl_task->setArg(3, 2, sizeof(int), &oldLocalMap);
-   //opencl_task->setArg(4, 2, sizeof(int), &currentLocalMap);
-   //opencl_task->setArg(5, 2, sizeof(int), &oldLocalMap);
-   //opencl_task->setArg(6, 2, sizeof(ocl_float4), &offsetFromParent);
-   //opencl_task->setArg(7, 2, sizeof(ocl_float), &angleError);
-   //opencl_task->setArg(8, 2, sizeof(int), &numOldPoints);
+   opencl_task->setArg(3, 2, sizeof(cl_mem), &clFreeAreas);
+   //opencl_task->setArg(4, 2, sizeof(int), &oldLocalMap);
+   //opencl_task->setArg(5, 2, sizeof(int), &currentLocalMap);
+   //opencl_task->setArg(6, 2, sizeof(int), &oldLocalMap);
+   //opencl_task->setArg(7, 2, sizeof(ocl_float4), &offsetFromParent);
+   //opencl_task->setArg(8, 2, sizeof(ocl_float), &angleError);
+   //opencl_task->setArg(9, 2, sizeof(int), &numOldPoints);
 
    //kernel 3: getHessianMatch
    opencl_task->setArg(0, 3, sizeof(cl_mem), &clSlamConfig);
@@ -259,7 +279,8 @@ void GraphSlamGPU::setKernelArgs() {
    opencl_task->setArg(2, 4, sizeof(cl_mem), &clSlamCommon);
    //opencl_task->setArg(3, 4, sizeof(int), &currentLocalMap);
    //opencl_task->setArg(4, 4, sizeof(int), &numLocalMaps);
-   opencl_task->setArg(5, 4, sizeof(cl_mem), &clRes);
+   //opencl_task->setArg(5, 4, sizeof(int), &numScans);
+   opencl_task->setArg(6, 4, sizeof(cl_mem), &clRes);
 
    //kernel 5: findPotentialMatches
    opencl_task->setArg(0, 5, sizeof(cl_mem), &clSlamConfig);
@@ -284,7 +305,8 @@ void GraphSlamGPU::setKernelArgs() {
    opencl_task->setArg(2, 7, sizeof(cl_mem), &clSlamCommon);
    //opencl_task->setArg(3, 7, sizeof(int), &currentLocalMap);
    //opencl_task->setArg(4, 7, sizeof(int), &matchIndex);
-   opencl_task->setArg(5, 7, sizeof(cl_mem), &clRes);
+   //opencl_task->setArg(5, 7, sizeof(int), &fullLoop);
+   opencl_task->setArg(6, 7, sizeof(cl_mem), &clRes);
 
    //kernel 8: finaliseInformationMatrix
    opencl_task->setArg(0, 8, sizeof(cl_mem), &clSlamConfig);
@@ -334,15 +356,40 @@ void GraphSlamGPU::setKernelArgs() {
    //opencl_task->setArg(8, 13, sizeof(int), &numOtherGlobalPoints);
    opencl_task->setArg(9, 13, sizeof(cl_mem), &clGlobalMapHeights);
    
-   //kernel 14: add3DToMap
+   //kernel 14: translateScanPoints
    opencl_task->setArg(0, 14, sizeof(cl_mem), &clSlamConfig);
    opencl_task->setArg(1, 14, sizeof(cl_mem), &clSlamLocalMap);
    opencl_task->setArg(2, 14, sizeof(cl_mem), &clSlamCommon);
    opencl_task->setArg(3, 14, sizeof(cl_mem), &clPoints);
-   opencl_task->setArg(4, 14, sizeof(cl_mem), &clGlobalMapHeights);
-   //opencl_task->setArg(5, 14, sizeof(int), &currentLocalMap);
-   //opencl_task->setArg(6, 14, sizeof(int), &numPoints);
-   //opencl_task->setArg(7, 14, sizeof(int), &numGlobalPoints);
+   //opencl_task->setArg(4, 14, sizeof(int), &numPoints);
+   //opencl_task->setArg(5, 14, sizeof(ocl_float4), &currentOffset);
+   
+   //kernel 15: setLocalMap
+   opencl_task->setArg(0, 15, sizeof(cl_mem), &clSlamConfig);
+   opencl_task->setArg(1, 15, sizeof(cl_mem), &clSlamLocalMap);
+   opencl_task->setArg(2, 15, sizeof(cl_mem), &clSlamCommon);
+   opencl_task->setArg(3, 15, sizeof(cl_mem), &clGlobalMapHeights);
+   //opencl_task->setArg(4, 15, sizeof(int), &numPoints);
+   //opencl_task->setArg(5, 15, sizeof(ocl_float4), &numGlobalPoints);
+   
+   //kernel 16: evaluateMapMatch
+   opencl_task->setArg(0, 16, sizeof(cl_mem), &clSlamConfig);
+   opencl_task->setArg(1, 16, sizeof(cl_mem), &clSlamLocalMap);
+   opencl_task->setArg(2, 16, sizeof(cl_mem), &clSlamCommon);
+   opencl_task->setArg(3, 16, sizeof(cl_mem), &clFreeAreas);
+   //opencl_task->setArg(4, 16, sizeof(int), &curMap);
+   //opencl_task->setArg(5, 16, sizeof(int), &testMap);
+   //opencl_task->setArg(6, 16, sizeof(int), &mode);
+
+   //kernel 17: addLoopClosure
+   opencl_task->setArg(0, 17, sizeof(cl_mem), &clSlamConfig);
+   opencl_task->setArg(1, 17, sizeof(cl_mem), &clSlamCommon);
+   //opencl_task->setArg(2, 17, sizeof(int), &currentMap);
+   //opencl_task->setArg(3, 17, sizeof(int), &matchIndex);
+   //opencl_task->setArg(4, 17, sizeof(int), &fullLoop);
+   //opencl_task->setArg(5, 17, sizeof(float), &previousScore);
+
+   
 }
 
 void GraphSlamGPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
@@ -390,41 +437,67 @@ void GraphSlamGPU::updateTrack(Pose icpPose, PointCloudPtr cloud) {
    //Add the points to the current local map
    int i, j;
    int numAdded = 0;
-   for (i = 0; i < cloud->cloud.size() - 1; ++i) {
+   for (i = 0; i < cloud->cloud.size(); ++i) {
       double dist = cloud->cloud[i].x * cloud->cloud[i].x + cloud->cloud[i].y * cloud->cloud[i].y;
       if (dist > LaserMinDist * LaserMinDist && dist < LaserMaxDist * LaserMaxDist &&
          cloud->cloud[i].z + InitHeight > MinAddHeight && cloud->cloud[i].z + InitHeight < MaxAddHeight) {
          points->pointX[numAdded] = cloud->cloud[i].x;
          points->pointY[numAdded] = cloud->cloud[i].y;
          points->pointZ[numAdded] = cloud->cloud[i].z + InitHeight;
-         points->pointNextX[numAdded] = cloud->cloud[i + 1].x;
-         points->pointNextY[numAdded] = cloud->cloud[i + 1].y;
-         points->pointNextZ[numAdded] = cloud->cloud[i + 1].z = InitHeight;
          numAdded++;
       }
    }
 
    int globalSize = getGlobalWorkSize(numAdded);
 
+   opencl_task->setArg(4, 14, sizeof(int), &numAdded);
+   opencl_task->setArg(5, 14, sizeof(ocl_float4), &currentOffset);
+
    opencl_task->setArg(6, 1, sizeof(int), &currentLocalMap);
    opencl_task->setArg(7, 1, sizeof(int), &numAdded);
    opencl_task->setArg(8, 1, sizeof(int), &numGlobalPoints);
-   opencl_task->setArg(9, 1, sizeof(ocl_float4), &currentOffset);
-
-   opencl_task->setArg(5, 14, sizeof(int), &currentLocalMap);
-   opencl_task->setArg(6, 14, sizeof(int), &numAdded);
-   opencl_task->setArg(7, 14, sizeof(int), &numGlobalPoints);
+   opencl_task->setArg(9, 1, sizeof(int), &firstScan);
 
    writeBuffer(clPoints, CL_TRUE, 0, arrayPointsSize, points->pointX, 0, 0, 0,
          "Copying points to GPU");
-   opencl_task->queueKernel(1, 1, globalSize, LocalSize, 0, NULL, NULL, false);
    opencl_task->queueKernel(14, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+   opencl_task->queueKernel(1, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+
+   int isFeatureless;
+   size_t offset = currentLocalMap * sizeof(slamLocalMap) +
+            sizeof(ocl_float4) * 2 + sizeof(ocl_int);
+   readBuffer(clSlamLocalMap, CL_TRUE, offset, sizeof(ocl_int), &isFeatureless, 0, 0, 0,
+         "Copying number of laser points in current map");
+
+   firstScan = 0;
+   numScans++;
 
    double temp = sqrt(offsetFromParentX * offsetFromParentX +
          offsetFromParentY * offsetFromParentY);
-   if (temp >= LocalMapDistance) {
+   //TODO: might want to add the more complicated (but currently disabled)
+   //map changing stuff from the CPU code
+   if (temp >= LocalMapDistance || isFeatureless > 0) {
+      if (isFeatureless > 0) {
+         isMapfeatureless.push_back(true);
+         cout << "Featureless map: ";
+      } else {
+         isMapfeatureless.push_back(false);
+      }
       cout << "Creating a new local map " << currentLocalMap << endl;
+
+      float x = currentOffset.x / 2.0;
+      float y = currentOffset.y / 2.0;
+      float cosGl = cos(globalMapPositions[currentLocalMap * 5 + 2]);
+      float sinGl = sin(globalMapPositions[currentLocalMap * 5 + 2]);
+      globalMapPositions[currentLocalMap * 5 + 3] = x * cosGl - y * sinGl
+         + globalMapPositions[currentLocalMap * 5];
+      globalMapPositions[currentLocalMap * 5 + 4] = x * sinGl + y * cosGl
+         + globalMapPositions[currentLocalMap * 5 + 1];
+
+
       finishMap(angleError, yi, icpPose);
+      firstScan = 1;
+      numScans = 0;
    }
 
    oldICPPose = icpPose;
@@ -468,16 +541,18 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
    int numOldMapPoints = numLocalPoints;
 
    if (parentLocalMap >= 0) {
-      int globalSize = getGlobalWorkSize(numLocalMapPoints[parentLocalMap]);
+      parentLocalMap = currentLocalMap;
+      int globalSize = getGlobalWorkSize(numLocalMapPoints[currentLocalMap]);
       int potentialMatches[MAX_POTENTIAL_MATCHES + 1];
 
       int noConstraint = -1;
-      opencl_task->setArg(3, 3, sizeof(int), &currentLocalMap);
-      opencl_task->setArg(4, 3, sizeof(int), &noConstraint);
       opencl_task->setArg(3, 4, sizeof(int), &currentLocalMap);
       opencl_task->setArg(4, 4, sizeof(int), &nextLocalMap);
-      //getHessianmatch and prepareLocalMap
-      opencl_task->queueKernel(3, 1, globalSize, LocalSize, 
+      opencl_task->setArg(5, 4, sizeof(int), &numScans);
+      opencl_task->setArg(4, 15, sizeof(int), &numPoints);
+      opencl_task->setArg(5, 15, sizeof(ocl_float4), &numGlobalPoints);
+      //setLocalMap and prepareLocalMap
+      opencl_task->queueKernel(15, 1, globalSize, LocalSize, 
                                  0, NULL, NULL, false);
       opencl_task->queueKernel(4, 1, NUM_ORIENTATION_BINS, 0, 
                                  0, NULL, NULL, false);
@@ -498,6 +573,8 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             opencl_task->setArg(6, 6, sizeof(int), &mIndex);
             opencl_task->setArg(3, 7, sizeof(int), &currentLocalMap);
             opencl_task->setArg(4, 7, sizeof(int), &mIndex);
+            int fullLoop = 1;
+            opencl_task->setArg(5, 7, sizeof(int), &fullLoop);
 
             int nI = 0;
             int matchSuccess = 0;
@@ -612,6 +689,7 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             combineMode = 0;
          }
       }
+      bool loopClosed = false;
       if (!combineMode) {
          opencl_task->setArg(3, 5, sizeof(int), &currentLocalMap);
          opencl_task->setArg(4, 5, sizeof(int), &nextLocalMap);
@@ -656,6 +734,9 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
                opencl_task->setArg(6, 6, sizeof(int), &mIndex);
                opencl_task->setArg(3, 7, sizeof(int), &currentLocalMap);
                opencl_task->setArg(4, 7, sizeof(int), &mIndex);
+               int fullLoop = 1;
+               opencl_task->setArg(5, 7, sizeof(int), &fullLoop);
+
                int runSize = getGlobalWorkSize(
                         numLocalMapPoints[potentialMatches[i]]);
 
@@ -683,39 +764,68 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
                cout << "Number of iterations in alignment: " << c << " " << matchSuccess << endl;
 
                if (matchSuccess == 1) {
-                  cout << "Alignment Succeeded" << endl;
-                  opencl_task->setArg(3, 3, sizeof(int), &currentLocalMap);
-                  opencl_task->setArg(4, 3, sizeof(int), &numConstraints);
-                  opencl_task->setArg(2, 8, sizeof(int), &numConstraints);
-                  runSize = getGlobalWorkSize(
-                           numLocalMapPoints[potentialMatches[i]]);
-                  opencl_task->queueKernel(3, 1, runSize, LocalSize,
-                                 0, NULL, NULL, false);
-                  opencl_task->queueKernel(8, 1, 32, 0,
-                                 0, NULL, NULL, false);
+                  opencl_task->setArg(4, 16, sizeof(int), &currentLocalMap);
+                  opencl_task->setArg(5, 16, sizeof(int), &(potentialMatches[i]));
+                  mode = i - 1;
+                  opencl_task->setArg(6, 16, sizeof(int), &mode);
+                  opencl_task->queueKernel(16, 1, globalSize, LocalSize,
+                     0, NULL, NULL, false);
+                  opencl_task->setArg(2, 17, sizeof(int), &currentLocalMap);
+                  opencl_task->setArg(3, 17, sizeof(int), &mode);
+                  opencl_task->setArg(4, 17, sizeof(int), &fullLoop);
+                  ocl_float prevScore = 0;
+                  opencl_task->setArg(5, 17, sizeof(float), &prevScore);
+                  opencl_task->queueKernel(17, 1, 32, 0,
+                     0, NULL, NULL, false);
 
-                  numConstraints++;
-                  needOptimisation = true;
+                  readBuffer(clSlamCommon, CL_TRUE, matchSuccessOffset, sizeof(ocl_int), 
+                             &matchSuccess, 0, 0, 0, "Copying match success 2");
+                  if (matchSuccess == 1) {
+                     lastFullLoopIndex = numConstraints;
+                     cout << "Alignment Succeeded" << endl;
+                     opencl_task->setArg(3, 3, sizeof(int), &currentLocalMap);
+                     opencl_task->setArg(4, 3, sizeof(int), &numConstraints);
+                     opencl_task->setArg(2, 8, sizeof(int), &numConstraints);
+                     runSize = getGlobalWorkSize(
+                              numLocalMapPoints[potentialMatches[i]]);
+                     opencl_task->queueKernel(3, 1, runSize, LocalSize,
+                                    0, NULL, NULL, false);
+                     opencl_task->queueKernel(8, 1, 32, 0,
+                                    0, NULL, NULL, false);
 
-                  // *** Debugging
-                  readBuffer(clSlamCommon, CL_TRUE, numPotentialMatchesOffset 
-                         + sizeof(int) * (MAX_POTENTIAL_MATCHES + 1), 
-                         sizeof(ocl_float) * (MAX_POTENTIAL_MATCHES*3),
-                         &temp, 0, 0, 0, "Copying icp alignment");
-                  int r;
-                  cout << "Aligned offsets are: " << endl;
-                  for(r = 1; r <= potentialMatches[0]; r++) {
-                     cout << potentialMatches[r] << " " << temp[r-1] << " " << 
-                         temp[MAX_POTENTIAL_MATCHES + r-1] << " " << 
-                         temp[MAX_POTENTIAL_MATCHES * 2 + r - 1] << endl;
-                  } 
-                  cout << endl;
-                  // End debugging
-                  //Only add one loop closing constraint
-                  break;
+                     numConstraints++;
+                     needOptimisation = true;
+                     loopClosed = true;
+                     parentLocalMap = potentialMatches[i];
+
+                     // *** Debugging
+                     readBuffer(clSlamCommon, CL_TRUE, numPotentialMatchesOffset 
+                            + sizeof(int) * (MAX_POTENTIAL_MATCHES + 1), 
+                            sizeof(ocl_float) * (MAX_POTENTIAL_MATCHES*3),
+                           &temp, 0, 0, 0, "Copying icp alignment");
+                     int r;
+                     cout << "Aligned offsets are: " << endl;
+                     for(r = 1; r <= potentialMatches[0]; r++) {
+                        cout << potentialMatches[r] << " " << temp[r-1] << " " << 
+                            temp[MAX_POTENTIAL_MATCHES + r-1] << " " << 
+                            temp[MAX_POTENTIAL_MATCHES * 2 + r - 1] << endl;
+                     } 
+                     cout << endl;
+                     // End debugging
+                     //Only add one loop closing constraint
+                     break;
+                  } else {
+                     cout << "Alignment failed due to not enough empty map matching" << endl;
+                  }
                } else {
                   cout << "Alignment failed" << endl;
                }
+            }
+         }
+         if (!loopClosed && UseTempLoopClosures) {
+            bool matchMade = findTempMatches();
+            if (matchMade) {
+               needOptimisation = true;
             }
          }
       }
@@ -772,12 +882,13 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          if (LocalMapCombine) {
             combineMode++;
          }
-         readBuffer(clGlobalMapPositions, CL_TRUE, 0, sizeof(ocl_float) * nextLocalMap * 3,
+         readBuffer(clGlobalMapPositions, CL_TRUE, 0, sizeof(ocl_float) * nextLocalMap * 5,
                    globalMapPositions, 0, 0, 0, "Copying global map positions");
       }
    } else {
       opencl_task->setArg(3, 4, sizeof(int), &currentLocalMap);
       opencl_task->setArg(4, 4, sizeof(int), &nextLocalMap);
+      opencl_task->setArg(5, 4, sizeof(int), &numScans);
       //Make sure the histograms are finalised for the first map
        opencl_task->queueKernel(4, 1, NUM_ORIENTATION_BINS, 0, 
                                  0, NULL, NULL, false);
@@ -785,17 +896,17 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
    }
 
    float alignError = angleError;
-   opencl_task->setArg(3, 2, sizeof(int), &oldLocalMap);
-   opencl_task->setArg(4, 2, sizeof(int), &nextLocalMap);
-   opencl_task->setArg(5, 2, sizeof(int), &currentLocalMap);
+   opencl_task->setArg(4, 2, sizeof(int), &oldLocalMap);
+   opencl_task->setArg(5, 2, sizeof(int), &nextLocalMap);
+   opencl_task->setArg(6, 2, sizeof(int), &parentLocalMap);
    ocl_float4 pOffset;
    pOffset.x = offsetFromParentX;
    pOffset.y = offsetFromParentY;
    pOffset.z = 0;
    pOffset.w = offsetFromParentTh;
-   opencl_task->setArg(6, 2, sizeof(ocl_float4), &pOffset);
-   opencl_task->setArg(7, 2, sizeof(ocl_float), &alignError);
-   opencl_task->setArg(8, 2, sizeof(int), &numOldMapPoints);
+   opencl_task->setArg(7, 2, sizeof(ocl_float4), &pOffset);
+   opencl_task->setArg(8, 2, sizeof(ocl_float), &alignError);
+   opencl_task->setArg(9, 2, sizeof(int), &numOldMapPoints);
    int globalSize = getGlobalWorkSize(numOldMapPoints);
    opencl_task->queueKernel(2, 1, globalSize, LocalSize, 
          0, NULL, NULL, false);
@@ -809,15 +920,16 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
    currentOffset.x = 0;
    currentOffset.y = 0;
    currentOffset.w = 0;
+   indexParentNode.push_back(parentLocalMap);
    currentLocalMapICPPose = icpPose;
    numGlobalPoints += numLocalPoints;
    parentLocalMap = currentLocalMap;
    currentLocalMap = nextLocalMap;
-   globalMapPositions[currentLocalMap * 3] = slamPose.position.x;
-   globalMapPositions[currentLocalMap * 3 + 1] = slamPose.position.y;
+   globalMapPositions[currentLocalMap * 5] = slamPose.position.x;
+   globalMapPositions[currentLocalMap * 5 + 1] = slamPose.position.y;
    double ys, ps, rs;
    slamPose.getYPR(ys, ps, rs);
-   globalMapPositions[currentLocalMap * 3 + 2] = ys;
+   globalMapPositions[currentLocalMap * 5 + 2] = ys;
 
    //Grow data structures if needed
    if (numGlobalPoints + MAX_LOCAL_POINTS > totalGlobalPoints) {
@@ -855,8 +967,14 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       slamLocalMap maps[totalLocalMaps + increment];
       readBuffer(clSlamLocalMap, CL_TRUE, 0, sizeof(slamLocalMap) * 
                totalLocalMaps, maps, 0, 0, 0, "Copying local map information");
+      float *tempFreeArea = new float[totalLocalMaps * localOGSize];
+      readBuffer(clFreeAreas, CL_TRUE, 0, sizeof(float) * totalLocalMaps * localOGSize,
+            tempFreeArea, 0, 0, 0, "Copying free areas info to main memory");
+
       opencl_manager->deviceRelease(clSlamLocalMap);
       opencl_manager->deviceRelease(clGlobalMapPositions);
+      opencl_manager->deviceRelease(clFreeAreas);
+
       int *temp = new int[totalLocalMaps + increment];
       int i;
       for(i = 0; i < totalLocalMaps; i++) {
@@ -866,7 +984,7 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       numLocalMapPoints = temp;
 
       ocl_float *tempF = new ocl_float[(totalLocalMaps + increment) * 3];
-      for(i = 0; i < totalLocalMaps * 3; i++) {
+      for(i = 0; i < totalLocalMaps * 5; i++) {
          temp[i] = globalMapPositions[i];
       }
       delete [] globalMapPositions;
@@ -880,6 +998,13 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       size = totalLocalMaps * sizeof(ocl_float) * 3;
       clGlobalMapPositions = opencl_manager->deviceAlloc(size,
             CL_MEM_READ_WRITE, NULL);
+      size = totalLocalMaps * sizeof(ocl_float) * localOGSize;
+      clFreeAreas = opencl->manager->deviceAlloc(size,
+            CL_MEM_READ_WRITE, NULL);
+      writeBuffer(clFreeAreas, CL_TRUE, 0, (totalLocalMaps - increment) * 
+            sizeof(ocl_float) * localOGSize, tempFreeArea, 0, 0, 0, 
+            "Copying free areas to the gpu memory");
+      delete [] tempFreeArea;
 
       opencl_task->setArg(1, 1, sizeof(cl_mem), &clSlamLocalMap);
       opencl_task->setArg(1, 2, sizeof(cl_mem), &clSlamLocalMap);
@@ -895,9 +1020,126 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       opencl_task->setArg(1, 13, sizeof(cl_mem), &clSlamLocalMap);
       opencl_task->setArg(1, 14, sizeof(cl_mem), &clSlamLocalMap);
       opencl_task->setArg(4, 12, sizeof(cl_mem), &clGlobalMapPositions);
+
+      opencl_task->SetArg(5, 1, sizeof(cl_mem), &clFreeAreas);
+      opencl_task->SetArg(3, 2, sizeof(cl_mem), &clFreeAreas);
    }
 
 }}
+}
+
+bool GraphSlamGPU::findTempMatches() {
+   if (isMapFeatureless[currentLocalMap]) {
+      return false;
+   }
+
+   int mIndex = 0;
+
+   float xCur = globalMapPositions[currentLocalMap * 5 + 3];
+   float yCur = globalMapPositions[currentLocalMap * 5 + 4];
+
+   bool returnVal = false;
+   
+   for (mIndex = 0; mIndex < nectLocalMap; mIndex++) {
+      if (mindex != currentLocalMap && indexParentNode[currentLocalMap] != mIndex &&
+            !isMapFeatureless[mIndex] && 
+            fabs(xCur - globalMapPositions[mIndex * 5 + 3]) < DistanceOverlapThreshold &&
+            fabs(yCur - globalMapPositions[mIndex * 5 + 4]) < DistanceOverlapThreshold) {
+         if (performTempMatch(currentLocalMap, mIndex)) {
+            returnVal = true;
+         }
+      }
+   }
+   return returnVal;
+}
+
+bool GraphSlamGPU::performTempMatch(int currentMap, int testMap) {
+
+   int mode = -1; 
+   opencl_task->setArg(4, 16, sizeof(int), &currentMap);
+   opencl_task->setArg(5, 16, sizeof(int), &testMap);
+   opencl_task->setArg(6, 16, sizeof(int), &mode);
+
+   size_t evaluateOffset = sizeof(ocl_float4) + sizeof(ocl_float2) * 2 +
+                           sizeof (ocl_int) * (6 + MAX_POTENTIAL_MATCHES * 2) +
+                           sizeof (ocl_float) * MAX_POTENTIAL_MATCHES * 3;
+
+   size_t dataSpace = sizeof(ocl_int) + sizeof(ocl_float);
+   char *tempData = malloc(dataSpace);
+   memset(tempData, 0, dataSpace);
+
+   writeBuffer(clSlamCommon, CL_FALSE, evaluateOffset, dataSpace, tempData, 0, 0, 0,
+         "Writing to reset temp match info");
+
+   globalSize = getGlobalWorkSize(numLocalMapPoints[testMap]);
+   opencl_task->queueKernel(16, 1, globalSize, LocalSize,
+           0, NULL, NULL, false);
+
+   readBuffer(clSlamCommon, CL_TRUE, evaluateOffset, dataSpace, tempData, 0, 0, 0,
+         "Reading evaluate map info");
+
+   int numOverlap = *((int *)tempData);
+   float score = *((float *)(tempdata + sizeof(int)));
+
+   if (numOverlap > OverlapThreshold) {
+      size_t matchSuccessOffset = sizeof(ocl_float4) +
+                               sizeof(ocl_float2) * 2 +
+                               sizeof(ocl_int);
+
+      float previousScore = score / (float) numOverlap;
+      //TODO: previousScore - do I need to set it somewhere here or in the evaluateKernel?
+      opencl_task->setArg(3, 6, sizeof(int), &testMap);
+      opencl_task->setArg(4, 6, sizeof(int), &currentMap);
+      opencl_task->setArg(5, 6, sizeof(int), &(numLocalMapPoints[testMap]));
+      int mIndex = 0;
+      opencl_task->setArg(6, 6, sizeof(int), &mIndex);
+      opencl_task->setArg(3, 7, sizeof(int), &currentMap);
+      opencl_task->setArg(4, 7, sizeof(int), &mIndex);
+      int fullLoop = 0;
+      opencl_task->setArg(5, 7, sizeof(int), &fullLoop);
+
+
+      int matchSuccess = 0;
+      int c = 0;
+      while (matchSuccess == 0) {
+         opencl_task->queueKernel(6, 1, globalSize, LocalSize,
+                           0, NULL, NULL, false);
+         opencl_task->queueKernel(7, 1, 32, 0,
+                           0, NULL, NULL, false);
+         readBuffer(clSlamCommon, CL_TRUE, matchSuccessOffset, sizeof(ocl_int), 
+                    &matchSuccess, 0, 0, 0, "Copying match success");
+         c++;
+      }
+      if (matchSuccess == 1) {
+         mode = 0;
+         opencl_task->setArg(6, 16, sizeof(int), &mode);
+         opencl_task->queueKernel(16, 1, globalSize, LocalSize,
+            0, NULL, NULL, false);
+         opencl_task->setArg(2, 17, sizeof(int), &currentMap);
+         opencl_task->setArg(3, 17, sizeof(int), &mIndex);
+         opencl_task->setArg(4, 17, sizeof(int), &fullLoop);
+         opencl_task->setArg(5, 17, sizeof(float), &previousScore);
+         opencl_task->queueKernel(17, 1, 32, 0,
+            0, NULL, NULL, false);
+
+         readBuffer(clSlamCommon, CL_TRUE, matchSuccessOffset, sizeof(ocl_int), 
+                    &matchSuccess, 0, 0, 0, "Copying match success 2");
+         if (matchSuccess == 1) {
+
+            opencl_task->setArg(3, 3, sizeof(int), &currentMap);
+            opencl_task->setArg(4, 3, sizeof(int), &numConstraints);
+            opencl_task->setArg(2, 8, sizeof(int), &numConstraints);
+            runSize = getGlobalWorkSize(numLocalMapPoints[testMap]);
+            opencl_task->queueKernel(3, 1, runSize, LocalSize,
+                       0, NULL, NULL, false);
+            opencl_task->queueKernel(8, 1, 32, 0,
+                       0, NULL, NULL, false);
+            numConstraints++;
+            return true;
+         }
+      }
+   }   
+   return false;
 }
 
 inline int GraphSlamGPU::getGlobalWorkSize(int numThreads) {
@@ -992,8 +1234,8 @@ void GraphSlamGPU::getGlobalMap(vector<LocalMapPtr> curMap, vector<double> mapSl
 
 void GraphSlamGPU::getGlobalMapPosition(int mapIndex, double& gx, double& gy,
       double& gth) {
-   gx = globalMapPositions[mapIndex * 3];
-   gy = globalMapPositions[mapIndex * 3 + 1];
-   gth = globalMapPositions[mapIndex * 3 + 2];
+   gx = globalMapPositions[mapIndex * 5];
+   gy = globalMapPositions[mapIndex * 5 + 1];
+   gth = globalMapPositions[mapIndex * 5 + 2];
 }
 

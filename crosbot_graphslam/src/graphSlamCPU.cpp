@@ -442,7 +442,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       localMaps[currentLocalMap].warpPointsX[i] = localMaps[currentLocalMap].pointsX[i];
       localMaps[currentLocalMap].warpPointsY[i] = localMaps[currentLocalMap].pointsY[i];
       localMaps[currentLocalMap].warpPointsZ[i] = localMaps[currentLocalMap].pointsZ[i];
-
+      //TODO: Should these be / count ??
       localMaps[currentLocalMap].gradX[i] = common->grid[ogIndex].gradX;
       localMaps[currentLocalMap].gradY[i] = common->grid[ogIndex].gradY;
    }

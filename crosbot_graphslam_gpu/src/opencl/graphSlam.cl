@@ -70,7 +70,7 @@ int getLocalOGIndex(constant slamConfig *config, float x, float y) {
 }
 
 __kernel void initialiseSlam(constant slamConfig *config, global slamLocalMap *localMaps,
-      global slamCommon *common) {
+      global slamCommon *common, global float *freeAreas) {
    int index = get_global_id(0);
    int globalSize = get_global_size(0);
    int i,j;
@@ -78,6 +78,11 @@ __kernel void initialiseSlam(constant slamConfig *config, global slamLocalMap *l
       common->localOG[i] = -1;
       common->localOGCount[i] = 0;
       common->localOGZ[i] = 0;
+      common->localOGX[i] = 0;
+      common->localOGY[i] = 0;
+      common->localOGGradX[i] = 0;
+      common->localOGGradY[i] = 0;
+      freeAreas[i] = -1;
    }
    for (i = index; i < MAX_NUM_CONSTRAINTS + 1; i += globalSize) {
       common->graphHessian[i][0] = 0;
@@ -102,13 +107,20 @@ __kernel void initialiseSlam(constant slamConfig *config, global slamLocalMap *l
       localMaps[0].parentInfo[index][0] = 0;
       localMaps[0].parentInfo[index][1] = 0;
       localMaps[0].parentInfo[index][2] = 0;
+      localMaps[0].internalCovar[index][0] = 0;
+      localMaps[0].internalCovar[index][1] = 0;
+      localMaps[0].internalCovar[index][2] = 0;
       common->A[index][0] = 0;
       common->A[index][1] = 0;
       common->A[index][2] = 0;
       common->B[index] = 0;
       common->goodCount = 0;
       common->numIterations = 0;
+      common->previousINode = 0;
       common->scaleFactor[index] = INFINITY;
+      common->tempCovar[index][0] = 0;
+      common->tempCovar[index][1] = 0;
+      common->tempCovar[index][2] = 0;
       //common->scaleFactor[index] = 0;
    }
    if (index == 0) {
@@ -122,12 +134,82 @@ __kernel void initialiseSlam(constant slamConfig *config, global slamLocalMap *l
       common->maxMapRange.y = 0;
       common->combineIndex = -1;
       common->combineMode = 0;
+      common->covarCount = 0;
       localMaps[0].numPoints = 0;
       localMaps[0].indexParentNode = -1;
       localMaps[0].currentGlobalPos = (float4) (0.0f, 0.0f, 0.0f, 0.0f);
       localMaps[0].parentOffset = (float4) (0.0f, 0.0f, 0.0f, 0.0f);
       localMaps[0].treeLevel = 0;
+      localMaps[0].isFeatureless = 0;
    }
+}
+
+__kernel void translateScanPoints(constant slamConfig *config, global slamLocalmap *localMaps,
+      global slamCommon *common, global oclLaserPoints *points, const int numPoints, 
+      const ocl_float4 currentOffset) {
+   
+   int index = get_global_id(0);
+   int localIndex = get_local_id(0);
+   int warpIndex = localIndex % WARP_SIZE;
+   
+   local float tempInfo[WARP_SIZE][3][3];
+   local int infoCount[WARP_SIZE];
+
+   if (index == 0) {
+      common->currentOffset = currentOffset;
+   }
+   if (localIndex < WARP_SIZE) {
+      tempInfo[localIndex][0][0] = 0;
+      tempInfo[localIndex][0][1] = 0;
+      tempInfo[localIndex][0][2] = 0;
+      tempInfo[localIndex][1][0] = 0;
+      tempInfo[localIndex][1][1] = 0;
+      tempInfo[localIndex][1][2] = 0;
+      tempInfo[localIndex][2][0] = 0;
+      tempInfo[localIndex][2][1] = 0;
+      tempInfo[localIndex][2][2] = 0;
+      infoCount[localIndex] = 0;
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+
+   float cosTh = cos(currentOffset.w);
+   float sinTh = sin(currentOffset.w);
+   if (index < numPoints) {
+      common->pointsTempX[index] = points->pointX[index] * cosTh - points->pointY[index] * sinTh
+         + currentOffset.x;
+      common->pointsTempY[index] = points->pointX[index] * sinTh + points->pointY[index] * cosTh
+         + currentOffset.y;
+      common->pointsTempZ[index] = points->pointZ[index] + InitHeight;
+
+      int ogIndex = getLocalOGIndex(config, common->pointsTempX[index], common->pointsTempY[index]);
+      if (ogIndex >= 0) {
+         float x,y;
+         x = -sinTh * common->pointsTempX[index] - cosTh * common->pointsTempY[index];
+         y = cosTh * common->pointsTempX[index] - sinTh * common->pointsTempY[index];
+         float length = sqrt(common->localOGGradX[ogIndex] * common->localOGGradX[ogIndex] +
+               common->localOGGradY[ogIndex] * common->localOGGradY[ogIndex]);
+         if (length > 0) {
+            float mapGradX = common->localOGGradX[ogIndex] / length;
+            float mapGradY = common->localOGGradY[ogIndex] / length;
+
+            //TODO: find a better way to estimate the angular covar of a scan
+            double temp = 0.5;
+            atomicFloatAddLocal(&(tempInfo[warpIndex][0][0]), mapGradX * mapGradX);
+            atomicFloatAddLocal(&(tempInfo[warpIndex][0][1]), mapGradX * mapGradY);
+            atomicFloatAddLocal(&(tempInfo[warpIndex][0][2]), mapGradX * temp);
+            atomicFloatAddLocal(&(tempInfo[warpIndex][1][0]), mapGradX * mapGradY);
+            atomicFloatAddLocal(&(tempInfo[warpIndex][1][1]), mapGradY * mapGradY);
+            atomicFloatAddLocal(&(tempInfo[warpIndex][1][2]), mapGradY * temp);
+            atomicFloatAddLocal(&(tempInfo[warpIndex][2][0]), mapGradX * temp);
+            atomicFloatAddLocal(&(tempInfo[warpIndex][2][1]), mapGradY * temp);
+            atomicFloatAddLocal(&(tempInfo[warpIndex][2][2]), temp * temp);
+            atomic_inc(&(infoCount[warpIndex]));
+         }
+      }
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+   parallelReduce3x3(tempInfo, localIndex, common->tempCovar);
+   parallelReduceInt(infoCount, localIndex, &(common->covarCount));
 }
 
 /*
@@ -135,110 +217,236 @@ __kernel void initialiseSlam(constant slamConfig *config, global slamLocalMap *l
  * local map
  */
 __kernel void addScanToMap(constant slamConfig *config, global slamLocalMap *localMaps, 
-      global slamCommon *common, global oclLaserPoints *points, global int *globalMap, 
-      global float *globalMapHeights, const int currentMap, const int numPoints, 
-      const int numGlobalPoints, const ocl_float4 currentOffset, global float *out) {
+      global slamCommon *common, global int *globalMap, global float *globalMapHeights, 
+      global float *freeAreas, const int currentMap, const int numPoints, 
+      const int numGlobalPoints, const int firstScan, global float *out) {
 
    int globalId = get_global_id(0);
+   int localId = get_local_id(0);
 
+   local int rayCount;
+   local float rayX[LOCAL_SIZE];
+   local float rayY[LOCAL_SIZE];
+
+   if (localId == 0) {
+      rayCount = 0;
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+   
+   int x = globalId % 3;
+   int y = globalId / 3;
+
+   local float a[3][3];
+   local float b[3][3];
+   if (firstScan != 0) {
+      if (globalId < 9) {
+         a[x][y] = common->tempCovar[x][y] / common->covarCount;
+      }
+      invert3x3MatrixLocal(a, b, globalId);
+      if (globalId < 9) {
+         b[x][y] /= config->PerScanInfoScaleFactor;
+         localMaps[currentMap].internalCovar[x][y] += b[x][y];
+      }
+   }
+   if (globalId < 9) {
+      common->tempCovar[x][y] = 0;
+   }
    if (globalId == 0) {
-      common->currentOffset = currentOffset;
+      common->covarCount = 0;
+      float sumX = localMaps[currentMap].internalCovar[0][0] + 
+         fabs(localMaps[currentMap].internalCovar[0][1])/* + 
+         fabs(localMaps[currentMap].internalCovar[0][2])*/;
+      float sumY = localMaps[currentMap].internalCovar[1][0] + 
+         fabs(localMaps[currentMap].internalCovar[1][1])/* + 
+         fabs(localMaps[currentMap].internalCovar[0][2])*/;
+      float sumTh = 0 /*localMaps[currentMap].internalCovar[0][0] + 
+         fabs(localMaps[currentMap].internalCovar[0][1]) + 
+         fabs(localMaps[currentMap].internalCovar[0][2])*/;
+      if (sumX > config->LocalMapCovarianceThreshold ||
+            sumY > config->LocalMapCovarianceThreshold ||
+            sumth > config->LocalMapCovarianceThreshold) {
+         localMaps[currentMap].isFeatureless = 1;
+      }
    }
 
    if (globalId < numPoints) {
-      float cosTh = cos(currentOffset.w);
-      float sinTh = sin(currentOffset.w);
-      float curPointX = points->pointX[globalId] * cosTh - points->pointY[globalId] * sinTh
-         + currentOffset.x;
-      float curPointY = points->pointX[globalId] * sinTh + points->pointY[globalId] * cosTh
-         + currentOffset.y;
-      int ogIndex = getLocalOGIndex(config, curPointX, curPointY);
-      if (ogIndex >= 0) {
+      int pre = globalId - 5;
+      if (pre < 1) { pre = 1;}
+      float preP = (common->pointsTempX[pre - 1] + common->pointsTempX[pre] + 
+            common->pointsTempX[pre + 1]) / 3.0;
+      int nxt = globalId + 5;
+      if (nxt > numPoints - 2) { nxt = numPoints - 2; }
+      float nxtP = (common->pointsTempX[nxt - 1] + common->pointsTempX[nxt] + 
+            common->pointsTempX[nxt + 1]) / 3.0;
+      float mapGradX = nxtP - preP;
+      preP = (common->pointsTempY[pre - 1] + common->pointsTempY[pre] + 
+            common->pointsTempY[pre + 1]) / 3.0;
+      nxtP = (common->pointsTempY[nxt - 1] + common->pointsTempY[nxt] + 
+            common->pointsTempY[nxt + 1]) / 3.0;
+      float mapGradY = nxtP - preP;
+
+      int ogIndex = getLocalOGIndex(config, common->pointsTempX[globalId], 
+            common->pointsTempY[globalId]);
+      if (ogIndex >= 0 && mapGradX < config->GradientDistanceThreshold &&
+            mapGradY < config->GradientDistanceThreshold) {
+         float curPointX = common->pointsTempX[globalId];
+         float curPointY = common->pointsTempY[globalId];
+         float curPointZ = common->pointsTempZ[globalId];
+         atomicFloatMax(&(common->localOGZ[ogIndex]), curPointZ);
+         atomicFloatAdd(&(common->localOGX[ogIndex]), curPointX);
+         atomicFloatAdd(&(common->localOGY[ogIndex]), curPointY);
+         //These are swapped deliberately
+         atomicFloatAdd(&(common->localOGGradX[ogIndex]), mapGradY);
+         atomicFloatAdd(&(common->localOGGradY[ogIndex]), mapGradX);
+
+         //Update the histograms
+         float orien = atan2(mapGradY, mapGradX);
+         orien += M_PI/2;
+         if (orien >= M_PI) {
+            orien -= 2 * M_PI;
+         }
+         int orienIndex = (orien + M_PI) * NUM_ORIENTATION_BINS / (2 * M_PI);
+         atomicFloatAdd(&(localMaps[currentMap].orientationHist[orienIndex]), 1);
+         int i;
+         float mapSize = config->DimLocalOG * config->CellWidthOG;
+         for(i = 0; i < NUM_ORIENTATION_BINS; i++) {
+            float dist = curPointX * common->histCos[i] + 
+                     curPointY * common->histSin[i];
+            int projIndex = (dist + mapSize / 2.0f) / 
+                     (mapSize / (float) NUM_PROJECTION_BINS);
+            if (projIndex < 0 || projIndex >= NUM_PROJECTION_BINS) {
+               continue;
+            }
+            float normalX = -mapGradY;
+            float normalY = mapGradX;
+            float normalise = sqrt(normalX * normalX + normalY * normalY);
+            float weight = normalX / normalise * common->histCos[i] +
+                        normalY / normalise * common->histSin[i];
+            atomicFloatAdd(&(localMaps[currentMap].projectionHist[i][projIndex]), weight);
+         }
          int obsCount = atomic_inc(&(common->localOGCount[ogIndex]));
          if (obsCount == config->MinObservationCount) {
-            //Add the point to the local map
             int index = atomic_inc(&(localMaps[currentMap].numPoints));
-            common->localOG[ogIndex] = index;
-            localMaps[currentMap].pointsX[index] = curPointX;
-            localMaps[currentMap].pointsY[index] = curPointY;
-            localMaps[currentMap].pointsZ[index] = common->localOGZ[ogIndex];
-
-            float curPointNxtX = points->pointNextX[globalId] * cosTh -
-               points->pointNextY[globalId] * sinTh + currentOffset.x;
-            float curPointNxtY = points->pointNextX[globalId] * sinTh +
-               points->pointNextY[globalId] * cosTh + currentOffset.y;
-            common->pointsNxtX[index] = curPointNxtX;
-            common->pointsNxtY[index] = curPointNxtY;
-
-            if (curPointX < common->minMapRange.x) {
-               common->minMapRange.x = curPointX;
-            }
-            if (curPointX > common->maxMapRange.x) {
-               common->maxMapRange.x = curPointX;
-            }
-            if (curPointY < common->minMapRange.y) {
-               common->minMapRange.y = curPointY;
-            }
-            if (curPointY > common->maxMapRange.y) {
-               common->maxMapRange.y = curPointY;
-            }
-            //Update the histograms
-            float orien = atan2(curPointNxtY - curPointY, curPointNxtX - curPointX);
-            orien += M_PI/2;
-            if (orien >= M_PI) {
-               orien -= 2 * M_PI;
-            }
-            int orienIndex = (orien + M_PI) * NUM_ORIENTATION_BINS / (2*M_PI);
-            atomicFloatAdd(&(localMaps[currentMap].orientationHist[orienIndex]), 1);
-            int i;
-            float mapSize = config->DimLocalOG * config->CellWidthOG;
-            for(i = 0; i < NUM_ORIENTATION_BINS; i++) {
-               float dist = curPointX * common->histCos[i] + 
-                        curPointY * common->histSin[i];
-               int projIndex = (dist + mapSize / 2.0f) / 
-                        (mapSize / (float) NUM_PROJECTION_BINS);
-               if (projIndex < 0 || projIndex >= NUM_PROJECTION_BINS) {
-                  continue;
+            if (index < MAX_LOCAL_POINTS) {
+               common->activeCells[index] = ogIndex;
+               common->localOG[ogIndex] = index;
+               if (curPointX < common->minMapRange.x) {
+                  common->minMapRange.x = curPointX;
                }
-               float normalX = curPointY - curPointNxtY;
-               float normalY = curPointNxtX - curPointX;
-               float normalise = sqrt(normalX * normalX + normalY * normalY);
-               float weight = normalX / normalise * common->histCos[i] +
-                           normalY / normalise * common->histSin[i];
-               atomicFloatAdd(&(localMaps[currentMap].projectionHist[i][projIndex]), weight);
+               if (curPointX > common->maxMapRange.x) {
+                  common->maxMapRange.x = curPointX;
+               }
+               if (curPointY < common->minMapRange.y) {
+                  common->minMapRange.y = curPointY;
+               }
+               if (curPointY > common->maxMapRange.y) {
+                  common->maxMapRange.y = curPointY;
+               }
+               //addToFreeArea(curPointX, curPointY);
+               int rayIndex = atomic_inc(&rayCount);
+               rayX[rayIndex] = curPointX;
+               rayY[rayIndex] = curPointY;
+
+               //Add the point to the global map
+               int globalIndex = convertToGlobalPosition(config, curPointX, curPointY, 
+                      localMaps[currentMap].currentGlobalPos);
+               globalMap[numGlobalPoints + index] = globalIndex;
+               globalMapHeights[numGlobalPoints + index] = common->localOGZ[ogIndex];
+            } else {
+               atomic_dec(&(localMaps[currentMap].numPoints));
             }
-            //Add the point to the global map
-            int globalIndex = convertToGlobalPosition(config, curPointX, curPointY, 
-                   localMaps[currentMap].currentGlobalPos);
-            globalMap[numGlobalPoints + index] = globalIndex;
-            globalMapHeights[numGlobalPoints + index] = common->localOGZ[ogIndex];
          }
       }
+   }
+   //add the newly added points to the free area map   
+   if (localId < rayIndex) {
+      int ogIndex = getLocalOGIndex(config, rayX[localId], rayY[localId]);
+      float origX = rayX[localId];
+      float origY = rayY[localId];
+      float px = origX / config->CellSize;
+      float py = origY / config->CellSize;
+
+      float currentOffsetX = common->currentOffset.x / config->CellSize;
+      float currentOffsetY = common->currentOffset.y / config->CellSize;
+
+      float dx = fabs(common->currentOffset.x - px);
+      float dy = fabs(common->currentOffset.y - py);
+      int x = (int)(floor(px));
+      int y = (int)(floor(py));
+      int n = 1;
+      int xInc, yInc;
+      float error;
+      if (dx == 0) {
+         xInc = 0;
+         error = INFINITY;
+      } else if (currentOffsetX > px) {
+         xInc = 1;
+         n += int(floor(currentOffsetX)) - x;
+         error = (floor(px) + 1 - px) * dy;
+      } else {
+         xInc = -1;
+         n += x - int(floor(currentOffsetX));
+         error = (px - floor(px)) * dy;
+      }
+      if (dy == 0) {
+         yInc = 0;
+         error -= INFINITY;
+      } else if (currentOffsetY > py) {
+         yInc = 1;
+         n += int(floor(currentOffsetY)) - y;
+         error -= (floor(py) + 1 - py) * dx;
+      } else {
+         yInc = -1;
+         n += y - int(floor(currentOffsetY));
+         error -= (py - floor(py)) * dx;
+      }
+
+      int startIndex = ogIndex;
+      x = index % config->DimLocalOG;
+      y = index / config->DimLocalOG;
+      float off = config->CellSize / 2.0f - (config->DimLocalOG * config->CellSize) / 2.0f;
+
+      float denom = log(1.0f + FreeAreaDistanceThreshold);
+      int freeAreasOffset = currentMap * config->DimLocalOG * config->DimLocalOG;
+      for (; n > 0; --n) {
+         float xCent = ((float) x) * config->CellSize + off;
+         float yCent = ((float) y) * config->CellSize + off;
+         float dist = sqrt((origX - xCent) * (origX - xCent) + (origY - yCent) * (origY - yCent));
+
+         dist = fmin(dist, FreeAreaDistanceThreshold);
+         float score = 1 - (log (dist + 1.0) / denom);
+
+         //update the free map area bit
+         atomicFloatMax(&(freeAreas[freeAreasOffset + index]), score);
+
+         if (error > 0) {
+            index += yInc * DimLocalOG;
+            y += yInc;
+            error -= dx;
+         } else {
+            index += xInc;
+            x += xInc;
+            error += dy;
+         }
+      }
+      atomic_xchg(&(freeAreas[freeAreasOffset + startIndex]), 0);
    }   
 }
 
-__kernel void add3DToMap(constant slamConfig *config, global slamLocalMap *localMaps,
-      global slamCommon *common, global oclLaserPoints *points, global float *globalMapHeights, 
-      const int currentMap, const int numPoints, const int numGlobalPoints) {
+__kernel void setLocalMap(constant slamConfig *config, global slamLocalMap *localMaps,
+      global slamCommon *common, global float *globalMapHeights, const int currentMap,
+      const int numGlobalPoints) {
    int index = get_global_id(0);
+   if (index < localMap[currentMap].numPoints) {
+      int ogIndex = common->activeCells[index];
+      float count = (float)common->localOGCount[ogIndex];
+      localMaps[currentMap].pointsX[index] = common->localOGX[ogIndex] / count;
+      localMaps[currentMap].pointsY[index] = common->localOGY[ogIndex] / count;
+      localMaps[currentMap].pointsZ[index] = common->localOGZ[ogIndex];
+      globalMapHeights[numGlobalPoints + i] = common->localOGZ[ogIndex];
+      localMaps[currentMap].gradX[index] = common->localOGGradX[ogIndex];
+      localMaps[currentMap].gradY[index] = common->localOGGradY[ogIndex];
 
-   if (index < numPoints) {
-      float cosTh = cos(common->currentOffset.w);
-      float sinTh = sin(common->currentOffset.w);
-      float curPointX = points->pointX[index] * cosTh - points->pointY[index] * sinTh
-         + common->currentOffset.x;
-      float curPointY = points->pointX[index] * sinTh + points->pointY[index] * cosTh
-         + common->currentOffset.y;
-      int ogIndex = getLocalOGIndex(config, curPointX, curPointY);
-      if (ogIndex >= 0) {
-         if (common->localOGCount[ogIndex] < config->MinObservationCount) {
-            atomicFloatMax(&(common->localOGZ[ogIndex]), points->pointZ[index]);
-         } else {
-            int i = common->localOG[ogIndex];
-            atomicFloatMax(&(localMaps[currentMap].pointsZ[i]), points->pointZ[index]);
-            atomicFloatMax(&(globalMapHeights[numGlobalPoints + i]), points->pointZ[index]);
-         }
-      }
    }
 }
 
@@ -255,7 +463,7 @@ float getMetricValue(constant slamConfig *config, float2 point, float2 ogPoint) 
    }
    return dx * dx + dy * dy - 
           (pown(dx * point.y - dy * point.x, 2)) / 
-          (point.x * point.x + point.y * point.y + config->SlamL);
+          (point.x * point.x + point.y * point.y + config->SlamL * config->SlamL);
 }
 
 /*
@@ -354,14 +562,14 @@ __kernel void getHessianMatch(constant slamConfig *config, global slamLocalMap *
       matchIndex = findMatchingPoint(config, localMaps, common, transformedPoint, 
             currentMap, offset, 1);
       
-      if (matchIndex >= 0) {
+      if (matchIndex >= 0 && common->localOG[matchIndex] >= 0) {
          float cosTh = cos(offset.w);
          float sinTh = sin(offset.w);
 
          float2 mapGrad;
          float x,y;
-         mapGrad.x = common->pointsNxtX[matchIndex] - localMaps[currentMap].pointsX[matchIndex];
-         mapGrad.y = common->pointsNxtY[matchIndex] - localMaps[currentMap].pointsY[matchIndex];
+         mapGrad.x = common->localOGGradX[matchIndex];
+         mapGrad.y = common->localOGGradY[matchIndex];
          float length = sqrt(mapGrad.x * mapGrad.x + mapGrad.y * mapGrad.y);
          mapGrad.x /= length;
          mapGrad.y /= length;
@@ -438,13 +646,19 @@ void covarFiddle(global float m[3][3], int index, float maxCovar, local float *m
  * This kernel should be called with the local size at least as large as
  * NUM_ORIENTATION_BINS
  *
- * TODO: This finalises the Hessian matrix for the parent only. Depending on
- * how other links are added, may need to do something to make it
- * work for other links
  */
 __kernel void prepareLocalMap(constant slamConfig *config, global slamLocalMap *localMaps,
-      global slamCommon *common, const int currentMap, const int numMaps, global float *out) {
+      global slamCommon *common, const int currentMap, const int numMaps, const int numScans, 
+      global float *out) {
    int index = get_global_id(0);
+
+   if (index == 0) {
+      localMaps[currentMap].robotMapCentre.x = common->currentOffset.x / 2.0f;
+      localMaps[currentMap].robotMapCentre.y = common->currentOffset.y / 2.0f;
+      localMaps[currentMap].globalRobotMapCentre = convertToGlobalCoord(
+            localMaps[currentMap].robotMapCentre.x, localMaps[currentMap].robotMapCentre.y,
+            localMaps[currentMap].currentGlobalPos);
+   }
 
    //Finalise the histograms
    int i;
@@ -504,12 +718,53 @@ __kernel void prepareLocalMap(constant slamConfig *config, global slamLocalMap *
    local float a[3][3];
    local float b[3][3];
    local float c[3][3];
-   if (currentMap > 0) {
+   //if (currentMap > 0) {
       //Need to rotate the hessian matrix as it was calculated in the opposite displacement
       //to the actual move - rotate info matrix b by RbR^T where R is the homogeneous 
       //rotation matrix of the angle of the last move
 
-      int x = index % 3;
+   int x = index % 3;
+   int y = index / 3;
+
+   if (index == 0) {
+      localMaps[currentMap].mapCentre.x = (common->minMapRange.x + common->maxMapRange.x) / 2;
+      localMaps[currentMap].mapCentre.y = (common->minMapRange.y + common->maxMapRange.y) / 2;
+   }
+   if (index < 9) {
+      a[y][x] = localMaps[currentMap].internalCovar[y][x] / (float) numScans;
+      a[y][x] = a[y][x] * a[y][x] * config->InformationScaleFactor;
+      invert3x3Matrix(a, b, index);
+      localMaps[currentMap].parentInfo[y][x] = b[y][x];
+
+      b[y][x] = localMaps[currentMap].internalCovar[y][x];
+   }
+   if (index == 0) {
+      float cosTh = cos(- localMaps[currentMap].parentOffset.w);
+      float sinTh = sin(- localMaps[currentMap].parentOffset.w);
+      float cosTh = cos(localMaps[currentMap].currentGlobalPos.w);
+      float sinTh = sin(localMaps[currentMap].currentGlobalPos.w);
+      a[0][0] = cosTh;
+      a[1][1] = cosTh;
+      a[1][0] = sinTh;
+      a[0][1] = -sinTh;
+      a[2][2] = 1;
+      a[0][2] = 0;
+      a[1][2] = 0;
+      a[2][0] = 0;
+      a[2][1] = 0;
+   }
+   mult3x3MatrixLocal(a, b, c, index);
+   if (index == 0) {
+      float temp = a[1][0];
+      a[1][0] = a[0][1];
+      a[0][1] = temp;
+   }
+   mult3x3MatrixLocal(c, a, b, index);
+   if (index < 9) {
+      localMaps[currentMap].globalCovar[y][x] = b[y][x];
+   }
+
+      /*int x = index % 3;
       int y = index / 3;
       if (index == 0) {
          localMaps[currentMap].mapCentre.x = (common->minMapRange.x + common->maxMapRange.x) / 2;
@@ -577,11 +832,11 @@ __kernel void prepareLocalMap(constant slamConfig *config, global slamLocalMap *
          covarFiddle(localMaps[currentMap].globalCovar, index, config->MaxCovar, &max);
       }
 
-      /*if (index < 3) {
-         localMaps[currentMap].parentInfo[index][0] /= common->infoCount;
-         localMaps[currentMap].parentInfo[index][1] /= common->infoCount;
-         localMaps[currentMap].parentInfo[index][2] /= common->infoCount;
-      }*/
+      //if (index < 3) {
+      //   localMaps[currentMap].parentInfo[index][0] /= common->infoCount;
+      //   localMaps[currentMap].parentInfo[index][1] /= common->infoCount;
+      //   localMaps[currentMap].parentInfo[index][2] /= common->infoCount;
+      //}
 
       if (index < 3) {
          out[index] = localMaps[currentMap].globalCovar[0][index];
@@ -605,9 +860,8 @@ __kernel void prepareLocalMap(constant slamConfig *config, global slamLocalMap *
          }
          out[28] = common->infoCount;
          //out[29] = det;
-         /*out[10] = localMaps[currentMap].mapCentre.x;
-         out[11] = localMaps[currentMap].mapCentre.y;*/
-      }
+      }*/
+   if (currentMap > 0) {
       if (index == 0) {
          common->infoCount = 0;
 
@@ -760,10 +1014,15 @@ __kernel void findPotentialMatches(constant slamConfig *config, global slamLocal
    }
    int parentIndex = -1;
 
+   if (localMaps[currentLocalMap].isFeatureless > 0) {
+      return;
+   }
+
    //globalWarp is the index of the localMap that are examining
    //warpIndex is the index in the warp
    if (globalWarp < numLocalMaps && globalWarp != currentLocalMap &&
-         globalWarp != localMaps[currentLocalMap].indexParentNode) {
+         globalWarp != localMaps[currentLocalMap].indexParentNode &&
+         localMaps[globalWarp].isFeatureless == 0) {
       //Calculate the total covar from currentlocalmap to the local map given by
       //globalWarp. Adds covar contributions of two localmaps at once
       int y = warpIndex / 3;
@@ -799,11 +1058,11 @@ __kernel void findPotentialMatches(constant slamConfig *config, global slamLocal
       }
       //Now have calculated the total covar. Need to now see if a potential match, and 
       //if so, perform a histogram correlation
-      float2 mapCurPos = convertToGlobalCoord(localMaps[currentLocalMap].mapCentre.x, 
-                        localMaps[currentLocalMap].mapCentre.y, 
+      float2 mapCurPos = convertToGlobalCoord(localMaps[currentLocalMap].robotMapCentre.x, 
+                        localMaps[currentLocalMap].robotMapCentre.y, 
                         localMaps[currentLocalMap].currentGlobalPos);
-      float2 mapOtherPos = convertToGlobalCoord(localMaps[globalWarp].mapCentre.x, 
-                        localMaps[globalWarp].mapCentre.y, 
+      float2 mapOtherPos = convertToGlobalCoord(localMaps[globalWarp].robotMapCentre.x, 
+                        localMaps[globalWarp].robotMapCentre.y, 
                         localMaps[globalWarp].currentGlobalPos);
       /*float2 mapCurPos = (float2) (localMaps[currentLocalMap].currentGlobalPos.x + 
                         localMaps[currentLocalMap].mapCentre.x,
@@ -813,8 +1072,8 @@ __kernel void findPotentialMatches(constant slamConfig *config, global slamLocal
                         localMaps[globalWarp].mapCentre.x,
                         localMaps[globalWarp].currentGlobalPos.y +
                         localMaps[globalWarp].mapCentre.y);*/
-      if (fabs(mapCurPos.x - mapOtherPos.x) < totalCovar[warpNum][0][0] &&
-            fabs(mapCurPos.y - mapOtherPos.y) < totalCovar[warpNum][1][1]) {
+      if (fabs(mapCurPos.x - mapOtherPos.x) < totalCovar[warpNum][0][0] + config->LocalMapDist &&
+            fabs(mapCurPos.y - mapOtherPos.y) < totalCovar[warpNum][1][1] + config->LocalMapDist) {
          //In the right area for a match, so do histogram correlation
          int i, j;
          int offset = NUM_ORIENTATION_BINS * warpNum;
@@ -955,7 +1214,7 @@ __kernel void alignICP(constant slamConfig *config, global slamLocalMap *localMa
                       common->potentialMatchY[matchIndex], 0, common->potentialMatchTheta[matchIndex]);
       int searchFactor = 1;
       if (common->numIterations < 2) {
-         searchFactor = 3;
+         searchFactor = 4;
       } else if (common->numIterations < 4) {
          searchFactor = 2;
       }
@@ -1116,7 +1375,8 @@ __kernel void alignICP(constant slamConfig *config, global slamLocalMap *localMa
 }
 
 __kernel void calculateICPMatrix(constant slamConfig *config, global slamLocalMap *localMaps,
-      global slamCommon *common, const int currentMap, const int matchIndex, global float *out) {
+      global slamCommon *common, const int currentMap, const int matchIndex, const int fullLoop,
+      global float *out) {
 
    int index = get_global_id(0);
 
@@ -1164,6 +1424,10 @@ __kernel void calculateICPMatrix(constant slamConfig *config, global slamLocalMa
          } else if (common->numIterations >= config->MaxIterations) {
             common->matchSuccess = -1;
             finished = 1;
+         } else if (fullLoop == 0 && fabs(shift[0]) <= MaxErrorDisp &&
+                   fabs(shift[1]) <= MaxErrorDisp && fabs(shift[2]) <= MaxErrorTheta) {
+            common->matchSuccess = 1;
+            finished = 1;
          }
       } else {
          //Match failed
@@ -1172,7 +1436,7 @@ __kernel void calculateICPMatrix(constant slamConfig *config, global slamLocalMa
       }
       if (finished) {
          common->numIterations = 0;
-         if (common->combineIndex < 0 && common->matchSuccess > 0 && config->MaxThetaOptimise > 0) {
+         /*if (common->combineIndex < 0 && common->matchSuccess > 0 && config->MaxThetaOptimise > 0) {
             float thetaChange = common->potentialMatchTheta[matchIndex];
             float thetaOld = localMaps[common->potentialMatches[matchIndex]].currentGlobalPos.w;
             float thetaNew = localMaps[currentMap].currentGlobalPos.w;
@@ -1185,41 +1449,12 @@ __kernel void calculateICPMatrix(constant slamConfig *config, global slamLocalMa
             out[2] = thetaOld;
             out[3] = config->MaxThetaOptimise;
 
-         }
+         }*/
          if (common->combineIndex < 0 && common->matchSuccess > 0) {
-            //If successful match, add match information to data structures
-            //Don't need atomic operations as only one thread
-            int mIndex = common->numConstraints;
-            common->numConstraints++;
-            int loopIndex = common->numLoopConstraints;
-            common->numLoopConstraints++;
-            common->constraintType[mIndex] = 1;
-            common->constraintIndex[mIndex] = loopIndex;
-            common->loopConstraintI[loopIndex] = common->potentialMatches[matchIndex];
-            common->loopConstraintJ[loopIndex] = currentMap;
-            common->loopConstraintParent[loopIndex] = common->potentialMatchParent[matchIndex];
-            common->loopConstraintInfo[loopIndex][0][0] = 0;
-            common->loopConstraintInfo[loopIndex][0][1] = 0;
-            common->loopConstraintInfo[loopIndex][0][2] = 0;
-            common->loopConstraintInfo[loopIndex][1][0] = 0;
-            common->loopConstraintInfo[loopIndex][1][1] = 0;
-            common->loopConstraintInfo[loopIndex][1][2] = 0;
-            common->loopConstraintInfo[loopIndex][2][0] = 0;
-            common->loopConstraintInfo[loopIndex][2][1] = 0;
-            common->loopConstraintInfo[loopIndex][2][2] = 0;
-            common->loopConstraintThetaDisp[loopIndex] = - common->potentialMatchTheta[matchIndex];
-            float cosTh = cos(-common->potentialMatchTheta[matchIndex]);
-            float sinTh = sin(-common->potentialMatchTheta[matchIndex]);
-            common->loopConstraintXDisp[loopIndex] = (cosTh * -common->potentialMatchX[matchIndex] -
-                                                     sinTh * -common->potentialMatchY[matchIndex]);
-            common->loopConstraintYDisp[loopIndex] = (sinTh * -common->potentialMatchX[matchIndex] +
-                                                     cosTh * -common->potentialMatchY[matchIndex]);
-            ANGNORM(common->loopConstraintThetaDisp[loopIndex]);
-            //common->loopConstraintXDisp[loopIndex] = - common->potentialMatchX[matchIndex];
-            //common->loopConstraintYDisp[loopIndex] = - common->potentialMatchY[matchIndex];
-            if(config->LocalMapCombine) {
-               common->combineIndex = common->potentialMatches[matchIndex];
-            }
+            //If successful match, will need to run evalute map match kernel so stop now
+            common->evaluateOverlap = 0;
+            common->evaluateScore = 0;
+
          } else if (common->combineIndex >= 0 && common->matchSuccess < 0) {
             int cIndex = common->numConstraints;
             common->numConstraints++;
@@ -1240,6 +1475,105 @@ __kernel void calculateICPMatrix(constant slamConfig *config, global slamLocalMa
       common->A[index][1] = 0;
       common->A[index][2] = 0;
       common->B[index] = 0;
+   }
+}
+
+__kernel void addLoopClosure(constant slamConfig *config, globalslamCommon *common,
+      const int currentMap, const int matchIndex, const int fullLoop, const float previousScore) {
+
+   int index = get_global_index(0);
+
+   if (index == 0) {
+
+      float mapMatchScore = common->evaluateScore / (float) common->evaluateOverlap;
+      
+      float constraintTh = -common->potentialMatchTh[matchIndex];
+      float angleDiff = localMaps[currentMap].currentGlobalPos.w - 
+         (localMaps[common->potentialMatches[matchIndex]].currentGlobalPos.w + constraintTh);
+      ANGNORM(angleDiff);
+      int stopMatch = 0;
+      if (config->PreventMatchesSymmetrical && 
+            (angleDiff < -3.0 * M_PI / 4.0 || angleDiff > 3.0 * M_PI / 4.0)) {
+         stopMatch = 1;
+      }
+
+      if (((fullLoop == 1 && score < config->FreeAreaThreshold) || 
+            (fullLoop == 0 && score < previousScore && score < config->FreeAreaThreshold 
+            && score != -1)) && stopMatch == 0) {
+         //If successful match, add match information to data structures
+         //Don't need atomic operations as only one thread
+         int mIndex = common->numConstraints;
+         common->numConstraints++;
+         int loopIndex = common->numLoopConstraints;
+         common->numLoopConstraints++;
+         common->constraintType[mIndex] = 1;
+         common->constraintIndex[mIndex] = loopIndex;
+         common->loopConstraintI[loopIndex] = common->potentialMatches[matchIndex];
+         common->loopConstraintJ[loopIndex] = currentMap;
+         if (fullLoop == 1) {
+            common->loopConstraintParent[loopIndex] = common->potentialMatchParent[matchIndex];
+            common->loopConstraintFull[loopIndex] = 1;
+            common->loopConstraintWeight[loopIndex] = 1;
+         } else {
+            int minLevel = min(localMaps[currentMap].treeLevel, 
+                  localMaps[common->potentialMatches[matchIndex]].treeLevel);
+
+            int mapIndex = currentMap;
+            while (localMaps[mapIndex].treeLevel > minLevel) {
+               mapIndex = localMaps[mapIndex].indexParentNode;
+            }
+            int mapIndexGlobal = common->potentialMatches[matchIndex];
+            while (localMaps[mapIndexGlobal].treeLevel > minLevel) {
+               mapIndexGlobal = localMaps[mapIndexGlobal].indexParentNode;
+            }
+            while (mapIndex != mapIndexGlobal) {
+               mapIndex = localMaps[mapIndex].indexParentNode;
+               mapIndexGlobal = localMaps[mapIndexGlobal].indexParentNode;
+            }
+            common->loopConstraintParent[loopIndex] = mapIndex;
+            common->loopConstraintFull[loopIndex] = 0;
+            //common->loopConstraintWeight[loopIndex] = common->evaluateOverlap / 
+            //     (float) localMaps[common->potentialMatches[matchIndex]].numPoints;
+            common->loopConstraintWeight[loopIndex] = 1;
+         }
+
+         common->loopConstraintInfo[loopIndex][0][0] = 0;
+         common->loopConstraintInfo[loopIndex][0][1] = 0;
+         common->loopConstraintInfo[loopIndex][0][2] = 0;
+         common->loopConstraintInfo[loopIndex][1][0] = 0;
+         common->loopConstraintInfo[loopIndex][1][1] = 0;
+         common->loopConstraintInfo[loopIndex][1][2] = 0;
+         common->loopConstraintInfo[loopIndex][2][0] = 0;
+         common->loopConstraintInfo[loopIndex][2][1] = 0;
+         common->loopConstraintInfo[loopIndex][2][2] = 0;
+
+         common->loopConstraintThetaDisp[loopIndex] = - common->potentialMatchTheta[matchIndex];
+         float cosTh = cos(-common->potentialMatchTheta[matchIndex]);
+         float sinTh = sin(-common->potentialMatchTheta[matchIndex]);
+         common->loopConstraintXDisp[loopIndex] = (cosTh * -common->potentialMatchX[matchIndex] -
+                                                  sinTh * -common->potentialMatchY[matchIndex]);
+         common->loopConstraintYDisp[loopIndex] = (sinTh * -common->potentialMatchX[matchIndex] +
+                                                  cosTh * -common->potentialMatchY[matchIndex]);
+         ANGNORM(common->loopConstraintThetaDisp[loopIndex]);
+         //common->loopConstraintXDisp[loopIndex] = - common->potentialMatchX[matchIndex];
+         //common->loopConstraintYDisp[loopIndex] = - common->potentialMatchY[matchIndex];
+
+         if (fullLoop == 1) {
+            common->currentOffset.w += common->loopConstraintThetaDisp[loopIndex];
+            double tempX = common->currentOffset.x - common->potentialMatchX[matchIndex]; 
+            double tempY = common->currentOffset.y - common->potentialMatchY[matchIndex];
+            common->currentOffset.x = cosTh * tempX - sinTh * tempY;
+            common->currentOffset.y = sinTh * tempX + cosTh * tempY;
+
+            common->previousINode = common->loopConstraintI[loopIndex];
+         }
+
+         if(config->LocalMapCombine) {
+            common->combineIndex = common->potentialMatches[matchIndex];
+         }
+      } else {
+         common->matchSuccess = -1;
+      }
    }
 }
 
@@ -1273,16 +1607,17 @@ __kernel void finaliseInformationMatrix(constant slamConfig *config, global slam
       a[2][0] = 0;
       a[2][1] = 0;
 
-      if (common->infoCount < config->InformationScaleFactor) {
+      /*if (common->infoCount < config->InformationScaleFactor) {
          common->infoCount = config->InformationScaleFactor;
-      }
+      }*/
    }
    if (index < 9) {
  
       //Adjust the parent info matrix to be relative to the parent instead
       //of relative to the current node
-      b[y][x] = common->loopConstraintInfo[cIndex][y][x] /= 
-                        ((float)common->infoCount / (float)config->InformationScaleFactor);
+      //b[y][x] = common->loopConstraintInfo[cIndex][y][x] /= 
+      //                  ((float)common->infoCount / (float)config->InformationScaleFactor);
+      b[y][x] = common->loopConstraintInfo[cIndex][y][x];
       mult3x3MatrixLocal(a, b, c, index);
       if (index == 0) {
          a[1][0] *= -1;
@@ -1297,6 +1632,69 @@ __kernel void finaliseInformationMatrix(constant slamConfig *config, global slam
       out[9] = common->infoCount;
       common->infoCount = 0;
    }
+}
+
+/*
+ * Evaluates the amount of matching overlap between maps
+ *
+ * mode is -1 if used to see if a temp constraint should be investigated, >= 0 if 
+ * used to evaluate how good an icp alignment between maps is, where the value
+ * is the index of the match in the potential matches array 
+ */ 
+__kernel void evaluateMapMatch(constant slamConfig *config, global slamLocalMap *localMaps,
+      global slamCommon *common, global float *freeAreas, 
+      const int curMap, const int testMap, const int mode) {
+   int index = get_global_id(0);
+   int localIndex = get_local_id(0);
+   int warpIndex = localIndex % WARP_SIZE;
+
+   local int numOverlap[WARP_SIZE];
+   local float score[WARP_SIZE];
+
+   if (localIndex < WARP_SIZE) {
+      numOverlap[localIndex] = 0;
+      score[localIndex] = 0;
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+
+   if (index < localMaps[testMap].numPoints) {
+      float offX, offY, offTh;
+      if (mode == -1) {
+         ocl_float4 gOff = localMaps[curMap].currentGlobalPos - localMaps[testMap].currentGlobalPos;
+         float cosTh = cos(-localMaps[testMap].currentGlobalPos.w);
+         float sinTh = sin(-localMaps[testMap].currentGlobalPos.w);
+         offTh = gOff.w;
+         offX = cosTh * gOff.x - sinTh * gOff.y;
+         offY = sinTh * gOff.x + cosTh * gOff.y;
+         if (index == 0) {
+            float cosM = cos(-offTh);
+            float sinM = sin(-offTh);
+            common->potentialMatches[0] = testMap;
+            common->potentialMatchTheta[0] = -offTh;
+            common->potentialMatchX[0] = cosM * -offX - sinM * -offY;
+            common->potentialMatchY[0] = sinM * -offX + cosM * -offY;
+         }
+      } else {
+         offTh = -common->potentialMatchTheta[mode];
+         float cosTh = cosTh(-common->potentialMatchTheta[mode]);
+         float sinTh = sinTh(-common->potentialMatchTheta[mode]);
+         offX = cosTh * -common->potentialMatchX[mode] - sinTh * -common->potentialMatchY[mode];
+         offY = sinTh * -common->potentialMatchX[mode] + cosTh * -common->potentialMatchY[mode];
+      }
+      ANGNORM(offTh);
+      float2 p = (float2) (localMaps[test].pointsX[index], localMaps[test].pointsY[index]);
+      float4 off = (float4) (offX, offY, 0, offTh);
+      float2 res = convertReferenceFrame(p, off);
+      int index = getLocalOGIndex(config, res.x, res.y);
+      int freeAreasOffset = curMap * config->DimLocalOG * config->DimLocalOG;
+      if (index >= 0 && freeAreas[freeAreasOffset + index] >= 0) {
+         atomicFloatAddLocal(&(score[warpIndex]), freeAreas[freeAreasOffset + index]);
+         atomic_inc(&(numOverlap[warpIndex]));
+      }
+   } 
+   barrier(CLK_LOCAL_MEM_FENCE);
+   parallelReduceFloat(score, localIndex, &(common->evaluateScore));
+   parallelReduceInt(numOverlap, localIndex, &(common->evaluateOverlap));
 }
 
 /*
@@ -1991,9 +2389,11 @@ __kernel void updateGlobalMap(constant slamConfig *config, global slamLocalMap *
       }
       if (warpIndex == 0) {
          //Write new global map positions to array for the snaps
-         globalMapPositions[i*3] = localMaps[i].currentGlobalPos.x;
-         globalMapPositions[i*3 + 1] = localMaps[i].currentGlobalPos.y;
-         globalMapPositions[i*3 + 2] = localMaps[i].currentGlobalPos.w;
+         globalMapPositions[i*5] = localMaps[i].currentGlobalPos.x;
+         globalMapPositions[i*5 + 1] = localMaps[i].currentGlobalPos.y;
+         globalMapPositions[i*5 + 2] = localMaps[i].currentGlobalPos.w;
+         globalMapPositions[i*5 + 3] = localMaps[i].globalRobotmapCentre.x;
+         globalMapPositions[i*5 + 4] = localMaps[i].globalRobotmapCentre.y;
       }
    }
 
@@ -2015,7 +2415,7 @@ __kernel void updateGlobalMap(constant slamConfig *config, global slamLocalMap *
  *
  */
 __kernel void createNewLocalMap(constant slamConfig *config, global slamLocalMap *localMaps,
-      global slamCommon *common, const int oldLocalMap, const int newLocalMap,
+      global slamCommon *common, global float *freeAreas, const int oldLocalMap, const int newLocalMap,
       const int parentLocalMap, const ocl_float4 parentOffset, const float angleError, const int numOldPoints) {
    int index = get_global_id(0);
    int globalSize = get_global_size(0);
@@ -2026,9 +2426,15 @@ __kernel void createNewLocalMap(constant slamConfig *config, global slamLocalMap
       common->localOG[ogIndex] = -1;
    }
    int i,j;
+   int offset = SIZE_LOCAL_OG * newLocalMap;
    for (i = index; i < SIZE_LOCAL_OG; i += globalSize) {
       common->localOGZ[i] = 0;
-      common->localOGCount[i] = 0;   
+      common->localOGCount[i] = 0;
+      common->localOGX[i] = 0;   
+      common->localOGY[i] = 0;   
+      common->localOGGradX[i] = 0;   
+      common->localOGGradY[i] = 0;
+      freeAreas[offset + i] = -1;   
    }
 
    for(i = index; i < NUM_ORIENTATION_BINS; i += globalSize) {
@@ -2042,6 +2448,9 @@ __kernel void createNewLocalMap(constant slamConfig *config, global slamLocalMap
       localMaps[newLocalMap].parentInfo[index][0] = 0;
       localMaps[newLocalMap].parentInfo[index][1] = 0;
       localMaps[newLocalMap].parentInfo[index][2] = 0;
+      localMaps[newLocalMap].internalCovar[index][0] = 0;
+      localMaps[newLocalMap].internalCovar[index][1] = 0;
+      localMaps[newLocalMap].internalCovar[index][2] = 0;
    }
    if (index == 0) {
       //Set the map centre for the old local map. This is normally done in the prepare
@@ -2056,6 +2465,7 @@ __kernel void createNewLocalMap(constant slamConfig *config, global slamLocalMap
       common->currentOffset.y = 0;
       common->currentOffset.w = 0;
       localMaps[newLocalMap].numPoints = 0;
+      localMaps[newLocalMap].isFeatureless = 0;
       localMaps[newLocalMap].indexParentNode = parentLocalMap;
       localMaps[newLocalMap].parentOffset = parentOffset;
       localMaps[newLocalMap].treeLevel = localMaps[parentLocalMap].treeLevel + 1;

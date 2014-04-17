@@ -31,16 +31,10 @@ typedef struct {
    ocl_float pointX[NUM_LASER_POINTS];
    ocl_float pointY[NUM_LASER_POINTS];
    ocl_float pointZ[NUM_LASER_POINTS];
-   ocl_float pointNextX[NUM_LASER_POINTS];
-   ocl_float pointNextY[NUM_LASER_POINTS];
-   ocl_float pointNextZ[NUM_LASER_POINTS];
 #else
    ocl_float *pointX;
    ocl_float *pointY;
    ocl_float *pointZ;
-   ocl_float *pointNextX;
-   ocl_float *pointNextY;
-   ocl_float *pointNextZ;
 #endif
 } oclLaserPoints;
 
@@ -92,6 +86,13 @@ typedef struct {
    //Minimum number of times a point has to be observed before being
    //added to the map
    ocl_int MinObservationCount;
+//new slam configs
+   ocl_float PerScanInfoScaleFactor;
+   ocl_float GradientDistanceThreshold;
+   ocl_float FreeAreaDistanceThreshold;
+   ocl_float LocalMapCovarianceThreshold;
+   ocl_float FreeAreaThreshold;
+   ocl_int PreventMatchSymmetrical;
 } slamConfig;
 
 /*
@@ -109,9 +110,13 @@ typedef struct {
    //The number of laser points in the local map
    //NOTE THIS IS READ DIRECTLY IN CPU CODE
    ocl_int numPoints;
+   ocl_int isFeatureless;
    ocl_int indexParentNode;
    //The level of the node in the tree
    ocl_int treeLevel;
+//new bit
+   ocl_float internalCovar[3][3];
+
    ocl_float parentInfo[3][3];
 
    //The change in position during an optimisation run
@@ -123,6 +128,7 @@ typedef struct {
    //The centre coord of the local map. Relative to the local map
    ocl_float2 mapCentre;
    ocl_float2 robotMapCentre;
+   ocl_float2 globalRobotMapCentre;
    ocl_float orientationHist[NUM_ORIENTATION_BINS];
    ocl_float projectionHist[NUM_ORIENTATION_BINS][NUM_PROJECTION_BINS];
    ocl_float entropyHist[NUM_ORIENTATION_BINS];
@@ -130,6 +136,8 @@ typedef struct {
    ocl_float pointsX[MAX_LOCAL_POINTS];
    ocl_float pointsY[MAX_LOCAL_POINTS];
    ocl_float pointsZ[MAX_LOCAL_POINTS];
+   ocl_float gradX[MAX_LOCAL_POINTS];
+   ocl_float gradY[MAX_LOCAL_POINTS];
 } slamLocalMap;
 
 /*
@@ -161,6 +169,14 @@ typedef struct {
    ocl_float potentialMatchY[MAX_POTENTIAL_MATCHES];
    ocl_float potentialMatchTheta[MAX_POTENTIAL_MATCHES];
    ocl_int potentialMatchParent[MAX_POTENTIAL_MATCHES];
+//newbies read in by cpu code
+   ocl_int covarCount;
+   ocl_int evaluateOverlap;
+   ocl_float evaluateScore;
+   ocl_float tempCovar[3][3];
+   ocl_int activeCells[MAX_LOCAL_POINTS];
+   ocl_int previousINode;
+//end newbies
    //Variables used for the ICP alignment
    ocl_int numIterations;
    ocl_float A[3][3];
@@ -177,8 +193,15 @@ typedef struct {
    ocl_int localOG[SIZE_LOCAL_OG];
    ocl_int localOGCount[SIZE_LOCAL_OG];
    ocl_float localOGZ[SIZE_LOCAL_OG];
-   ocl_float pointsNxtX[MAX_LOCAL_POINTS];
-   ocl_float pointsNxtY[MAX_LOCAL_POINTS];
+//start newbies - first two just renamed, third one is new
+   ocl_float localOGX[SIZE_LOCAL_OG];
+   ocl_float localOGY[SIZE_LOCAL_OG];
+   ocl_float localOGGradX[SIZE_LOCAL_OG];
+   ocl_float localOGGradY[SIZE_LOCAL_OG];   
+   ocl_float pointsTempX[NUM_LASER_POINTS];
+   ocl_float pointsTempY[NUM_LASER_POINTS];
+   ocl_float pointsTempZ[NUM_LASER_POINTS];
+//end newbies
    //0 if parent constraint, 1 if loop constraint
    ocl_int constraintType[MAX_NUM_CONSTRAINTS];
    ocl_int constraintIndex[MAX_NUM_CONSTRAINTS];
@@ -188,6 +211,8 @@ typedef struct {
    ocl_float loopConstraintXDisp[MAX_NUM_LOOP_CONSTRAINTS];
    ocl_float loopConstraintYDisp[MAX_NUM_LOOP_CONSTRAINTS];
    ocl_float loopConstraintThetaDisp[MAX_NUM_LOOP_CONSTRAINTS];
+   ocl_float loopConstraintWeight[MAX_NUM_LOOP_CONSTRAINTS];
+   ocl_int loopConstraintFull[MAX_NUM_LOOP_CONSTRAINTS];
    ocl_float loopConstraintInfo[MAX_NUM_LOOP_CONSTRAINTS][3][3];
    //Will never have more nodes that number of constraints + 1
    ocl_float graphHessian[MAX_NUM_CONSTRAINTS + 1][3];
@@ -195,8 +220,13 @@ typedef struct {
    ocl_int *localOG;
    ocl_int *localOGCount;
    ocl_float *localOGZ;
-   ocl_float *pointsNxtX;
-   ocl_float *pointsNxtY;
+   ocl_float *localOGX;
+   ocl_float *localOGY;
+   ocl_float *localOGGradX;
+   ocl_float *localOGGradY;
+   ocl_float *pointsTempX;
+   ocl_float *pointsTempY;
+   ocl_float *pointsTempZ;
    ocl_int *constraintType;
    ocl_int *constraintIndex;
    ocl_int *loopConstraintParent;
@@ -205,6 +235,8 @@ typedef struct {
    ocl_float *loopConstraintXDisp;
    ocl_float *loopConstraintYDisp;
    ocl_float *loopConstraintThetaDisp;
+   ocl_float *loopConstraintWeight;
+   ocl_int *loopConstraintFull;
    ocl_float *loopConstraintInfo[3][3];
    ocl_float *graphHessian[3];
 #endif

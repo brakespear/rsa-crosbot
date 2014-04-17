@@ -59,6 +59,9 @@ private:
    //Storage for global positions of each map for snaps
    cl_mem clGlobalMapPositions;
    ocl_float *globalMapPositions;
+   //Storage for free areas of the local maps
+   //Note freeAreas stores (1 - prob) instead of prob
+   cl_mem clFreeAreas;
 
    //debugging output
    cl_mem clRes;
@@ -96,6 +99,16 @@ private:
    int *numLocalMapPoints;
    //The most laser points in a single local map
    int maxNumLocalPoints;
+   //is it the first scan in the local map
+   int firstScan;
+   //the number of laser scans added to the current local map
+   int numScans;
+   //is each local map featureless? 
+   vector<bool> isMapFeatureless;
+   //The index of the parent node of each local map
+   vector<int> indexParentNode;
+   //Index of the last full loop closure
+   int lastFullLoopIndex;
 
 
    //debugging for timings
@@ -108,6 +121,10 @@ private:
 
    //Performs loop closing tests and sets up a new local map if needed
    void finishMap(double angleError, double icpTh, Pose icpPose);
+   //Finds partial loop closures
+   bool findTempMatches();
+   //Actually perform the partial loop closure between two maps
+   bool performTempMatch(int currentMap, int testMap);
    //Initialise points struct for opencl
    void initialisePoints();
    //Initialise the structures used for slam
