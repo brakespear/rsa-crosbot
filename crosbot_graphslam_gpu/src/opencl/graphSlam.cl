@@ -1697,6 +1697,33 @@ __kernel void evaluateMapMatch(constant slamConfig *config, global slamLocalMap 
    parallelReduceInt(numOverlap, localIndex, &(common->evaluateOverlap));
 }
 
+__kernel void evaluateTempConstraints(const slamConfig *config, global slamLocalMap *localMaps,
+      global slamCommon *common) {
+   int index = get_global_id(0);
+
+   if (index < common->numLoopConstraints) {
+      if (common->loopConstraintFull[index] == 0) {
+         int iNode = common->loopConstraintI[index];
+         int jNode = common->loopConstraintJ[index];
+         float cosTh = cos(localMaps[iNode].currentGlobalPos.w);
+         float sinTh = sin(localmaps[iNode].currentGlobalPos.w);
+
+         float tempX = cosTh * common->loopConstraintXDisp[index] - 
+            sinTh  * common->loopConstraintYDisp[index] + localMaps[iNode].currentGlobalPos.x;
+         float tempY = sinTh * common->loopConstraintXDisp[index] + 
+            cosTh  * common->loopConstraintYDisp[index] + localMaps[iNode].currentGlobalPos.y;
+         float tempTh = common->loopConstraintThetaDisp[index] + localMaps[iNode].currentGlobalPos.w;
+         ANGNORM(tempTh);
+
+         if (fabs(tempX - localMaps[jNode].currentGlobalPos.x) > config->TempConstraintMovementXY ||
+            fabs(tempY - localMaps[jNode].currentGlobalPos.y) > config->TempConstraintMovementXY ||
+            fabs(tempTh - localMaps[jNode].currentGlobalPos.w) > config->TempConstraintMovementTh) {
+            common->loopConstraintWeight[i] = 0;
+         }
+      }
+   }
+}
+
 /*
  * Calculate the global Hessian matrix for the optimisation step
  */
@@ -1716,6 +1743,7 @@ __kernel void getGlobalHessianMatrix(constant slamConfig *config, global slamLoc
       localMaps[index].changeInPos[0] = 0;
       localMaps[index].changeInPos[1] = 0;
       localMaps[index].changeInPos[2] = 0;
+      localMaps[index].numConstraints = 0;
    }
 
    local float a[LOCAL_SIZE / WARP_SIZE][3][3];
@@ -1731,6 +1759,10 @@ __kernel void getGlobalHessianMatrix(constant slamConfig *config, global slamLoc
       int iNode;
       int jNode;
       int parentIndex;
+
+      if (constraintType == 1) {
+         return;
+      }
       
       if (constraintType == 1) {
          iNode = common->loopConstraintI[constraintIndex];
@@ -1782,13 +1814,17 @@ __kernel void getGlobalHessianMatrix(constant slamConfig *config, global slamLoc
       }*/
 
       if (warpIndex < 3) {
-         while (iNode != parentIndex) {
-            iNode = localMaps[iNode].indexParentNode;
-            atomicFloatAdd(&(common->graphHessian[iNode][warpIndex]), b[warpNum][warpIndex][warpIndex]);
+         int tempNode = iNode;
+         while (tempNode != parentIndex) {
+            tempNode = localMaps[tempNode].indexParentNode;
+            atomicFloatAdd(&(common->graphHessian[tempNode][warpIndex]), 
+                  b[warpNum][warpIndex][warpIndex]);
          }
-         while (jNode != iNode) {
-            atomicFloatAdd(&(common->graphHessian[jNode][warpIndex]), b[warpNum][warpIndex][warpIndex]);
-            jNode = localMaps[jNode].indexParentNode;
+         tempNode = jNode;
+         while (tempNode != parentIndex) {
+            atomicFloatAdd(&(common->graphHessian[tempNode][warpIndex]), 
+                  b[warpNum][warpIndex][warpIndex]);
+            tempNode = localMaps[tempNode].indexParentNode;
          }
          atomicFloatMin(&(common->scaleFactor[warpIndex]), b[warpNum][warpIndex][warpIndex]);
       }
@@ -1808,7 +1844,8 @@ float getGlobalPosIndex(float4 v, int index) {
 }
 
 __kernel void calculateOptimisationChange(constant slamConfig *config, global slamLocalMap *localMaps,
-      global slamCommon *common, const int numIterations, const int numMaps, global float *out) {
+      global slamCommon *common, const int numIterations, const int numMaps, const int type,
+      const int lastFullLoopIndex, global float *out) {
    int index = get_global_id(0);
    int localIndex = get_local_id(0);
    int warpNum = localIndex / WARP_SIZE;
@@ -1823,7 +1860,12 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
 
    local float constraint[LOCAL_SIZE / WARP_SIZE][3];
    local float residual[LOCAL_SIZE / WARP_SIZE][3];
-   if (globalWarp < common->numConstraints) {
+
+   int startIndex = 0;
+   if (type == -1) {
+      startIndex = lastFullLoopIndex + 1;
+   }
+   if (globalWarp < common->numConstraints && globalWarp >= startIndex) {
 //if (common->constraintType[globalWarp] != 1 || globalWarp >= common->numConstraints - 2) {
       int x = warpIndex % 3;
       int y = warpIndex / 3;
@@ -1833,8 +1875,16 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
       int iNode;
       int jNode;
       int parentIndex;
+      float weight = 0;
+
+      if (cosntraintType != 1) {
+         return;
+      }
       
       if (constraintType == 1) {
+         if (type == 1 && common->loopConstraintFull[loopIndex] == 0) {
+            return;
+         }
          iNode = common->loopConstraintI[constraintIndex];
          parentIndex = common->loopConstraintParent[constraintIndex];
          jNode = common->loopConstraintJ[constraintIndex];
@@ -1845,6 +1895,10 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
             constraint[warpNum][0] = common->loopConstraintXDisp[constraintIndex];
             constraint[warpNum][1] = common->loopConstraintYDisp[constraintIndex];
             constraint[warpNum][2] = common->loopConstraintThetaDisp[constraintIndex];
+         }
+         weight = common->loopConstraintWeight[constraintIndex];
+         if (weight == 0) {
+            return;
          }
       } else {
          iNode = localMaps[constraintIndex].indexParentNode;
@@ -1858,9 +1912,15 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
             constraint[warpNum][1] = localMaps[constraintIndex].parentOffset.y;
             constraint[warpNum][2] = localMaps[constraintIndex].parentOffset.w;
          }
+         weight = 1;
+         
       }
       int pathLength = (localMaps[iNode].treeLevel - localMaps[parentIndex].treeLevel) +
                        (localMaps[jNode].treeLevel - localMaps[parentIndex].treeLevel);
+
+      if (type == -1) {
+         pathLength = localMaps[jNode].treeLevel - localMaps[common->previousINode].treeLevel;
+      }
 
       //Calculate the rotated information matrix for the constraint 
       //answer is in b - available to all nodes in the warp
@@ -1893,14 +1953,22 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
          residual[warpNum][warpIndex] = 0;
          while (tempNode != parentIndex) {
             tempPos = getGlobalPosIndex(localMaps[tempNode].currentGlobalPos, warpIndex);
+            if (type != -1) {
+               dm += 1 / common->graphHessian[tempNode][warpIndex];
+            }
             tempNode = localMaps[tempNode].indexParentNode;
-            dm += 1 / common->graphHessian[tempNode][warpIndex];
             residual[warpNum][warpIndex] += getGlobalPosIndex(
                   localMaps[tempNode].currentGlobalPos, warpIndex) - tempPos;
          }
          tempNode = jNode;
+         int reachedEnd = 0;
          while (tempNode != parentIndex) {
-            dm += 1 / common->graphHessian[tempNode][warpIndex];
+            if (type == -1 && tempNode == common->previousINode) {
+               reachedEnd = 1;
+            }
+            if (reachedEnd == 0) {
+               dm += 1 / common->graphHessian[tempNode][warpIndex];
+            }
             tempPos = getGlobalPosIndex(localMaps[tempNode].currentGlobalPos, warpIndex);
             tempNode = localMaps[tempNode].indexParentNode;
             residual[warpNum][warpIndex] += tempPos - 
@@ -1919,6 +1987,14 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
          residual[warpNum][warpIndex] *= -1;
          dm = 1/dm;
 
+      }
+
+      if (common->PreventMatchesSymmetrical == 1 && (residual[2] > 3.0f * M_PI / 4.0f ||
+               residual[2] < - 3.0f * M_PI / 4.0f)) {
+         if (warpIndex == 0) {
+            common->loopConstraintWeight[constraintIndex] = 0;
+         }
+         return;
       }
 
       mult3x3MatrixLocal(a[warpNum], b[warpNum], c[warpNum], warpIndex);
@@ -1969,7 +2045,8 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
          //commonValue = b[warpNum][warpIndex][warpIndex] * residual[warpNum][warpIndex];
          //scaleFactor = 1 / ((float) numIterations * common->scaleFactor[warpIndex]);
          //if (numIterations == 1) {
-         scaleFactor = 1 / ((float) numIterations * common->scaleFactor[warpIndex] * (float) numMaps);
+         scaleFactor = 1 / ((float) numIterations * common->scaleFactor[warpIndex]
+              /* * (float) numMaps*/);
          /*if (warpIndex < 2) {
             scaleFactor *= 1.3f;
          } else  {
@@ -1997,14 +2074,18 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
             adjust *= -1;
          }*/
          tempNode = iNode;
-         while (tempNode != parentIndex) {
-            tempNode = localMaps[tempNode].indexParentNode;
-            /*float value = scaleFactor * pathLength * dm * 
-                          1/common->graphHessian[tempNode][warpIndex] * -1 *
-                          commonValue;*/
-            float value = adjust * dm * 
-                          1/common->graphHessian[tempNode][warpIndex] * -1;
-            atomicFloatAdd(&(localMaps[tempNode].changeInPos[warpIndex]), value);
+         if (type != -1) {
+            while (tempNode != parentIndex) {
+               //tempNode = localMaps[tempNode].indexParentNode;
+               /*float value = scaleFactor * pathLength * dm * 
+                             1/common->graphHessian[tempNode][warpIndex] * -1 *
+                             commonValue;*/
+               float value = weight * adjust * dm * 
+                             1/common->graphHessian[tempNode][warpIndex] * -1;
+               atomicFloatAdd(&(localMaps[tempNode].changeInPos[warpIndex]), value);
+               atomic_inc(&(localMaps[tempNode].numConstraints));
+               tempNode = localMaps[tempNode].indexParentNode;
+            }
          }
          tempNode = jNode;
 
@@ -2022,10 +2103,13 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
             out[globalWarp] = residual[warpNum][1];
          }
          while (tempNode != parentIndex) {
+            if (type == -1 && tempNode == common->previousINode) {
+               break;
+            }
             /*float value = scaleFactor * pathLength * dm * 
                           1/common->graphHessian[tempNode][warpIndex] * 
                           commonValue;*/
-            float value = adjust * dm * 
+            float value = weight * adjust * dm * 
                           1/common->graphHessian[tempNode][warpIndex];
 
             /*if (constraintType == 1) {              
@@ -2037,6 +2121,7 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
                //out[tempNode] = dm * 1/common->graphHessian[tempNode][warpIndex];
             //}
             atomicFloatAdd(&(localMaps[tempNode].changeInPos[warpIndex]), value);
+            atomic_inc(&(localMaps[tempNode].numConstraints));
             tempNode = localMaps[tempNode].indexParentNode;
 
 
@@ -2068,9 +2153,11 @@ __kernel void updateGlobalPositions(constant slamConfig *config, global slamLoca
       int curMap = index;
       float4 posChange = (float4) (0.0f, 0.0f, 0.0f, 0.0f);
       while (curMap >= 0) {
-         posChange.x += localMaps[curMap].changeInPos[0];
-         posChange.y += localMaps[curMap].changeInPos[1];
-         posChange.w += localMaps[curMap].changeInPos[2];
+         if (localMaps[curMap].numConstraints > 0) {
+            posChange.x += localMaps[curMap].changeInPos[0] / localMaps[curMap].numConstraints;
+            posChange.y += localMaps[curMap].changeInPos[1] / localMaps[curMap].numConstraints;
+            posChange.w += localMaps[curMap].changeInPos[2] / localMaps[curMap].numConstraints;
+         }
          curMap = localMaps[curMap].indexParentNode;
       }
       localMaps[index].currentGlobalPos += posChange;
@@ -2330,6 +2417,23 @@ __kernel void combineNodes(constant slamConfig *config, global slamLocalMap *loc
    }
 }
 
+__kernel void getGlobalMapPositions(constant slamConfig *config, global slamLocalMap *localMaps,
+      global ocl_float *globalMapPositions, const int numLocalMaps) {
+   int i = get_global_id(0);
+
+   if (i < numLocalMaps) {
+      localMaps[i].globalRobotMapCentre = convertToGlobalCoord(localMaps[i].robotMapCentre.x, 
+            localMaps[i].robotMapCentre.y, localMaps[i].currentGlobalPos);
+      //Write new global map positions to array for the snaps
+      globalMapPositions[i*5] = localMaps[i].currentGlobalPos.x;
+      globalMapPositions[i*5 + 1] = localMaps[i].currentGlobalPos.y;
+      globalMapPositions[i*5 + 2] = localMaps[i].currentGlobalPos.w;
+      globalMapPositions[i*5 + 3] = localMaps[i].globalRobotMapCentre.x;
+      globalMapPositions[i*5 + 4] = localMaps[i].globalRobotMapCentre.y;
+   }
+}
+      
+
 __kernel void updateGlobalMap(constant slamConfig *config, global slamLocalMap *localMaps,
       global int *globalMap, const int numLocalMaps, global ocl_float *globalMapPositions, global float *globalMapHeights) {
    int index = get_global_id(0);
@@ -2355,10 +2459,13 @@ __kernel void updateGlobalMap(constant slamConfig *config, global slamLocalMap *
    for (i = globalWarp; i < numLocalMaps; i += numWarps) {
       if (i != 0) {
          if (warpIndex == 0) {
-            float parentAngle = localMaps[localMaps[i].indexParentNode]
-                                    .currentGlobalPos.w;
-            float cosTh = cos(parentAngle);
-            float sinTh = sin(parentAngle);
+            float cosTh = cos(localMaps[i].currentGlobalPos.w);
+            float sinTh = sin(localMaps[i].currentGlobalPos.w);
+
+            //float parentAngle = localMaps[localMaps[i].indexParentNode]
+            //                        .currentGlobalPos.w;
+            //float cosTh = cos(parentAngle);
+            //float sinTh = sin(parentAngle);
             a[warpNum][0][0] = cosTh;
             a[warpNum][1][1] = cosTh;
             a[warpNum][1][0] = sinTh;
@@ -2370,7 +2477,8 @@ __kernel void updateGlobalMap(constant slamConfig *config, global slamLocalMap *
             a[warpNum][2][1] = 0;
          }
          if (warpIndex < 9) {
-            b[warpNum][y][x] = localMaps[i].parentInfo[y][x];
+            //b[warpNum][y][x] = localMaps[i].parentInfo[y][x];
+            b[warpNum][y][x] = localMaps[i].internalCovar[y][x];
          }
          mult3x3MatrixLocal(a[warpNum], b[warpNum], c[warpNum], warpIndex);
          if (warpIndex == 0) {
@@ -2381,19 +2489,11 @@ __kernel void updateGlobalMap(constant slamConfig *config, global slamLocalMap *
          //now invert it to get the covar matrix
          if (warpIndex < 9) {
             localMaps[i].globalCovar[y][x] = b[warpNum][y][x];
-            invert3x3Matrix(localMaps[i].globalCovar, a[warpNum], warpIndex);
-            localMaps[i].globalCovar[y][x] = a[warpNum][y][x];
+            //invert3x3Matrix(localMaps[i].globalCovar, a[warpNum], warpIndex);
+            //localMaps[i].globalCovar[y][x] = a[warpNum][y][x];
             //Fiddle with the covar to make it nicer
-            covarFiddle(localMaps[i].globalCovar, warpIndex, config->MaxCovar, &max);
+            //covarFiddle(localMaps[i].globalCovar, warpIndex, config->MaxCovar, &max);
          }
-      }
-      if (warpIndex == 0) {
-         //Write new global map positions to array for the snaps
-         globalMapPositions[i*5] = localMaps[i].currentGlobalPos.x;
-         globalMapPositions[i*5 + 1] = localMaps[i].currentGlobalPos.y;
-         globalMapPositions[i*5 + 2] = localMaps[i].currentGlobalPos.w;
-         globalMapPositions[i*5 + 3] = localMaps[i].globalRobotmapCentre.x;
-         globalMapPositions[i*5 + 4] = localMaps[i].globalRobotmapCentre.y;
       }
    }
 
@@ -2410,6 +2510,31 @@ __kernel void updateGlobalMap(constant slamConfig *config, global slamLocalMap *
    }
 }
 
+__kernel void resetOccupancyGrid(constant slamConfig *config, global slamCommon *common) {
+   int index = get_global_id(0);
+   int globalSize = get_global_size(0);
+
+   int i;
+   for (i = index; i < SIZE_LOCAL_OG; i += globalSize) {
+      common->localOG[i] = -1;
+   }
+}
+
+__kernel void setOccupancyGrid(constant slamConfig *config, global slamLocalMap *localMaps,
+   global slamCommon *common, const int mapNum) {
+   int index = get_global_id(0);
+
+   if (index < localMaps[mapNum].numPoints) {
+      int i = getLocalOGIndex(config, localMaps[mapNum].pointsX[index],
+         localMaps[mapNum].pointsY[index]);
+      if (i >= 0) {
+         common->localOG[i] = index;
+         common->localOGGradX[i] = localMaps[mapNum].gradX[index];
+         common->localOGGradY[i] = localMaps[mapNum].gradY[index];
+      }
+   }
+}
+
 /*
  * kernel to clear the temporary data in slamCommon, and to initialise the new map
  *
@@ -2420,11 +2545,6 @@ __kernel void createNewLocalMap(constant slamConfig *config, global slamLocalMap
    int index = get_global_id(0);
    int globalSize = get_global_size(0);
 
-   if (index < numOldPoints) {
-      int ogIndex = getLocalOGIndex(config, localMaps[oldLocalMap].pointsX[index],
-            localMaps[oldLocalMap].pointsY[index]);
-      common->localOG[ogIndex] = -1;
-   }
    int i,j;
    int offset = SIZE_LOCAL_OG * newLocalMap;
    for (i = index; i < SIZE_LOCAL_OG; i += globalSize) {
@@ -2434,6 +2554,7 @@ __kernel void createNewLocalMap(constant slamConfig *config, global slamLocalMap
       common->localOGY[i] = 0;   
       common->localOGGradX[i] = 0;   
       common->localOGGradY[i] = 0;
+      common->localOG[i] = -1;
       freeAreas[offset + i] = -1;   
    }
 

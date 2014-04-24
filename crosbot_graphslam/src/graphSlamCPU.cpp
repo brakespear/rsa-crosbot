@@ -2146,7 +2146,7 @@ void GraphSlamCPU::evaluateTempConstraints() {
 }
 
 bool GraphSlamCPU::findChangedPosMatches(int mapNum) {
-   if (localMaps[currentLocalMap].isFeatureless) {
+   if (localMaps[mapNum].isFeatureless) {
       return false;
    }
 

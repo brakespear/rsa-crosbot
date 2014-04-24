@@ -92,7 +92,9 @@ typedef struct {
    ocl_float FreeAreaDistanceThreshold;
    ocl_float LocalMapCovarianceThreshold;
    ocl_float FreeAreaThreshold;
-   ocl_int PreventMatchSymmetrical;
+   ocl_int PreventMatchesSymmetrical;
+   ocl_float TempConstraintMovementXY;
+   ocl_float TempConstraintMovementTh;
 } slamConfig;
 
 /*
@@ -115,6 +117,7 @@ typedef struct {
    //The level of the node in the tree
    ocl_int treeLevel;
 //new bit
+   ocl_int numConstraints;
    ocl_float internalCovar[3][3];
 
    ocl_float parentInfo[3][3];

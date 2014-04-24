@@ -109,11 +109,16 @@ private:
    vector<int> indexParentNode;
    //Index of the last full loop closure
    int lastFullLoopIndex;
+   //The number of loop constraints in the graph
+   int numLoopConstraints;
 
 
    //debugging for timings
    ros::WallDuration totalTime;
    int numIterations;
+
+   //kinect variables
+   int lastCloudPublished;
 
    /*
     * Private methods
@@ -125,6 +130,8 @@ private:
    bool findTempMatches();
    //Actually perform the partial loop closure between two maps
    bool performTempMatch(int currentMap, int testMap);
+   //finds partial matches to a map if it has substantially changed position
+   bool findChangesPosMatches(int mapNum);
    //Initialise points struct for opencl
    void initialisePoints();
    //Initialise the structures used for slam
