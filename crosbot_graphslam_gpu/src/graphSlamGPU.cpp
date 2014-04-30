@@ -276,9 +276,8 @@ void GraphSlamGPU::setKernelArgs() {
    //opencl_task->setArg(4, 2, sizeof(int), &oldLocalMap);
    //opencl_task->setArg(5, 2, sizeof(int), &currentLocalMap);
    //opencl_task->setArg(6, 2, sizeof(int), &oldLocalMap);
-   //opencl_task->setArg(7, 2, sizeof(ocl_float4), &offsetFromParent);
-   //opencl_task->setArg(8, 2, sizeof(ocl_float), &angleError);
-   //opencl_task->setArg(9, 2, sizeof(int), &numOldPoints);
+   //opencl_task->setArg(7, 2, sizeof(ocl_float), &angleError);
+   //opencl_task->setArg(8, 2, sizeof(int), &numOldPoints);
 
    //kernel 3: getHessianMatch
    opencl_task->setArg(0, 3, sizeof(cl_mem), &clSlamConfig);
@@ -1009,26 +1008,12 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       nextLocalMap++;
    }
 
-   //TODO:
-   //TODO:
-   //TODO:
-   //still have to: check these arguements and create new map processing
-   //specifically this offsetFromParent bit
-   //then need to look at everything after
-   //then should be able to start compiling
-   //then will need to have local wapring and kinect
    float alignError = angleError;
    opencl_task->setArg(4, 2, sizeof(int), &oldLocalMap);
    opencl_task->setArg(5, 2, sizeof(int), &nextLocalMap);
    opencl_task->setArg(6, 2, sizeof(int), &parentLocalMap);
-   ocl_float4 pOffset;
-   pOffset.x = offsetFromParentX;
-   pOffset.y = offsetFromParentY;
-   pOffset.z = 0;
-   pOffset.w = offsetFromParentTh;
-   opencl_task->setArg(7, 2, sizeof(ocl_float4), &pOffset);
-   opencl_task->setArg(8, 2, sizeof(ocl_float), &alignError);
-   opencl_task->setArg(9, 2, sizeof(int), &numOldMapPoints);
+   opencl_task->setArg(7, 2, sizeof(ocl_float), &alignError);
+   opencl_task->setArg(8, 2, sizeof(int), &numOldMapPoints);
    int globalSize = getGlobalWorkSize(numOldMapPoints);
    opencl_task->queueKernel(2, 1, globalSize, LocalSize, 
          0, NULL, NULL, false);
@@ -1045,7 +1030,7 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
    indexParentNode.push_back(parentLocalMap);
    currentLocalMapICPPose = icpPose;
    numGlobalPoints += numLocalPoints;
-   parentLocalMap = currentLocalMap;
+   //parentLocalMap = currentLocalMap;
    currentLocalMap = nextLocalMap;
    globalMapPositions[currentLocalMap * 5] = slamPose.position.x;
    globalMapPositions[currentLocalMap * 5 + 1] = slamPose.position.y;
@@ -1081,7 +1066,7 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       opencl_task->setArg(5, 1, sizeof(cl_mem), &clGlobalMapHeights);
       opencl_task->setArg(5, 12, sizeof(cl_mem), &clGlobalMapHeights);
       opencl_task->setArg(9, 13, sizeof(cl_mem), &clGlobalMapHeights);
-      opencl_task->setArg(4, 14, sizeof(cl_mem), &clGlobalMapHeights);
+      opencl_task->setArg(3, 15, sizeof(cl_mem), &clGlobalMapHeights);
    }
    if (nextLocalMap + 2 >= totalLocalMaps) {
       cout << "Run of out space to store local maps" << endl;
@@ -1141,10 +1126,17 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       opencl_task->setArg(1, 12, sizeof(cl_mem), &clSlamLocalMap);
       opencl_task->setArg(1, 13, sizeof(cl_mem), &clSlamLocalMap);
       opencl_task->setArg(1, 14, sizeof(cl_mem), &clSlamLocalMap);
+      opencl_task->setArg(1, 15, sizeof(cl_mem), &clSlamLocalMap);
+      opencl_task->setArg(1, 16, sizeof(cl_mem), &clSlamLocalMap);
+      opencl_task->setArg(1, 18, sizeof(cl_mem), &clSlamLocalMap);
+      opencl_task->setArg(1, 19, sizeof(cl_mem), &clSlamLocalMap);
+      opencl_task->setArg(1, 21, sizeof(cl_mem), &clSlamLocalMap);
       opencl_task->setArg(4, 12, sizeof(cl_mem), &clGlobalMapPositions);
+      opencl_task->setArg(2, 19, sizeof(cl_mem), &clGlobalMapPositions);
 
       opencl_task->SetArg(5, 1, sizeof(cl_mem), &clFreeAreas);
       opencl_task->SetArg(3, 2, sizeof(cl_mem), &clFreeAreas);
+      opencl_task->SetArg(3, 16, sizeof(cl_mem), &clFreeAreas);
    }
 
 }}

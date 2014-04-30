@@ -2541,7 +2541,7 @@ __kernel void setOccupancyGrid(constant slamConfig *config, global slamLocalMap 
  */
 __kernel void createNewLocalMap(constant slamConfig *config, global slamLocalMap *localMaps,
       global slamCommon *common, global float *freeAreas, const int oldLocalMap, const int newLocalMap,
-      const int parentLocalMap, const ocl_float4 parentOffset, const float angleError, const int numOldPoints) {
+      const int parentLocalMap, const float angleError, const int numOldPoints) {
    int index = get_global_id(0);
    int globalSize = get_global_size(0);
 
@@ -2577,29 +2577,40 @@ __kernel void createNewLocalMap(constant slamConfig *config, global slamLocalMap
       //Set the map centre for the old local map. This is normally done in the prepare
       //local map kernel, but it is not called for the first local map
       if (oldLocalMap == 0) {
-         localMaps[0].mapCentre.x = (common->minMapRange.x + common->maxMapRange.x) / 2;
-         localMaps[0].mapCentre.y = (common->minMapRange.y + common->maxMapRange.y) / 2;
+         localMaps[0].mapCentre.x = (common->minMapRange.x + common->maxMapRange.x) / 2.0f;
+         localMaps[0].mapCentre.y = (common->minMapRange.y + common->maxMapRange.y) / 2.0f;
+         localMaps[0].robotMapCentre = (float2) (common->currentOffset.x / 2.0f,
+            common->currentOffset.y / 2.0f);
       }
-      localMaps[oldLocalMap].robotMapCentre = (float2) (common->currentOffset.x/2.0f,
-            common->currentOffset.y/2.0f);
-      common->currentOffset.x = 0;
-      common->currentOffset.y = 0;
-      common->currentOffset.w = 0;
       localMaps[newLocalMap].numPoints = 0;
       localMaps[newLocalMap].isFeatureless = 0;
       localMaps[newLocalMap].indexParentNode = parentLocalMap;
-      localMaps[newLocalMap].parentOffset = parentOffset;
+      localMaps[newLocalMap].parentOffset = common->currentOffset;
       localMaps[newLocalMap].treeLevel = localMaps[parentLocalMap].treeLevel + 1;
       common->minMapRange.x = INFINITY;
       common->maxMapRange.x = 0;
       common->minMapRange.y = INFINITY;
       common->maxMapRange.y = 0;
       common->numPotentialMatches = 0;
+      common->currentOffset.x = 0;
+      common->currentOffset.y = 0;
+      common->currentOffset.w = 0;
+
+      float2 temp = convertToGlobalCoord(common->currentOffset.x, common->currentOffset.y, 
+            localMaps[parentLocalMap].currentGlobalPos);
+      localMaps[newLocalMap].currentGlobalPos.x = temp.x;
+      localMaps[newLocalMap].currentGlobalPos.y = temp.y;
+      localMaps[newLocalMap].currentGlobalPos.z = localMaps[parentLocalMap].currentGlobalPos.z;
+      localMaps[newLocalMap].currentGlobalPos.w = localMaps[parentLocalMap].currentGlobalPos.w +
+         common->currentOffset.w;
+      ANGNORM(localMaps[newLocalMap].currentGlobalPos.w);
+
+      
 
       //After the map has been optimised, the global coord system of the position tracking
       //is slightly different to the global coords for slam. parentOffset from the CPU
       //is relattive to the position tracker, but need it relative to slam
-      float cosTh = cos(angleError);
+      /*float cosTh = cos(angleError);
       float sinTh = sin(angleError);
       float2 temp;
       temp.x = cosTh * parentOffset.x - sinTh * parentOffset.y;
@@ -2608,13 +2619,13 @@ __kernel void createNewLocalMap(constant slamConfig *config, global slamLocalMap
       parentOffset.y = temp.y;
       localMaps[newLocalMap].currentGlobalPos = localMaps[parentLocalMap].currentGlobalPos
          + parentOffset;
-      ANGNORM(localMaps[newLocalMap].currentGlobalPos.w);
+      ANGNORM(localMaps[newLocalMap].currentGlobalPos.w);*/
 
       //Make the offset relative to the parent instead of the global coord system
-      cosTh = cos(-localMaps[parentLocalMap].currentGlobalPos.w);
+      /*cosTh = cos(-localMaps[parentLocalMap].currentGlobalPos.w);
       sinTh = sin(-localMaps[parentLocalMap].currentGlobalPos.w);
       localMaps[newLocalMap].parentOffset.x = cosTh * parentOffset.x - sinTh * parentOffset.y;
-      localMaps[newLocalMap].parentOffset.y = sinTh * parentOffset.x + cosTh * parentOffset.y;
+      localMaps[newLocalMap].parentOffset.y = sinTh * parentOffset.x + cosTh * parentOffset.y;*/
 
       /*common->currentOffset -= angleError;
       localMaps[newLocalMap].parentOffset = common->currentOffset;
