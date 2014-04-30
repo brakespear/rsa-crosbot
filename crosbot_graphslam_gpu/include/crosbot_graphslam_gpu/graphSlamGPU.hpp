@@ -20,7 +20,10 @@ public:
    void start();
    void stop();
    void initialiseTrack(Pose icpPose, PointCloudPtr cloud);
-   void updateTrack(Pose icpPose, PointCloudPtr cloud);
+   void updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time time);
+   //Kinect added
+   void getPoints(vector<uint8_t>& points);
+   void captureScan(const vector<uint8_t>& points, Pose correction);
 
    GraphSlamGPU();
    ~GraphSlamGPU();
@@ -131,7 +134,7 @@ private:
    //Actually perform the partial loop closure between two maps
    bool performTempMatch(int currentMap, int testMap);
    //finds partial matches to a map if it has substantially changed position
-   bool findChangesPosMatches(int mapNum);
+   bool findChangedPosMatches(int mapNum);
    //Initialise points struct for opencl
    void initialisePoints();
    //Initialise the structures used for slam

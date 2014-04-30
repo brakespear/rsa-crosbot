@@ -144,7 +144,7 @@ __kernel void initialiseSlam(constant slamConfig *config, global slamLocalMap *l
    }
 }
 
-__kernel void translateScanPoints(constant slamConfig *config, global slamLocalmap *localMaps,
+__kernel void translateScanPoints(constant slamConfig *config, global slamLocalMap *localMaps,
       global slamCommon *common, global oclLaserPoints *points, const int numPoints, 
       const ocl_float4 currentOffset) {
    
@@ -179,7 +179,7 @@ __kernel void translateScanPoints(constant slamConfig *config, global slamLocalm
          + currentOffset.x;
       common->pointsTempY[index] = points->pointX[index] * sinTh + points->pointY[index] * cosTh
          + currentOffset.y;
-      common->pointsTempZ[index] = points->pointZ[index] + InitHeight;
+      common->pointsTempZ[index] = points->pointZ[index];
 
       int ogIndex = getLocalOGIndex(config, common->pointsTempX[index], common->pointsTempY[index]);
       if (ogIndex >= 0) {
@@ -193,7 +193,7 @@ __kernel void translateScanPoints(constant slamConfig *config, global slamLocalm
             float mapGradY = common->localOGGradY[ogIndex] / length;
 
             //TODO: find a better way to estimate the angular covar of a scan
-            double temp = 0.5;
+            float temp = 0.5f;
             atomicFloatAddLocal(&(tempInfo[warpIndex][0][0]), mapGradX * mapGradX);
             atomicFloatAddLocal(&(tempInfo[warpIndex][0][1]), mapGradX * mapGradY);
             atomicFloatAddLocal(&(tempInfo[warpIndex][0][2]), mapGradX * temp);
@@ -264,7 +264,7 @@ __kernel void addScanToMap(constant slamConfig *config, global slamLocalMap *loc
          fabs(localMaps[currentMap].internalCovar[0][2])*/;
       if (sumX > config->LocalMapCovarianceThreshold ||
             sumY > config->LocalMapCovarianceThreshold ||
-            sumth > config->LocalMapCovarianceThreshold) {
+            sumTh > config->LocalMapCovarianceThreshold) {
          localMaps[currentMap].isFeatureless = 1;
       }
    }
@@ -358,16 +358,17 @@ __kernel void addScanToMap(constant slamConfig *config, global slamLocalMap *loc
          }
       }
    }
+   barrier(CLK_LOCAL_MEM_FENCE);
    //add the newly added points to the free area map   
-   if (localId < rayIndex) {
+   if (localId < rayCount) {
       int ogIndex = getLocalOGIndex(config, rayX[localId], rayY[localId]);
       float origX = rayX[localId];
       float origY = rayY[localId];
-      float px = origX / config->CellSize;
-      float py = origY / config->CellSize;
+      float px = origX / config->CellWidthOG;
+      float py = origY / config->CellWidthOG;
 
-      float currentOffsetX = common->currentOffset.x / config->CellSize;
-      float currentOffsetY = common->currentOffset.y / config->CellSize;
+      float currentOffsetX = common->currentOffset.x / config->CellWidthOG;
+      float currentOffsetY = common->currentOffset.y / config->CellWidthOG;
 
       float dx = fabs(common->currentOffset.x - px);
       float dy = fabs(common->currentOffset.y - py);
@@ -381,11 +382,11 @@ __kernel void addScanToMap(constant slamConfig *config, global slamLocalMap *loc
          error = INFINITY;
       } else if (currentOffsetX > px) {
          xInc = 1;
-         n += int(floor(currentOffsetX)) - x;
+         n += (int)(floor(currentOffsetX)) - x;
          error = (floor(px) + 1 - px) * dy;
       } else {
          xInc = -1;
-         n += x - int(floor(currentOffsetX));
+         n += x - (int)(floor(currentOffsetX));
          error = (px - floor(px)) * dy;
       }
       if (dy == 0) {
@@ -393,38 +394,38 @@ __kernel void addScanToMap(constant slamConfig *config, global slamLocalMap *loc
          error -= INFINITY;
       } else if (currentOffsetY > py) {
          yInc = 1;
-         n += int(floor(currentOffsetY)) - y;
+         n += (int)(floor(currentOffsetY)) - y;
          error -= (floor(py) + 1 - py) * dx;
       } else {
          yInc = -1;
-         n += y - int(floor(currentOffsetY));
+         n += y - (int)(floor(currentOffsetY));
          error -= (py - floor(py)) * dx;
       }
 
       int startIndex = ogIndex;
-      x = index % config->DimLocalOG;
-      y = index / config->DimLocalOG;
-      float off = config->CellSize / 2.0f - (config->DimLocalOG * config->CellSize) / 2.0f;
+      x = ogIndex % config->DimLocalOG;
+      y = ogIndex / config->DimLocalOG;
+      float off = config->CellWidthOG / 2.0f - (config->DimLocalOG * config->CellWidthOG) / 2.0f;
 
-      float denom = log(1.0f + FreeAreaDistanceThreshold);
+      float denom = log(1.0f + config->FreeAreaDistanceThreshold);
       int freeAreasOffset = currentMap * config->DimLocalOG * config->DimLocalOG;
       for (; n > 0; --n) {
-         float xCent = ((float) x) * config->CellSize + off;
-         float yCent = ((float) y) * config->CellSize + off;
+         float xCent = ((float) x) * config->CellWidthOG + off;
+         float yCent = ((float) y) * config->CellWidthOG + off;
          float dist = sqrt((origX - xCent) * (origX - xCent) + (origY - yCent) * (origY - yCent));
 
-         dist = fmin(dist, FreeAreaDistanceThreshold);
+         dist = fmin(dist, config->FreeAreaDistanceThreshold);
          float score = 1 - (log (dist + 1.0) / denom);
 
          //update the free map area bit
-         atomicFloatMax(&(freeAreas[freeAreasOffset + index]), score);
+         atomicFloatMax(&(freeAreas[freeAreasOffset + ogIndex]), score);
 
          if (error > 0) {
-            index += yInc * DimLocalOG;
+            ogIndex += yInc * config->DimLocalOG;
             y += yInc;
             error -= dx;
          } else {
-            index += xInc;
+            ogIndex += xInc;
             x += xInc;
             error += dy;
          }
@@ -437,13 +438,13 @@ __kernel void setLocalMap(constant slamConfig *config, global slamLocalMap *loca
       global slamCommon *common, global float *globalMapHeights, const int currentMap,
       const int numGlobalPoints) {
    int index = get_global_id(0);
-   if (index < localMap[currentMap].numPoints) {
+   if (index < localMaps[currentMap].numPoints) {
       int ogIndex = common->activeCells[index];
       float count = (float)common->localOGCount[ogIndex];
       localMaps[currentMap].pointsX[index] = common->localOGX[ogIndex] / count;
       localMaps[currentMap].pointsY[index] = common->localOGY[ogIndex] / count;
       localMaps[currentMap].pointsZ[index] = common->localOGZ[ogIndex];
-      globalMapHeights[numGlobalPoints + i] = common->localOGZ[ogIndex];
+      globalMapHeights[numGlobalPoints + index] = common->localOGZ[ogIndex];
       localMaps[currentMap].gradX[index] = common->localOGGradX[ogIndex];
       localMaps[currentMap].gradY[index] = common->localOGGradY[ogIndex];
 
@@ -733,14 +734,14 @@ __kernel void prepareLocalMap(constant slamConfig *config, global slamLocalMap *
    if (index < 9) {
       a[y][x] = localMaps[currentMap].internalCovar[y][x] / (float) numScans;
       a[y][x] = a[y][x] * a[y][x] * config->InformationScaleFactor;
-      invert3x3Matrix(a, b, index);
+      invert3x3MatrixLocal(a, b, index);
       localMaps[currentMap].parentInfo[y][x] = b[y][x];
 
       b[y][x] = localMaps[currentMap].internalCovar[y][x];
    }
    if (index == 0) {
-      float cosTh = cos(- localMaps[currentMap].parentOffset.w);
-      float sinTh = sin(- localMaps[currentMap].parentOffset.w);
+      //float cosTh = cos(- localMaps[currentMap].parentOffset.w);
+      //float sinTh = sin(- localMaps[currentMap].parentOffset.w);
       float cosTh = cos(localMaps[currentMap].currentGlobalPos.w);
       float sinTh = sin(localMaps[currentMap].currentGlobalPos.w);
       a[0][0] = cosTh;
@@ -1424,8 +1425,8 @@ __kernel void calculateICPMatrix(constant slamConfig *config, global slamLocalMa
          } else if (common->numIterations >= config->MaxIterations) {
             common->matchSuccess = -1;
             finished = 1;
-         } else if (fullLoop == 0 && fabs(shift[0]) <= MaxErrorDisp &&
-                   fabs(shift[1]) <= MaxErrorDisp && fabs(shift[2]) <= MaxErrorTheta) {
+         } else if (fullLoop == 0 && fabs(shift[0]) <= config->MaxErrorDisp &&
+                   fabs(shift[1]) <= config->MaxErrorDisp && fabs(shift[2]) <= config->MaxErrorTheta) {
             common->matchSuccess = 1;
             finished = 1;
          }
@@ -1478,16 +1479,17 @@ __kernel void calculateICPMatrix(constant slamConfig *config, global slamLocalMa
    }
 }
 
-__kernel void addLoopClosure(constant slamConfig *config, globalslamCommon *common,
-      const int currentMap, const int matchIndex, const int fullLoop, const float previousScore) {
+__kernel void addLoopClosure(constant slamConfig *config, global slamLocalMap *localMaps,
+      global slamCommon *common, const int currentMap, const int matchIndex, 
+      const int fullLoop, const float previousScore) {
 
-   int index = get_global_index(0);
+   int index = get_global_id(0);
 
    if (index == 0) {
 
-      float mapMatchScore = common->evaluateScore / (float) common->evaluateOverlap;
+      float score = common->evaluateScore / (float) common->evaluateOverlap;
       
-      float constraintTh = -common->potentialMatchTh[matchIndex];
+      float constraintTh = -common->potentialMatchTheta[matchIndex];
       float angleDiff = localMaps[currentMap].currentGlobalPos.w - 
          (localMaps[common->potentialMatches[matchIndex]].currentGlobalPos.w + constraintTh);
       ANGNORM(angleDiff);
@@ -1560,8 +1562,8 @@ __kernel void addLoopClosure(constant slamConfig *config, globalslamCommon *comm
 
          if (fullLoop == 1) {
             common->currentOffset.w += common->loopConstraintThetaDisp[loopIndex];
-            double tempX = common->currentOffset.x - common->potentialMatchX[matchIndex]; 
-            double tempY = common->currentOffset.y - common->potentialMatchY[matchIndex];
+            float tempX = common->currentOffset.x - common->potentialMatchX[matchIndex]; 
+            float tempY = common->currentOffset.y - common->potentialMatchY[matchIndex];
             common->currentOffset.x = cosTh * tempX - sinTh * tempY;
             common->currentOffset.y = sinTh * tempX + cosTh * tempY;
 
@@ -1676,13 +1678,13 @@ __kernel void evaluateMapMatch(constant slamConfig *config, global slamLocalMap 
          }
       } else {
          offTh = -common->potentialMatchTheta[mode];
-         float cosTh = cosTh(-common->potentialMatchTheta[mode]);
-         float sinTh = sinTh(-common->potentialMatchTheta[mode]);
+         float cosTh = cos(-common->potentialMatchTheta[mode]);
+         float sinTh = sin(-common->potentialMatchTheta[mode]);
          offX = cosTh * -common->potentialMatchX[mode] - sinTh * -common->potentialMatchY[mode];
          offY = sinTh * -common->potentialMatchX[mode] + cosTh * -common->potentialMatchY[mode];
       }
       ANGNORM(offTh);
-      float2 p = (float2) (localMaps[test].pointsX[index], localMaps[test].pointsY[index]);
+      float2 p = (float2) (localMaps[testMap].pointsX[index], localMaps[testMap].pointsY[index]);
       float4 off = (float4) (offX, offY, 0, offTh);
       float2 res = convertReferenceFrame(p, off);
       int index = getLocalOGIndex(config, res.x, res.y);
@@ -1697,7 +1699,7 @@ __kernel void evaluateMapMatch(constant slamConfig *config, global slamLocalMap 
    parallelReduceInt(numOverlap, localIndex, &(common->evaluateOverlap));
 }
 
-__kernel void evaluateTempConstraints(const slamConfig *config, global slamLocalMap *localMaps,
+__kernel void evaluateTempConstraints(constant slamConfig *config, global slamLocalMap *localMaps,
       global slamCommon *common) {
    int index = get_global_id(0);
 
@@ -1706,7 +1708,7 @@ __kernel void evaluateTempConstraints(const slamConfig *config, global slamLocal
          int iNode = common->loopConstraintI[index];
          int jNode = common->loopConstraintJ[index];
          float cosTh = cos(localMaps[iNode].currentGlobalPos.w);
-         float sinTh = sin(localmaps[iNode].currentGlobalPos.w);
+         float sinTh = sin(localMaps[iNode].currentGlobalPos.w);
 
          float tempX = cosTh * common->loopConstraintXDisp[index] - 
             sinTh  * common->loopConstraintYDisp[index] + localMaps[iNode].currentGlobalPos.x;
@@ -1718,7 +1720,7 @@ __kernel void evaluateTempConstraints(const slamConfig *config, global slamLocal
          if (fabs(tempX - localMaps[jNode].currentGlobalPos.x) > config->TempConstraintMovementXY ||
             fabs(tempY - localMaps[jNode].currentGlobalPos.y) > config->TempConstraintMovementXY ||
             fabs(tempTh - localMaps[jNode].currentGlobalPos.w) > config->TempConstraintMovementTh) {
-            common->loopConstraintWeight[i] = 0;
+            common->loopConstraintWeight[index] = 0;
          }
       }
    }
@@ -1877,12 +1879,12 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
       int parentIndex;
       float weight = 0;
 
-      if (cosntraintType != 1) {
+      if (constraintType != 1) {
          return;
       }
       
       if (constraintType == 1) {
-         if (type == 1 && common->loopConstraintFull[loopIndex] == 0) {
+         if (type == 1 && common->loopConstraintFull[constraintIndex] == 0) {
             return;
          }
          iNode = common->loopConstraintI[constraintIndex];
@@ -1989,8 +1991,8 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
 
       }
 
-      if (common->PreventMatchesSymmetrical == 1 && (residual[2] > 3.0f * M_PI / 4.0f ||
-               residual[2] < - 3.0f * M_PI / 4.0f)) {
+      if (config->PreventMatchesSymmetrical == 1 && (residual[warpNum][2] > 3.0f * M_PI / 4.0f ||
+               residual[warpNum][2] < - 3.0f * M_PI / 4.0f)) {
          if (warpIndex == 0) {
             common->loopConstraintWeight[constraintIndex] = 0;
          }
