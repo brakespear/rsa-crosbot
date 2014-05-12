@@ -6,6 +6,9 @@ project(crosbot_ogmbicp)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS crosbot crosbot_map nav_msgs roscpp sensor_msgs tf message_generation)
 
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+find_package(Newmat REQUIRED)
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -57,7 +60,7 @@ catkin_package(
 
 ## Specify additional locations of header files
 include_directories(include
-  ${catkin_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS} ${Newmat_INCLUDE_DIRS}
 )
 
 # Declare a cpp library
@@ -74,8 +77,8 @@ add_executable(crosbot_ogmbicp src/main.cpp src/OgmbicpNode.cpp src/Ogmbicp.cpp 
 
 ## Specify libraries to link a library or executable target against
  target_link_libraries(crosbot_ogmbicp ogmbicp
-   ${catkin_LIBRARIES}
-   newmat
+   ${catkin_LIBRARIES}   
+   ${Newmat_LIBRARIES}
  )
 
 target_link_libraries(ogmbicp

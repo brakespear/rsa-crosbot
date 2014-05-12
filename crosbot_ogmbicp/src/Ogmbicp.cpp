@@ -14,12 +14,12 @@ using namespace NEWMAT;
 
 void Ogmbicp::initialise(ros::NodeHandle &nh) {
    ros::NodeHandle paramNH("~");
-   paramNH.param<double>("MapSize", MapSize, 10);
+   paramNH.param<double>("MapSize", MapSize, 14);
    paramNH.param<double>("CellSize", CellSize, 0.05);
    paramNH.param<double>("CellHeight", CellHeight, 0.05);
    paramNH.param<double>("MaxSegLen", MaxSegLen, 0.1);
    MaxSegLen *= MaxSegLen;
-   paramNH.param<int>("MaxIterations", MaxIterations, 200);
+   paramNH.param<int>("MaxIterations", MaxIterations, 50);
    paramNH.param<double>("MaxErrorXY", MaxErrorXY, 0.0001);
    paramNH.param<double>("MaxErrorTh", MaxErrorTh, 0.01);
    paramNH.param<double>("MaxErrorZ", MaxErrorZ, 0.001);
@@ -38,22 +38,24 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<bool>("UseSimpleH", UseSimpleH, false);
    paramNH.param<int>("MaxObservations", MaxObservations, 1000);
    paramNH.param<double>("MinFactor", MinFactor, 0.2);
-   paramNH.param<int>("MinGoodCount", MinGoodCount, 5);
+   paramNH.param<int>("MinGoodCount", MinGoodCount, 10);
    paramNH.param<int>("FullSearchSize", FullSearchSize, 4);
    paramNH.param<int>("NearestAlgorithm", NearestAlgorithm, 1);
    paramNH.param<double>("MaxAlignDistance", MaxAlignDistance, 0.3);
    MaxAlignDistance *= MaxAlignDistance;
    paramNH.param<int>("InitialScans", InitialScans, 20);
-   paramNH.param<double>("LifeRatio", LifeRatio, 2.0);
+   //paramNH.param<double>("LifeRatio", LifeRatio, 2.0);
+   paramNH.param<double>("LifeRatio", LifeRatio, 3.0);
    paramNH.param<double>("InitHeight", InitHeight, 1.0);
 
-   paramNH.param<double>("MaxMoveXYZ", MaxMoveXYZ, 0.5);
-   paramNH.param<double>("MaxMoveTh", MaxMoveTh, 40.0);
+   //paramNH.param<double>("MaxMoveXYZ", MaxMoveXYZ, 0.1);
+   paramNH.param<double>("MaxMoveXYZ", MaxMoveXYZ, 0.2);
+   paramNH.param<double>("MaxMoveTh", MaxMoveTh, 0.5);
    paramNH.param<int>("MaxScanSkip", MaxScanSkip, 1);
    paramNH.param<int>("AddSkipCount", AddSkipCount, 50);
    paramNH.param<int>("MaxFail", MaxFail, 5);
    paramNH.param<bool>("UsePriorMove", UsePriorMove, true);
-   paramNH.param<int>("ImgTransmitTime", ImgTransmitTime, 2000000);
+   paramNH.param<int>("ImgTransmitTime", ImgTransmitTime, 50000);
    paramNH.param<double>("ScanListTime", ScanListTime, 20);
    //paramNH.param<bool>("UseIMUOrientation", UseIMUOrientation, true);
    paramNH.param<bool>("DiscardScansOrientation", DiscardScansOrientation, true);

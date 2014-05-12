@@ -128,9 +128,9 @@ ImagePtr LocalMap::getImage() {
 
 			if (c.current) {
 				pxl[0] = 255;
-         } else if (c.hits && c.hits == maxHits - 15) {
+         } /*else if (c.hits && c.hits == maxHits - 15) {
             pxl[1] = 255;
-			} else if (c.hits) {
+			}*/ else if (c.hits) {
 				uint32_t i = ((c.hits * 255) / maxHits);
 				pxl[0] = i;
 				pxl[1] = i;

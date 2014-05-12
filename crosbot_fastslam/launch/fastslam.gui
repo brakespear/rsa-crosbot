@@ -1,0 +1,18 @@
+<gui>
+	<map type="FastSLAM" name="Map" 
+		particles="1000" Xgain="0.0001" add_motion_copy="true" >
+	</map>
+<gui>
+    <split>
+    <tabs>
+        <tab name="Snap Panel">
+            <map type="FastSLAM" map="Map" >
+            </map>
+        </tab>
+        <tab name="Snap Panel">
+            <snap2 />
+        </tab>
+    </tabs>
+    </split>
+</gui>
+</gui>
