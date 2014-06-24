@@ -40,6 +40,23 @@
   <!-- Use test_depend for packages you need only for testing: -->
   <!--   <test_depend>gtest</test_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>crosbot</build_depend>
+  <build_depend>crosbot_ogmbicp</build_depend>
+  <build_depend>crosbot_gpu</build_depend>
+  <build_depend>crosbot_map</build_depend>
+  <build_depend>nav_msgs</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>tf</build_depend>
+  <run_depend>crosbot</run_depend>
+  <run_depend>crosbot_ogmbicp</run_depend>
+  <run_depend>crosbot_gpu</run_depend>
+  <run_depend>crosbot_map</run_depend>
+  <run_depend>nav_msgs</run_depend>
+  <run_depend>roscpp</run_depend>
+  <run_depend>sensor_msgs</run_depend>
+  <run_depend>tf</run_depend>
+
 
 
   <!-- The export tag contains other, unspecified, tags -->
