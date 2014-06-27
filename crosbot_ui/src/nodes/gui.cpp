@@ -12,6 +12,7 @@
 #include <ros/ros.h>
 #define MODULE_NAME 	"gui"
 #include <crosbot_ui/crosbotgui.hpp>
+#include <crosbot_ui/nodes/gui.hpp>
 
 #include <signal.h>
 #include <QtGui/QApplication>
@@ -56,7 +57,10 @@ void printConfig(ConfigElementPtr config) {
 	printConfig(config, "");
 }
 
-int main(int argc, char **argv) {
+namespace crosbot {
+namespace gui {
+
+int run_crosbot_ui_main(int argc, char **argv) {
     ros::init(argc, argv, "gui");
     ros::NodeHandle n("~");
 
@@ -135,4 +139,7 @@ int main(int argc, char **argv) {
 	exit(rval);
 	return rval;
 }
+
+} // namespace gui
+} // namespace crosbot
 
