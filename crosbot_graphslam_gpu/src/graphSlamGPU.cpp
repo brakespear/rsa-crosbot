@@ -918,8 +918,6 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          
          int kernelSize;
 
-         cout << "last full loop index is: " << lastFullLoopIndex << endl;
-
          //Now actually optimise the map
          for (int numIterations = 1; numIterations < NumOfOptimisationIts * 2; 
                numIterations++) {
@@ -1126,31 +1124,18 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       cout << "^^^^^^^^^^^^^^^^^^^^^Run of out space to store local maps" << endl;
       cout << sizeof(ocl_float) << " " << sizeof(float) << endl;
       int increment = 20;
-      cout << "After declare array" << endl;
-      cout << flush;
       //slamLocalMap maps[totalLocalMaps + increment];
       slamLocalMap *maps = new slamLocalMap[totalLocalMaps + increment];
-      cout << "After declare array" << endl;
-      cout << flush;
 
       readBuffer(clSlamLocalMap, CL_TRUE, 0, sizeof(slamLocalMap) * 
                totalLocalMaps, maps, 0, 0, 0, "Copying local map information");
-      cout << "After first read buffer" << endl;
-      cout << flush;
       ocl_float *tempFreeArea = new ocl_float[totalLocalMaps * localOGSize];
-      cout << "After alloc temp areas" << tempFreeArea << endl;
-      cout << flush;
       readBuffer(clFreeAreas, CL_TRUE, 0, sizeof(ocl_float) * totalLocalMaps * localOGSize,
             tempFreeArea, 0, 0, 0, "Copying free areas info to main memory");
-
-      cout << "Read buffers" << endl;
-      cout << flush;
 
       opencl_manager->deviceRelease(clSlamLocalMap);
       opencl_manager->deviceRelease(clGlobalMapPositions);
       opencl_manager->deviceRelease(clFreeAreas);
-
-      cout << "Released structures" << endl;
 
       int *temp = new int[totalLocalMaps + increment];
       int i;
@@ -1169,8 +1154,6 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          
       totalLocalMaps += increment;
 
-      cout << "Copied arrays" << endl;
-
       size_t size = sizeof(slamLocalMap) * totalLocalMaps;
       clSlamLocalMap = opencl_manager->deviceAlloc(size,
             CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, maps);
@@ -1185,8 +1168,6 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             "Copying free areas to the gpu memory");
       delete [] tempFreeArea;
       delete [] maps;
-
-      cout << "Written to data structures" << endl;
 
       opencl_task->setArg(1, 1, sizeof(cl_mem), &clSlamLocalMap);
       opencl_task->setArg(1, 2, sizeof(cl_mem), &clSlamLocalMap);
@@ -1213,7 +1194,6 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       opencl_task->setArg(5, 1, sizeof(cl_mem), &clFreeAreas);
       opencl_task->setArg(3, 2, sizeof(cl_mem), &clFreeAreas);
       opencl_task->setArg(3, 16, sizeof(cl_mem), &clFreeAreas);
-      cout << "Finished creating space" << endl;
    }
 
 }}
