@@ -82,7 +82,7 @@ __kernel void initialiseSlam(constant slamConfig *config, global slamLocalMap *l
       common->localOGY[i] = 0;
       common->localOGGradX[i] = 0;
       common->localOGGradY[i] = 0;
-      freeAreas[i] = -1;
+      freeAreas[i] = INFINITY;
    }
    for (i = index; i < MAX_NUM_CONSTRAINTS + 1; i += globalSize) {
       common->graphHessian[i][0] = 0;
@@ -146,7 +146,7 @@ __kernel void initialiseSlam(constant slamConfig *config, global slamLocalMap *l
 
 __kernel void translateScanPoints(constant slamConfig *config, global slamLocalMap *localMaps,
       global slamCommon *common, global oclLaserPoints *points, const int numPoints, 
-      const ocl_float4 currentOffset) {
+      const ocl_float4 currentOffset, global float *out) {
    
    int index = get_global_id(0);
    int localIndex = get_local_id(0);
@@ -210,6 +210,7 @@ __kernel void translateScanPoints(constant slamConfig *config, global slamLocalM
    barrier(CLK_LOCAL_MEM_FENCE);
    parallelReduce3x3(tempInfo, localIndex, common->tempCovar);
    parallelReduceInt(infoCount, localIndex, &(common->covarCount));
+
 }
 
 /*
@@ -223,24 +224,40 @@ __kernel void addScanToMap(constant slamConfig *config, global slamLocalMap *loc
 
    int globalId = get_global_id(0);
    int localId = get_local_id(0);
+   int groupId = get_group_id(0);
 
    local int rayCount;
    local float rayX[LOCAL_SIZE];
    local float rayY[LOCAL_SIZE];
 
+   local float normalX[LOCAL_SIZE];
+   local float normalY[LOCAL_SIZE];
+   local int orienHist[NUM_ORIENTATION_BINS];
+
+   if (localId > LOCAL_SIZE) {
+      return;
+   }
+
    if (localId == 0) {
       rayCount = 0;
    }
+   if (localId < NUM_ORIENTATION_BINS) {
+      orienHist[localId] = 0;
+   }
+   normalX[localId] = NAN;
+   normalY[localId] = NAN;
+
    barrier(CLK_LOCAL_MEM_FENCE);
-   
+  
    int x = globalId % 3;
    int y = globalId / 3;
 
    local float a[3][3];
    local float b[3][3];
-   if (firstScan != 0) {
+   if (firstScan == 0) {
       if (globalId < 9) {
-         a[x][y] = common->tempCovar[x][y] / common->covarCount;
+         a[x][y] = common->tempCovar[x][y] / (float)common->covarCount;
+         
       }
       invert3x3MatrixLocal(a, b, globalId);
       if (globalId < 9) {
@@ -252,6 +269,7 @@ __kernel void addScanToMap(constant slamConfig *config, global slamLocalMap *loc
       common->tempCovar[x][y] = 0;
    }
    if (globalId == 0) {
+
       common->covarCount = 0;
       float sumX = localMaps[currentMap].internalCovar[0][0] + 
          fabs(localMaps[currentMap].internalCovar[0][1])/* + 
@@ -269,6 +287,10 @@ __kernel void addScanToMap(constant slamConfig *config, global slamLocalMap *loc
       }
    }
 
+   int ogIndex = -1;
+   float curPointX = 0;
+   float curPointY = 0;
+   float curPointZ = 0;
    if (globalId < numPoints) {
       int pre = globalId - 5;
       if (pre < 1) { pre = 1;}
@@ -285,19 +307,14 @@ __kernel void addScanToMap(constant slamConfig *config, global slamLocalMap *loc
             common->pointsTempY[nxt + 1]) / 3.0;
       float mapGradY = nxtP - preP;
 
-      int ogIndex = getLocalOGIndex(config, common->pointsTempX[globalId], 
+      ogIndex = getLocalOGIndex(config, common->pointsTempX[globalId], 
             common->pointsTempY[globalId]);
+
       if (ogIndex >= 0 && mapGradX < config->GradientDistanceThreshold &&
             mapGradY < config->GradientDistanceThreshold) {
-         float curPointX = common->pointsTempX[globalId];
-         float curPointY = common->pointsTempY[globalId];
-         float curPointZ = common->pointsTempZ[globalId];
-         atomicFloatMax(&(common->localOGZ[ogIndex]), curPointZ);
-         atomicFloatAdd(&(common->localOGX[ogIndex]), curPointX);
-         atomicFloatAdd(&(common->localOGY[ogIndex]), curPointY);
-         //These are swapped deliberately
-         atomicFloatAdd(&(common->localOGGradX[ogIndex]), mapGradY);
-         atomicFloatAdd(&(common->localOGGradY[ogIndex]), mapGradX);
+         curPointX = common->pointsTempX[globalId];
+         curPointY = common->pointsTempY[globalId];
+         curPointZ = common->pointsTempZ[globalId];
 
          //Update the histograms
          float orien = atan2(mapGradY, mapGradX);
@@ -306,8 +323,13 @@ __kernel void addScanToMap(constant slamConfig *config, global slamLocalMap *loc
             orien -= 2 * M_PI;
          }
          int orienIndex = (orien + M_PI) * NUM_ORIENTATION_BINS / (2 * M_PI);
-         atomicFloatAdd(&(localMaps[currentMap].orientationHist[orienIndex]), 1);
-         int i;
+         //atomicFloatAdd(&(localMaps[currentMap].orientationHist[orienIndex]), 1);
+         atomic_inc(&(orienHist[orienIndex]));
+
+         normalX[localId] = -mapGradY;
+         normalY[localId] = mapGradX;
+         
+         /*int i;
          float mapSize = config->DimLocalOG * config->CellWidthOG;
          for(i = 0; i < NUM_ORIENTATION_BINS; i++) {
             float dist = curPointX * common->histCos[i] + 
@@ -323,9 +345,69 @@ __kernel void addScanToMap(constant slamConfig *config, global slamLocalMap *loc
             float weight = normalX / normalise * common->histCos[i] +
                         normalY / normalise * common->histSin[i];
             atomicFloatAdd(&(localMaps[currentMap].projectionHist[i][projIndex]), weight);
+         }*/
+      }
+   }
+
+
+   barrier(CLK_LOCAL_MEM_FENCE);
+
+   if (!isnan(normalX[localId]) && !isnan(normalY[localId])) {
+
+      int ogIndexPrev = - 1;
+      if (globalId > 0) {
+         ogIndexPrev = getLocalOGIndex(config, common->pointsTempX[globalId - 1], 
+            common->pointsTempY[globalId - 1]);
+      }
+      if ((ogIndex != ogIndexPrev || localId == 0)) {
+         float pX = curPointX;
+         float pY = curPointY;
+         float pZ = curPointZ;
+         float gradX = -normalX[localId];
+         float gradY = normalY[localId];
+         int count = 1;
+
+         int pIndex = globalId + 1;
+         int lIndex = localId + 1;
+         while (pIndex < numPoints && lIndex < LOCAL_SIZE) {
+            float tempX = common->pointsTempX[pIndex];
+            float tempY = common->pointsTempY[pIndex];
+            float tempZ = common->pointsTempZ[pIndex];
+            int ogNext = getLocalOGIndex(config, tempX, tempY);
+            if (ogNext != ogIndex) {
+               break;
+            }
+            if (!isnan(normalX[lIndex]) && !isnan(normalY[lIndex])) {
+               pX += tempX;
+               pY += tempY;
+               pZ = fmax(pZ, tempZ);
+               gradX += -normalX[lIndex];
+               gradY += normalY[lIndex];
+               count++;
+            }
+
+            pIndex++;
+            lIndex++;
+
          }
-         int obsCount = atomic_inc(&(common->localOGCount[ogIndex]));
-         if (obsCount == config->MinObservationCount) {
+
+         atomicFloatMax(&(common->localOGZ[ogIndex]), pZ);
+         atomicFloatAdd(&(common->localOGX[ogIndex]), pX);
+         atomicFloatAdd(&(common->localOGY[ogIndex]), pY);
+         atomicFloatAdd(&(common->localOGGradX[ogIndex]), gradX);
+         atomicFloatAdd(&(common->localOGGradY[ogIndex]), gradY);
+         int obsCount = atomic_add(&(common->localOGCount[ogIndex]), count);
+         if (obsCount <= config->MinObservationCount && obsCount + count > 
+               config->MinObservationCount) {
+         
+         //atomicFloatMax(&(common->localOGZ[ogIndex]), curPointZ);
+         //atomicFloatAdd(&(common->localOGX[ogIndex]), curPointX);
+         //atomicFloatAdd(&(common->localOGY[ogIndex]), curPointY);
+         //These are swapped deliberately
+         //atomicFloatAdd(&(common->localOGGradX[ogIndex]), mapGradY);
+         //atomicFloatAdd(&(common->localOGGradY[ogIndex]), mapGradX);
+         //int obsCount = atomic_inc(&(common->localOGCount[ogIndex]));
+         //if (obsCount == config->MinObservationCount) {
             int index = atomic_inc(&(localMaps[currentMap].numPoints));
             if (index < MAX_LOCAL_POINTS) {
                common->activeCells[index] = ogIndex;
@@ -357,8 +439,87 @@ __kernel void addScanToMap(constant slamConfig *config, global slamLocalMap *loc
             }
          }
       }
+      //}
    }
-   barrier(CLK_LOCAL_MEM_FENCE);
+
+   //barrier(CLK_LOCAL_MEM_FENCE);
+
+   if (localId < NUM_ORIENTATION_BINS && orienHist[localId] > 0) {
+      atomicFloatAdd(&(localMaps[currentMap].orientationHist[localId]), orienHist[localId]);
+   }
+
+   //Add information to the projection histograms
+   float mapSize = config->DimLocalOG * config->CellWidthOG;
+   int globalOff = groupId * LOCAL_SIZE;
+   float projSum[NUM_PROJECTION_BINS];
+   /*if (localId < NUM_ORIENTATION_BINS) {
+      int i;
+      for (i = 0; i < NUM_PROJECTION_BINS; i++) {
+         projSum[i] = 0;
+      }
+      for (i = 0; i < LOCAL_SIZE; i++) {
+         int pointI = globalOff + i;
+         if (pointI < numPoints && !isnan(normalX[i]) && !isnan(normalY[i])) {
+            
+            float dist = common->pointsTempX[pointI] * common->histCos[localId] + 
+                     common->pointsTempY[pointI] * common->histSin[localId];
+            int projIndex = (dist + mapSize / 2.0f) / 
+                     (mapSize / (float) NUM_PROJECTION_BINS);
+            if (projIndex < 0 || projIndex >= NUM_PROJECTION_BINS) {
+               continue;
+            }
+            float normalise = sqrt(normalX[i] * normalX[i] + normalY[i] * normalY[i]);
+            float weight = normalX[i] / normalise * common->histCos[localId] +
+                        normalY[i] / normalise * common->histSin[localId];
+            projSum[projIndex] += weight;
+         }
+      }
+      for (i = 0; i < NUM_PROJECTION_BINS; i++) {
+         if (projSum[i] != 0) {
+            atomicFloatAdd(&(localMaps[currentMap].projectionHist[localId][i]), projSum[i]);
+         }
+      }
+   }*/
+   int splitNum = localId / NUM_ORIENTATION_BINS;
+   int splitIndex = localId % NUM_ORIENTATION_BINS;
+   int numSplits = LOCAL_SIZE / NUM_ORIENTATION_BINS;
+   int splitSize = ceil(LOCAL_SIZE / (float) numSplits);
+   if (splitNum < numSplits) {
+      int i;
+      for (i = 0; i < NUM_PROJECTION_BINS; i++) {
+         projSum[i] = 0;
+      }
+      int endPoint = splitSize * (splitNum + 1);
+      if (endPoint > LOCAL_SIZE) {
+         endPoint = LOCAL_SIZE;
+      }
+      for (i = splitSize * splitNum; i < endPoint; i++) {
+         int pointI = globalOff + i;
+         if (pointI >= numPoints) {
+            break;
+         }
+         if (!isnan(normalX[i]) && !isnan(normalY[i])) {
+            
+            float dist = common->pointsTempX[pointI] * common->histCos[splitIndex] + 
+                     common->pointsTempY[pointI] * common->histSin[splitIndex];
+            int projIndex = (dist + mapSize / 2.0f) / 
+                     (mapSize / (float) NUM_PROJECTION_BINS);
+            if (projIndex < 0 || projIndex >= NUM_PROJECTION_BINS) {
+               continue;
+            }
+            float normalise = sqrt(normalX[i] * normalX[i] + normalY[i] * normalY[i]);
+            float weight = normalX[i] / normalise * common->histCos[splitIndex] +
+                        normalY[i] / normalise * common->histSin[splitIndex];
+            projSum[projIndex] += weight;
+         }
+      }
+      for (i = 0; i < NUM_PROJECTION_BINS; i++) {
+         if (projSum[i] != 0) {
+            atomicFloatAdd(&(localMaps[currentMap].projectionHist[splitIndex][i]), projSum[i]);
+         }
+      }
+   }
+
    //add the newly added points to the free area map   
    if (localId < rayCount) {
       int ogIndex = getLocalOGIndex(config, rayX[localId], rayY[localId]);
@@ -415,10 +576,10 @@ __kernel void addScanToMap(constant slamConfig *config, global slamLocalMap *loc
          float dist = sqrt((origX - xCent) * (origX - xCent) + (origY - yCent) * (origY - yCent));
 
          dist = fmin(dist, config->FreeAreaDistanceThreshold);
-         float score = 1 - (log (dist + 1.0) / denom);
+         float score = log (dist + 1.0) / denom;
 
          //update the free map area bit
-         atomicFloatMax(&(freeAreas[freeAreasOffset + ogIndex]), score);
+         atomicFloatMin(&(freeAreas[freeAreasOffset + ogIndex]), score);
 
          if (error > 0) {
             ogIndex += yInc * config->DimLocalOG;
@@ -560,8 +721,9 @@ __kernel void getHessianMatch(constant slamConfig *config, global slamLocalMap *
       //current local map so that it can be matched to the occupancy grid
       transformedPoint = convertReferenceFrame((float2) (localMaps[otherMap].pointsX[index], 
                   localMaps[otherMap].pointsY[index]), offset);
-      matchIndex = findMatchingPoint(config, localMaps, common, transformedPoint, 
-            currentMap, offset, 1);
+      //matchIndex = findMatchingPoint(config, localMaps, common, transformedPoint, 
+      //      currentMap, offset, 1);
+      matchIndex = getLocalOGIndex(config, transformedPoint.x, transformedPoint.y);
       
       if (matchIndex >= 0 && common->localOG[matchIndex] >= 0) {
          float cosTh = cos(offset.w);
@@ -659,6 +821,12 @@ __kernel void prepareLocalMap(constant slamConfig *config, global slamLocalMap *
       localMaps[currentMap].globalRobotMapCentre = convertToGlobalCoord(
             localMaps[currentMap].robotMapCentre.x, localMaps[currentMap].robotMapCentre.y,
             localMaps[currentMap].currentGlobalPos);
+   }
+
+   if (index < 9) {
+      int x = index / 3;
+      int y = index % 3;
+      //out[index] = localMaps[currentMap].internalCovar[x][y];
    }
 
    //Finalise the histograms
@@ -1073,6 +1241,7 @@ __kernel void findPotentialMatches(constant slamConfig *config, global slamLocal
                         localMaps[globalWarp].mapCentre.x,
                         localMaps[globalWarp].currentGlobalPos.y +
                         localMaps[globalWarp].mapCentre.y);*/
+
       if (fabs(mapCurPos.x - mapOtherPos.x) < totalCovar[warpNum][0][0] + config->LocalMapDist &&
             fabs(mapCurPos.y - mapOtherPos.y) < totalCovar[warpNum][1][1] + config->LocalMapDist) {
          //In the right area for a match, so do histogram correlation
@@ -1125,6 +1294,9 @@ __kernel void findPotentialMatches(constant slamConfig *config, global slamLocal
          int maxOrien = 0;
          int maxX = 0;
          int maxY = 0;
+
+         //float t1 = 0.0, t2 = 0.0, t3 = 0.0, t4 = 0.0;
+
          for (i = 0; i < numPeaks[warpNum] && i < 32; i++) {
             float maxValue;
             int maxIndex;
@@ -1146,6 +1318,7 @@ __kernel void findPotentialMatches(constant slamConfig *config, global slamLocal
                maxOrien = peaks[warpNum * WARP_SIZE + i];
                maxX = maxIndex;
                maxY = maxIndex90;
+
             }            
          }
          if (warpIndex == 0 && maxCorrScore > config->CorrelationThreshold) {
@@ -1481,13 +1654,16 @@ __kernel void calculateICPMatrix(constant slamConfig *config, global slamLocalMa
 
 __kernel void addLoopClosure(constant slamConfig *config, global slamLocalMap *localMaps,
       global slamCommon *common, const int currentMap, const int matchIndex, 
-      const int fullLoop, const float previousScore) {
+      const int fullLoop, const float previousScore, global float *out) {
 
    int index = get_global_id(0);
 
    if (index == 0) {
 
       float score = common->evaluateScore / (float) common->evaluateOverlap;
+      out[0] = score;
+      out[1] = common->evaluateScore;
+      out[2] = common->evaluateOverlap;
       
       float constraintTh = -common->potentialMatchTheta[matchIndex];
       float angleDiff = localMaps[currentMap].currentGlobalPos.w - 
@@ -1689,7 +1865,7 @@ __kernel void evaluateMapMatch(constant slamConfig *config, global slamLocalMap 
       float2 res = convertReferenceFrame(p, off);
       int index = getLocalOGIndex(config, res.x, res.y);
       int freeAreasOffset = curMap * config->DimLocalOG * config->DimLocalOG;
-      if (index >= 0 && freeAreas[freeAreasOffset + index] >= 0) {
+      if (index >= 0 && freeAreas[freeAreasOffset + index] < INFINITY) {
          atomicFloatAddLocal(&(score[warpIndex]), freeAreas[freeAreasOffset + index]);
          atomic_inc(&(numOverlap[warpIndex]));
       }
@@ -1923,6 +2099,10 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
       if (type == -1) {
          pathLength = localMaps[jNode].treeLevel - localMaps[common->previousINode].treeLevel;
       }
+      //if (pathLength > 1 && warpIndex < 9) {
+      //   out[warpIndex] = common->loopConstraintInfo[constraintIndex][y][x];
+      //}
+
 
       //Calculate the rotated information matrix for the constraint 
       //answer is in b - available to all nodes in the warp
@@ -2101,9 +2281,9 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
          out[2] = pathLength;
          out[3] = commonValue;
          }*/
-         if (warpIndex == 0) {
-            out[globalWarp] = residual[warpNum][1];
-         }
+         //if (warpIndex == 0) {
+         //   out[globalWarp] = residual[warpNum][1];
+         //}
          while (tempNode != parentIndex) {
             if (type == -1 && tempNode == common->previousINode) {
                break;
@@ -2156,15 +2336,16 @@ __kernel void updateGlobalPositions(constant slamConfig *config, global slamLoca
       float4 posChange = (float4) (0.0f, 0.0f, 0.0f, 0.0f);
       while (curMap >= 0) {
          if (localMaps[curMap].numConstraints > 0) {
-            posChange.x += localMaps[curMap].changeInPos[0] / localMaps[curMap].numConstraints;
-            posChange.y += localMaps[curMap].changeInPos[1] / localMaps[curMap].numConstraints;
-            posChange.w += localMaps[curMap].changeInPos[2] / localMaps[curMap].numConstraints;
+            posChange.x += localMaps[curMap].changeInPos[0] / (float)localMaps[curMap].numConstraints;
+            posChange.y += localMaps[curMap].changeInPos[1] / (float)localMaps[curMap].numConstraints;
+            posChange.w += localMaps[curMap].changeInPos[2] / (float)localMaps[curMap].numConstraints;
          }
          curMap = localMaps[curMap].indexParentNode;
       }
       localMaps[index].currentGlobalPos += posChange;
       ANGNORM(localMaps[index].currentGlobalPos.w);
       //if (1) {out[index] = posChange.w;}
+      //out[index] = localMaps[index].changeInPos[0];
    }
 }
 
@@ -2557,7 +2738,7 @@ __kernel void createNewLocalMap(constant slamConfig *config, global slamLocalMap
       common->localOGGradX[i] = 0;   
       common->localOGGradY[i] = 0;
       common->localOG[i] = -1;
-      freeAreas[offset + i] = -1;   
+      freeAreas[offset + i] = INFINITY;   
    }
 
    for(i = index; i < NUM_ORIENTATION_BINS; i += globalSize) {
@@ -2594,9 +2775,6 @@ __kernel void createNewLocalMap(constant slamConfig *config, global slamLocalMap
       common->minMapRange.y = INFINITY;
       common->maxMapRange.y = 0;
       common->numPotentialMatches = 0;
-      common->currentOffset.x = 0;
-      common->currentOffset.y = 0;
-      common->currentOffset.w = 0;
 
       float2 temp = convertToGlobalCoord(common->currentOffset.x, common->currentOffset.y, 
             localMaps[parentLocalMap].currentGlobalPos);
@@ -2607,6 +2785,9 @@ __kernel void createNewLocalMap(constant slamConfig *config, global slamLocalMap
          common->currentOffset.w;
       ANGNORM(localMaps[newLocalMap].currentGlobalPos.w);
 
+      common->currentOffset.x = 0;
+      common->currentOffset.y = 0;
+      common->currentOffset.w = 0;
       
 
       //After the map has been optimised, the global coord system of the position tracking

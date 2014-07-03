@@ -260,7 +260,8 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
             newScan->covar[i][j] /= PerScanInfoScaleFactor;
             //cout << newScan->covar[i][j] << " ";
             if (i == j && newScan->covar[i][i] < 0) {
-               cout << "This shouldn't happen " << i << endl;
+               cout << "This shouldn't happen " << newScan->covar[i][i] << " "
+                  << i << endl;
             }
             localMaps[currentLocalMap].internalCovar[i][j] += newScan->covar[i][j];
          }
@@ -282,7 +283,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
       double mapGradY = nxtP - preP;
 
       int ogIndex = getLocalOGIndex(scanPoints[i].x, scanPoints[i].y);
-      if (ogIndex >= 0 && mapGradX < GradientDistanceThreshold && mapGradX < GradientDistanceThreshold) {
+      if (ogIndex >= 0 && mapGradX < GradientDistanceThreshold && mapGradY < GradientDistanceThreshold) {
          common->grid[ogIndex].p.z = std::max(common->grid[ogIndex].p.z, scanPoints[i].z);
          common->grid[ogIndex].p.x += scanPoints[i].x;
          common->grid[ogIndex].p.y += scanPoints[i].y;
@@ -1263,6 +1264,15 @@ void GraphSlamCPU::prepareLocalMap() {
       localMaps[currentLocalMap].orientationHist[index] /= orienSum;
    }
 
+   /*cout << "Internal covar: ";
+   int yy, xx;
+   for (yy = 0; yy < 3; yy++) {
+      for (xx = 0; xx < 3; xx++) {
+         cout << localMaps[currentLocalMap].internalCovar[yy][xx] << " ";
+      }
+   }
+   cout << endl;*/
+
    //Fix up the hessian matrixpreviously calculated
    double a[3][3];
    double b[3][3];
@@ -1649,7 +1659,6 @@ void GraphSlamCPU::findPotentialMatches() {
                   maxY = maxIndex90;
                }            
             }
-            cout << "Correlation score of map " << globalWarp << " is " << maxCorrScore << endl;
             if (maxCorrScore > CorrelationThreshold) {
                int res = common->numPotentialMatches;
                common->numPotentialMatches++;
@@ -1674,11 +1683,11 @@ void GraphSlamCPU::findPotentialMatches() {
                common->potentialMatchTh[res] = ((2 * M_PI * maxOrien) / NUM_ORIENTATION_BINS - 
                                                    (M_PI * (float)(2 * NUM_ORIENTATION_BINS - 1) 
                                                    / (float) (2 * NUM_ORIENTATION_BINS)) + M_PI) * -1;
-               cout << "Maxes are: " << tempX << " " << tempY << " " << maxTheta << " " << common->potentialMatchTh[res] << endl;
                common->potentialMatchX[res] *= -1;
                common->potentialMatchY[res] *= -1;
                common->potentialMatchParent[res] = parentIndex;
                ANGNORM(common->potentialMatchTh[res]);
+
             }
          }
       }
@@ -2416,7 +2425,7 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations, int type) {
 
       }
 
-      if (PreventMatchesSymmetrical && (residual[2] > 3.0 * M_PI / 4.0 || residual[2] < -3.0 * M_PI / 2.0)) {
+      if (PreventMatchesSymmetrical && (residual[2] > 3.0 * M_PI / 4.0 || residual[2] < -3.0 * M_PI / 4.0)) {
          cout << "Fixing residual angles " << residual[2] << " " << iNode << " " << jNode << endl;
          common->loopConstraintWeight[constraintIndex] = 0;
          continue;

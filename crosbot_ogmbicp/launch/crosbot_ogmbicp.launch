@@ -26,8 +26,9 @@
    </node>
 	
 	<node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp" output="screen">
-		<param name="odom_frame" Xvalue="odom" value="" />
+		<!--param name="odom_frame" Xvalue="odom" value="" /-->
 		<param name="base_frame" value="base_footprint" />
+      <param name="icp_frame" value="icp_test" />
 	</node>
 
 	<!--node pkg="crosbot_ui" type="gui" args="$(env PWD)/bhuman.gui" name="gui" output="screen" >
