@@ -155,7 +155,13 @@ protected:
    double RGBDMaxDistance;
    double RGBDMinDistance;
 
-
+   //Kinect data structure
+   typedef struct {
+      vector<Point> points;
+      vector<float> rgb;
+      int localMapIndex;
+      int scanIndex;
+   } KinectScan;
 
    /*
     * Other fields
@@ -196,6 +202,11 @@ protected:
    //Total number of constraints in the graph
    int numConstraints;
 
+   //Kinect variables
+   vector<KinectScan *> kinectScans;
+   int lastCloudPublished;
+   int messageSize;
+   int activeMapIndex;
 
    /*
     * Gets the global map in the standard crosbot format
@@ -207,6 +218,17 @@ protected:
     */
    virtual void getGlobalMapPosition(int mapIndex, double& gx, double& gy,
          double& gth) = 0;
+
+   /*
+    * Gets the index of the scan inside the active local map
+    */
+   virtual int getScanIndex(int mapIndex) = 0;
+
+   /*
+    * Gets the pose of the scan relative to the origian of the associated local map
+    */
+   virtual void getScanPose(int mapIndex, int scanIndex, double& px, 
+         double& py, double& pth) = 0;
 
    /*
     * Adds the current pose to the history
@@ -291,9 +313,16 @@ public:
     */
    void addSlamTrack(ImagePtr mapImage);
 
+   /*
+    * Invet a 3x3 matrix
+    */
+   void invert3x3Matrix(double m[3][3], double res[3][3]);
+
    //Kinect added
-   virtual void getPoints(vector<uint8_t>& points) = 0;
-   virtual void captureScan(const vector<uint8_t>& points, Pose correction) = 0;
+   //Updates the position of kinect points and adds them to the point cloud
+   void getPoints(vector<uint8_t>& points);
+   //Stores the points from a kinect scan
+   void captureScan(const vector<uint8_t>& points, Pose correction);
 
    //Debugging functions
    LocalMapPtr testMap;

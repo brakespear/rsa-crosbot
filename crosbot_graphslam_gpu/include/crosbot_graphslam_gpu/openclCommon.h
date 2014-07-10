@@ -113,6 +113,7 @@ typedef struct {
    //NOTE THIS IS READ DIRECTLY IN CPU CODE
    ocl_int numPoints;
    ocl_int isFeatureless;
+   ocl_int numWarpPoints;
    ocl_int indexParentNode;
    //The level of the node in the tree
    ocl_int treeLevel;
@@ -139,6 +140,9 @@ typedef struct {
    ocl_float pointsX[MAX_LOCAL_POINTS];
    ocl_float pointsY[MAX_LOCAL_POINTS];
    ocl_float pointsZ[MAX_LOCAL_POINTS];
+   ocl_float warpPointsX[MAX_LOCAL_POINTS];
+   ocl_float warpPointsY[MAX_LOCAL_POINTS];
+   ocl_float warpPointsZ[MAX_LOCAL_POINTS];
    ocl_float gradX[MAX_LOCAL_POINTS];
    ocl_float gradY[MAX_LOCAL_POINTS];
 } slamLocalMap;
@@ -173,10 +177,10 @@ typedef struct {
    ocl_float potentialMatchTheta[MAX_POTENTIAL_MATCHES];
    ocl_int potentialMatchParent[MAX_POTENTIAL_MATCHES];
 //newbies read in by cpu code
-   ocl_int covarCount;
    ocl_int evaluateOverlap;
    ocl_float evaluateScore;
    ocl_float tempCovar[3][3];
+   ocl_int covarCount;
    ocl_int activeCells[MAX_LOCAL_POINTS];
    ocl_int previousINode;
 //end newbies

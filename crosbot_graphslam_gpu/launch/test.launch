@@ -1,0 +1,9 @@
+<launch>
+	<param name="use_sim_time" value="true" />
+	
+	<node pkg="crosbot_graphslam_gpu" type="crosbot_graphslam_gpu" name="crosbot_graphslam_gpu" output="screen">
+		<param name="base_frame" value="base_footprint" />
+      <param name="icp_frame" value="icp_test" />
+	</node>
+
+</launch>	

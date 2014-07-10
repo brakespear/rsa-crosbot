@@ -599,6 +599,9 @@ __kernel void setLocalMap(constant slamConfig *config, global slamLocalMap *loca
       global slamCommon *common, global float *globalMapHeights, const int currentMap,
       const int numGlobalPoints) {
    int index = get_global_id(0);
+   if (index == 0) {
+      localMaps[currentMap].numWarpPoints = localMaps[currentMap].numPoints;
+   }
    if (index < localMaps[currentMap].numPoints) {
       int ogIndex = common->activeCells[index];
       float count = (float)common->localOGCount[ogIndex];
@@ -606,9 +609,11 @@ __kernel void setLocalMap(constant slamConfig *config, global slamLocalMap *loca
       localMaps[currentMap].pointsY[index] = common->localOGY[ogIndex] / count;
       localMaps[currentMap].pointsZ[index] = common->localOGZ[ogIndex];
       globalMapHeights[numGlobalPoints + index] = common->localOGZ[ogIndex];
+      localMaps[currentMap].warpPointsX[index] = localMaps[currentMap].pointsX[index];
+      localMaps[currentMap].warpPointsY[index] = localMaps[currentMap].pointsY[index];
+      localMaps[currentMap].warpPointsZ[index] = localMaps[currentMap].pointsZ[index];
       localMaps[currentMap].gradX[index] = common->localOGGradX[ogIndex];
       localMaps[currentMap].gradY[index] = common->localOGGradY[ogIndex];
-
    }
 }
 
@@ -2265,7 +2270,9 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
                float value = weight * adjust * dm * 
                              1/common->graphHessian[tempNode][warpIndex] * -1;
                atomicFloatAdd(&(localMaps[tempNode].changeInPos[warpIndex]), value);
-               atomic_inc(&(localMaps[tempNode].numConstraints));
+               if (warpIndex == 0) {
+                  atomic_inc(&(localMaps[tempNode].numConstraints));
+               }
                tempNode = localMaps[tempNode].indexParentNode;
             }
          }
@@ -2303,7 +2310,9 @@ __kernel void calculateOptimisationChange(constant slamConfig *config, global sl
                //out[tempNode] = dm * 1/common->graphHessian[tempNode][warpIndex];
             //}
             atomicFloatAdd(&(localMaps[tempNode].changeInPos[warpIndex]), value);
-            atomic_inc(&(localMaps[tempNode].numConstraints));
+            if (warpIndex == 0) {
+               atomic_inc(&(localMaps[tempNode].numConstraints));
+            }
             tempNode = localMaps[tempNode].indexParentNode;
 
 
@@ -2683,13 +2692,13 @@ __kernel void updateGlobalMap(constant slamConfig *config, global slamLocalMap *
    //Now update the global map
    int globalOffset = 0;
    for(i = 0; i < numLocalMaps; i++) {
-      if (index < localMaps[i].numPoints) {
-         int globalIndex = convertToGlobalPosition(config, localMaps[i].pointsX[index], 
-                           localMaps[i].pointsY[index], localMaps[i].currentGlobalPos);
+      if (index < localMaps[i].numWarpPoints) {
+         int globalIndex = convertToGlobalPosition(config, localMaps[i].warpPointsX[index], 
+                           localMaps[i].warpPointsY[index], localMaps[i].currentGlobalPos);
          globalMap[globalOffset + index] = globalIndex;
-         globalMapHeights[globalOffset + index] = localMaps[i].pointsZ[index];
+         globalMapHeights[globalOffset + index] = localMaps[i].warpPointsZ[index];
       }
-      globalOffset += localMaps[i].numPoints;
+      globalOffset += localMaps[i].numWarpPoints;
    }
 }
 
@@ -2715,6 +2724,20 @@ __kernel void setOccupancyGrid(constant slamConfig *config, global slamLocalMap 
          common->localOGGradX[i] = localMaps[mapNum].gradX[index];
          common->localOGGradY[i] = localMaps[mapNum].gradY[index];
       }
+   }
+}
+
+__kernel void updateWarpPoints(global slamLocalMap *localMaps,
+   global float *points, const int mapIndex, const int numWarpPoints) {
+   int index = get_global_id(0);
+
+   if (index == 0) {
+      localMaps[mapIndex].numWarpPoints = numWarpPoints;
+   }
+   if (index < numWarpPoints) {
+      localMaps[mapIndex].warpPointsX[index] = points[index];
+      localMaps[mapIndex].warpPointsY[index] = points[MAX_LOCAL_POINTS + index];
+      localMaps[mapIndex].warpPointsZ[index] = points[MAX_LOCAL_POINTS * 2 + index];
    }
 }
 
