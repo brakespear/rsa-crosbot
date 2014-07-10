@@ -141,9 +141,6 @@ private:
    ros::WallDuration totalTime;
    int numIterations;
 
-   //kinect variables
-   int lastCloudPublished;
-
    //offsets into common data structure
    size_t numPointsOffset;
    size_t matchSuccessOffset;

@@ -391,7 +391,6 @@ void GraphSlam::getPoints(vector<uint8_t>& points) {
    }
    points.resize(messageSize);
 
-
    int i;
    for (i = lastCloudPublished; i < kinectScans.size(); i++) {
       int curMap = kinectScans[i]->localMapIndex;
