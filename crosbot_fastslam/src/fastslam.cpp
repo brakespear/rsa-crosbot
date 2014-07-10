@@ -56,6 +56,7 @@ void FastSLAMMap::configure(ConfigElementPtr config) {
 		motionConfig = config;
 	motionModel.range = motionConfig->getParamAsDouble("range", motionModel.range);
 	motionModel.rangeXY = motionConfig->getParamAsDouble("rangeXY", motionModel.rangeXY);
+	motionModel.theta = motionConfig->getParamAsDouble("theta", motionModel.theta);
 	motionModel.drift = motionConfig->getParamAsDouble("drift", motionModel.drift);
 	motionModel.shift = motionConfig->getParamAsDouble("shift", motionModel.shift);
 	motionModel.shiftXY = motionConfig->getParamAsDouble("shiftXY", motionModel.shiftXY);

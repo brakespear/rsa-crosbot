@@ -20,7 +20,7 @@ public:
    void start();
    void stop();
    void initialiseTrack(Pose icpPose, PointCloudPtr cloud);
-   void updateTrack(Pose icpPose, PointCloudPtr cloud);
+   void updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time time);
 
    GraphSlamGPU();
    ~GraphSlamGPU();
@@ -31,11 +31,33 @@ protected:
    void getGlobalMap(vector<LocalMapPtr> curMap, vector<double> mapSlices);
    void getGlobalMapPosition(int mapIndex, double& gx, double& gy, 
          double& gth);
+   int getScanIndex(int mapIndex);
+   void getScanPose(int mapIndex, int scanIndex, double& px, double& py, double& pth);
+
 private:
    /*
     * Config attributes for GPU version of graph slam
     */
    int LocalSize;
+
+   //Slam data structures:
+   typedef struct {
+      vector<Point> points;
+      double covar[3][3];
+      double pose[3];
+      double correction[3];
+      ros::Time stamp;
+   } Scan;
+
+   typedef struct {
+      vector<Scan *> scans;
+      int indexNextNode;
+      double nextOffsetX;
+      double nextOffsetY;
+      double nextOffsetTh;
+      int numWarpPoints;
+   } LocalMap; 
+
 
    /*
     * Opencl data structures
@@ -59,6 +81,9 @@ private:
    //Storage for global positions of each map for snaps
    cl_mem clGlobalMapPositions;
    ocl_float *globalMapPositions;
+   //Storage for free areas of the local maps
+   //Note freeAreas stores (1 - prob) instead of prob
+   cl_mem clFreeAreas;
 
    //debugging output
    cl_mem clRes;
@@ -96,11 +121,33 @@ private:
    int *numLocalMapPoints;
    //The most laser points in a single local map
    int maxNumLocalPoints;
+   //is it the first scan in the local map
+   int firstScan;
+   //the number of laser scans added to the current local map
+   int numScans;
+   //is each local map featureless? 
+   vector<bool> isMapFeatureless;
+   //The index of the parent node of each local map
+   vector<int> indexParentNode;
+   //Index of the last full loop closure
+   int lastFullLoopIndex;
+   //The number of loop constraints in the graph
+   int numLoopConstraints;
 
+   //Local map sotrage
+   vector<LocalMap> localMaps;
 
    //debugging for timings
    ros::WallDuration totalTime;
    int numIterations;
+
+   //offsets into common data structure
+   size_t numPointsOffset;
+   size_t matchSuccessOffset;
+   size_t combineIndexOffset;
+   size_t numPotentialMatchesOffset;
+   size_t evaluateOffset;
+   size_t tempCovarOffset;
 
    /*
     * Private methods
@@ -108,6 +155,16 @@ private:
 
    //Performs loop closing tests and sets up a new local map if needed
    void finishMap(double angleError, double icpTh, Pose icpPose);
+   //Finds partial loop closures
+   bool findTempMatches();
+   //Actually perform the partial loop closure between two maps
+   bool performTempMatch(int currentMap, int testMap);
+   //finds partial matches to a map if it has substantially changed position
+   bool findChangedPosMatches(int mapNum);
+   //Warp local maps after an optimisation
+   void warpLocalMaps();
+   //Warp a single local map
+   void warpLocalMap(int mapIndex, double errX, double errY, double errTh);
    //Initialise points struct for opencl
    void initialisePoints();
    //Initialise the structures used for slam
@@ -117,6 +174,8 @@ private:
    //Returns the global work size needed if there are numThreads for the
    //kernel (global work size needs to be a multiple of LocalSize)
    inline int getGlobalWorkSize(int numThreads);
+   //Creates extra space to store global points if needed
+   void createExtraGlobalPointsSpace();
    //Write memory to the GPU. Wrapes clEnqueueWriteBuffer
    void writeBuffer(cl_mem buffer, cl_bool blocking_write, size_t offset, 
          size_t cb, const void *ptr, cl_uint num_events_in_wait_list, 

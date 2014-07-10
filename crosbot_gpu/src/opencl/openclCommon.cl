@@ -207,4 +207,23 @@ void parallelReduceInt(local int arr[WARP_SIZE], int localIndex, global int *des
    }
 }
 
+void parallelReduceFloat(local float arr[WARP_SIZE], int localIndex, global float *dest) {
+   if (localIndex < 16) {
+      arr[localIndex] += arr[localIndex + 16];
+   }
+   if (localIndex < 8) {
+      arr[localIndex] += arr[localIndex + 8];
+   }
+   if (localIndex < 4) {
+      arr[localIndex] += arr[localIndex + 4];
+   }
+   if (localIndex < 2) {
+      arr[localIndex] += arr[localIndex + 2];
+   }
+   if (localIndex == 0) {
+      arr[localIndex] += arr[localIndex + 1];
+      atomicFloatAdd(dest, arr[localIndex]);
+   }
+}
+
 

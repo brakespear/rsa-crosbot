@@ -16,17 +16,26 @@
 		<remap from="image" to="/mbicp/image" />
 	</node-->
 	
+	<node pkg="image_view" type="image_view" name="globalmap_view">
+      <remap from="image" to="globalImage" />
+		<!--remap from="image" to="/mbicp/image" /-->
+	</node>
 	<node pkg="image_view" type="image_view" name="localmap_view">
       <remap from="image" to="localImage" />
 		<!--remap from="image" to="/mbicp/image" /-->
 	</node>
 
-	<node pkg="image_view" type="image_view" name="image_view">
+	<!--node pkg="image_view" type="image_view" name="image_view">
 		<remap from="image" to="/camera/rgb/image_color" />
-   </node>
+   </node-->
 	
-	<node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp" output="screen">
+	<node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp">
 		<!--param name="odom_frame" Xvalue="odom" value="" /-->
+		<param name="base_frame" value="base_footprint" />
+      <param name="icp_frame" value="icp_test" />
+	</node>
+
+	<node pkg="crosbot_graphslam_gpu" type="crosbot_graphslam_gpu" name="crosbot_graphslam_gpu" output="screen" launch-prefix="gdb -ex run --args">
 		<param name="base_frame" value="base_footprint" />
       <param name="icp_frame" value="icp_test" />
 	</node>

@@ -41,6 +41,7 @@ public:
 //	virtual QRectF getDefaultBounds();
 
 	virtual bool keyPressEvent(QKeyEvent *e);
+	virtual bool keyReleaseEvent(QKeyEvent *e);
 	virtual bool mousePressEvent(QMouseEvent *);
 	virtual bool mouseReleaseEvent(QMouseEvent *);
 	virtual bool mouseMoveEvent(QMouseEvent *);

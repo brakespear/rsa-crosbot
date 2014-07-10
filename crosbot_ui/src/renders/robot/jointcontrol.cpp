@@ -90,7 +90,26 @@ void JointController::setPos(const std::string& joint, double pos) {
 
 	if (j != NULL) {
 		j->desiredPos = pos;
+		if (j->pos < j->desiredPos) {
+			state.velocity.push_back(1);
+		} else {
+			state.velocity.push_back(-1);
+		}
 	}
+
+	connection.jointPub.publish(state);
+}
+
+void JointController::setVel(const std::string& joint, double vel) {
+	if (!connection.jointPub)
+		return;
+
+	Joint *j = findJoint(joint);
+	sensor_msgs::JointState state;
+	state.header.stamp = ros::Time::now();
+	state.name.push_back(joint);
+	state.position.push_back(INFINITY);
+	state.velocity.push_back(vel);
 
 	connection.jointPub.publish(state);
 }

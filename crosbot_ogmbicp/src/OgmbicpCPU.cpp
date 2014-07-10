@@ -111,10 +111,12 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
 
    int iterCount = 0;
    bool alignedScan = false;
+   //int count = 0;
    while (iterCount < MaxIterations && getOffset(scan, dx, dy, dz, dth)) {
       scan->transformPoints(dx, dy, dz, dth, laserOffset);
-
+      //count = (int) dz;
       dz = 0; //TODO: fix this
+      //scan->transformPoints(dx, dy, dz, dth, laserOffset);
 
       gx += dx;
       gy += dy;
@@ -132,11 +134,12 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
       iterCount++;
    }
    //cout << "iter count is " << iterCount << endl;
+   //cout << "iter count is " << iterCount << " count: " << count << " " << gx << " " << gy << " " << gth << endl;
 
    if (isnan(gx) || isnan(gy) || isnan(gz) || isnan(gth) || fabs(gx) > MaxMoveXYZ ||
          fabs(gy) > MaxMoveXYZ || fabs(gz) > MaxMoveXYZ || fabs(gth) > MaxMoveTh) {
       failCount++;
-      cout << "Failed scan" << endl;
+      cout << "***********Failed scan " << gx << " " << gy << " " << gth << endl;
       if (failCount < MaxFail) {
          return;
       } else {
@@ -173,6 +176,7 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    yaw += gth;
    ANGNORM(yaw);
    curPose.setYPR(yaw, pitch, roll);
+   //cout << "Current pose is: " << curPose.position.x << " " << curPose.position.y << " " << yaw << endl;
 
    if (UsePriorMove) {
       px = gx;
@@ -388,6 +392,7 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
 	   dz = Q(3);
    	dth = Q(4);
    }
+   //dz = (double) count;
    return true;
 }
 
