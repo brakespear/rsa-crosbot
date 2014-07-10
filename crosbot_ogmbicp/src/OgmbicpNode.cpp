@@ -146,7 +146,7 @@ void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan)
       geometry_msgs::TransformStamped icpTs = getTransform(icpPose, odom_frame, icp_frame, latestScan->header.stamp);
       tfPub.sendTransform(icpTs);
    } else {
-      geometry_msgs::TransformStamped icpTs = getTransform(icpPose, icp_frame, base_frame, latestScan->header.stamp);
+      geometry_msgs::TransformStamped icpTs = getTransform(icpPose, base_frame, icp_frame, latestScan->header.stamp);
       tfPub.sendTransform(icpTs);
    }
 }

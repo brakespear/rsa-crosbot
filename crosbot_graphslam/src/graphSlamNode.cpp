@@ -105,8 +105,8 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
    				latestScan->header.frame_id, latestScan->header.stamp, laser2Base);
   		sensorPose = laser2Base;
 
-      tfListener.waitForTransform(base_frame, icp_frame, latestScan->header.stamp, ros::Duration(1,0));
-      tfListener.lookupTransform(base_frame, icp_frame, latestScan->header.stamp, base2Icp);
+      tfListener.waitForTransform(icp_frame, base_frame, latestScan->header.stamp, ros::Duration(1,0));
+      tfListener.lookupTransform(icp_frame, base_frame, latestScan->header.stamp, base2Icp);
       icpPose = base2Icp;
 
   	} catch (tf::TransformException& ex) {
@@ -146,7 +146,7 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
       imageTestPub.publish((testMap->getImage())->toROS());
    }
    Pose slamPose = graph_slam.slamPose;
-   Pose correction = icpPose.toTF().inverse() * slamPose.toTF();
+   Pose correction = slamPose.toTF() * icpPose.toTF().inverse();
    geometry_msgs::TransformStamped slamCor = getTransform(correction, icp_frame, slam_frame, base2Icp.stamp_);
    tfPub.sendTransform(slamCor);
 }

@@ -91,12 +91,14 @@ add_library(crosbot_ui
   src/renders/robot/joystick.cpp
   src/renders/robot/preset.cpp
   src/renders/robot/jointcontrol.cpp
+  
+  src/nodes/gui.cpp
    
   ${QT_MOC_HPP} ${QT_RESOURCES_CPP}
 )
 
 ## Declare a cpp executable
-add_executable(gui src/nodes/gui.cpp)
+add_executable(gui src/nodes/gui_node.cpp)
 add_executable(geo_logger src/nodes/geo_logger.cpp)
 
 ## Add dependencies to the executable
