@@ -34,15 +34,9 @@ protected:
    void getGlobalMap(vector<LocalMapPtr> curMap, vector<double> mapSlices);
    void getGlobalMapPosition(int mapIndex, double& gx, double& gy, 
          double& gth);
+   int getScanIndex(int mapIndex);
+   void getScanPose(int mapIndex, int scanIndex, double& px, double& py, double& pth);
 private:
-   //Kinect data structure
-   typedef struct {
-      vector<Point> points;
-      vector<float> rgb;
-      int localMapIndex;
-      int scanIndex;
-   } KinectScan;
-
    //Slam data structures:
    typedef struct {
       vector<Point> points;
@@ -186,12 +180,6 @@ private:
    bool didOptimise;
    //bool tempO;
 
-   //Kinect variables
-   vector<KinectScan *> kinectScans;
-   int lastCloudPublished;
-   int messageSize;
-   int activeMapIndex;
-
    //debugging for timings
    ros::WallDuration totalTime;
    int numIterations;
@@ -220,8 +208,6 @@ private:
    double getMetricValue(double pointX, double pointY, double ogPointX, double ogPointY);
    //Multiply two 3x3 matrices
    void mult3x3Matrix(double a[3][3], double b[3][3], double res[3][3]);
-   //Calculate the inverse of a 3x3 matrix
-   void invert3x3Matrix(double m[3][3], double res[3][3]);
    // Nasty hack function to make covariance matrices acceptable in the occassional 
    // case where not enough matching points were found when creating the 
    // information matrix
@@ -287,11 +273,6 @@ private:
    bool findChangedPosMatches(int mapNum);
    //Updates the robotMapcentres for each local map after an optimisation
    void updateRobotMapCentres();
-
-   //Updates the position of kinect points and adds them to the point cloud
-   void getPoints(vector<uint8_t>& points);
-   //Stores the points from a kinect scan
-   void captureScan(const vector<uint8_t>& points, Pose correction);
 
    //Debugging publisher
    void updateTestMap();

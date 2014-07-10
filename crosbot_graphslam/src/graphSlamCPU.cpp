@@ -260,7 +260,8 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
             newScan->covar[i][j] /= PerScanInfoScaleFactor;
             //cout << newScan->covar[i][j] << " ";
             if (i == j && newScan->covar[i][i] < 0) {
-               cout << "This shouldn't happen " << i << endl;
+               cout << "This shouldn't happen " << newScan->covar[i][i] << " "
+                  << i << endl;
             }
             localMaps[currentLocalMap].internalCovar[i][j] += newScan->covar[i][j];
          }
@@ -282,7 +283,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
       double mapGradY = nxtP - preP;
 
       int ogIndex = getLocalOGIndex(scanPoints[i].x, scanPoints[i].y);
-      if (ogIndex >= 0 && mapGradX < GradientDistanceThreshold && mapGradX < GradientDistanceThreshold) {
+      if (ogIndex >= 0 && mapGradX < GradientDistanceThreshold && mapGradY < GradientDistanceThreshold) {
          common->grid[ogIndex].p.z = std::max(common->grid[ogIndex].p.z, scanPoints[i].z);
          common->grid[ogIndex].p.x += scanPoints[i].x;
          common->grid[ogIndex].p.y += scanPoints[i].y;
@@ -442,7 +443,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       localMaps[currentLocalMap].warpPointsX[i] = localMaps[currentLocalMap].pointsX[i];
       localMaps[currentLocalMap].warpPointsY[i] = localMaps[currentLocalMap].pointsY[i];
       localMaps[currentLocalMap].warpPointsZ[i] = localMaps[currentLocalMap].pointsZ[i];
-
+      //TODO: Should these be / count ??
       localMaps[currentLocalMap].gradX[i] = common->grid[ogIndex].gradX;
       localMaps[currentLocalMap].gradY[i] = common->grid[ogIndex].gradY;
    }
@@ -767,6 +768,20 @@ void GraphSlamCPU::getGlobalMapPosition(int mapIndex, double& gx, double& gy,
    gth = localMaps[mapIndex].currentGlobalPosTh;
 }
 
+int GraphSlamCPU::getScanIndex(int mapIndex) {
+   return localMaps[mapIndex].scans.size() - 1;
+}
+
+void GraphSlamCPU::getScanPose(int mapIndex, int scanIndex, double& px, double& py, double& pth) {
+   px = localMaps[mapIndex].scans[scanIndex]->pose[0] + 
+      localMaps[mapIndex].scans[scanIndex]->correction[0];
+   py = localMaps[mapIndex].scans[scanIndex]->pose[1] + 
+      localMaps[mapIndex].scans[scanIndex]->correction[1];
+   pth = localMaps[mapIndex].scans[scanIndex]->pose[2] + 
+      localMaps[mapIndex].scans[scanIndex]->correction[2];
+
+}
+
 void GraphSlamCPU::clearMap(int mapIndex) {
    localMaps[mapIndex].numPoints = 0;
    localMaps[mapIndex].numWarpPoints = 0;
@@ -786,7 +801,7 @@ void GraphSlamCPU::clearMap(int mapIndex) {
 
 inline int GraphSlamCPU::getLocalOGIndex(double x, double y) {
    int i,j;
-   float off = (DimLocalOG * CellSize) / 2.0f;
+   double off = (DimLocalOG * CellSize) / 2.0;
    i = (x + off) / CellSize;
    j = (y + off) / CellSize;
    //check to see if the point fits inside the occupancy grid
@@ -1263,6 +1278,15 @@ void GraphSlamCPU::prepareLocalMap() {
       localMaps[currentLocalMap].orientationHist[index] /= orienSum;
    }
 
+   /*cout << "Internal covar: ";
+   int yy, xx;
+   for (yy = 0; yy < 3; yy++) {
+      for (xx = 0; xx < 3; xx++) {
+         cout << localMaps[currentLocalMap].internalCovar[yy][xx] << " ";
+      }
+   }
+   cout << endl;*/
+
    //Fix up the hessian matrixpreviously calculated
    double a[3][3];
    double b[3][3];
@@ -1463,30 +1487,6 @@ void GraphSlamCPU::mult3x3Matrix(double a[3][3], double b[3][3], double res[3][3
    }
 }
 
-void GraphSlamCPU::invert3x3Matrix(double m[3][3], double res[3][3]) {
-   double det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
-              m[0][1] * (m[2][2] * m[1][0] - m[1][2] * m[2][0]) +
-              m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
-   for (int y= 0; y < 3; y++) {
-      for(int x = 0; x< 3; x++) {
-         int minx = min((x + 1) % 3, (x + 2) % 3);
-         int maxx = max((x + 1) % 3, (x + 2) % 3);
-         int miny = min((y + 1) % 3, (y + 2) % 3);
-         int maxy = max((y + 1) % 3, (y + 2) % 3);
-
-         double temp = m[miny][minx] * m[maxy][maxx] - m[miny][maxx] * m[maxy][minx];
-         if ((x == 1 || y == 1) && !(x == 1 && y == 1)) {
-            temp *= -1;
-         }
-         if (det != 0) {
-            res[x][y] = temp * 1/det;
-         } else {
-            res[x][y] = 0.0001;
-         }
-      }
-   }
-}
-
 void GraphSlamCPU::covarFiddle(double m[3][3]) {
 
    double max = MaxCovar;
@@ -1649,7 +1649,6 @@ void GraphSlamCPU::findPotentialMatches() {
                   maxY = maxIndex90;
                }            
             }
-            cout << "Correlation score of map " << globalWarp << " is " << maxCorrScore << endl;
             if (maxCorrScore > CorrelationThreshold) {
                int res = common->numPotentialMatches;
                common->numPotentialMatches++;
@@ -1674,11 +1673,11 @@ void GraphSlamCPU::findPotentialMatches() {
                common->potentialMatchTh[res] = ((2 * M_PI * maxOrien) / NUM_ORIENTATION_BINS - 
                                                    (M_PI * (float)(2 * NUM_ORIENTATION_BINS - 1) 
                                                    / (float) (2 * NUM_ORIENTATION_BINS)) + M_PI) * -1;
-               cout << "Maxes are: " << tempX << " " << tempY << " " << maxTheta << " " << common->potentialMatchTh[res] << endl;
                common->potentialMatchX[res] *= -1;
                common->potentialMatchY[res] *= -1;
                common->potentialMatchParent[res] = parentIndex;
                ANGNORM(common->potentialMatchTh[res]);
+
             }
          }
       }
@@ -2146,7 +2145,7 @@ void GraphSlamCPU::evaluateTempConstraints() {
 }
 
 bool GraphSlamCPU::findChangedPosMatches(int mapNum) {
-   if (localMaps[currentLocalMap].isFeatureless) {
+   if (localMaps[mapNum].isFeatureless) {
       return false;
    }
 
@@ -2416,7 +2415,7 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations, int type) {
 
       }
 
-      if (PreventMatchesSymmetrical && (residual[2] > 3.0 * M_PI / 4.0 || residual[2] < -3.0 * M_PI / 2.0)) {
+      if (PreventMatchesSymmetrical && (residual[2] > 3.0 * M_PI / 4.0 || residual[2] < -3.0 * M_PI / 4.0)) {
          cout << "Fixing residual angles " << residual[2] << " " << iNode << " " << jNode << endl;
          common->loopConstraintWeight[constraintIndex] = 0;
          continue;
@@ -2464,7 +2463,9 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations, int type) {
                double value = weight * adjust * dm[warpIndex] * 
                              1/common->graphHessian[tempNode][warpIndex] * -1;
                localMaps[tempNode].changeInPos[warpIndex] += value;
-               localMaps[tempNode].numConstraints++;
+               if (warpIndex == 0) {
+                  localMaps[tempNode].numConstraints++;
+               }
                tempNode = localMaps[tempNode].indexParentNode;
             }
          }
@@ -2478,7 +2479,9 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations, int type) {
             //cout << "Fraction for node " << tempNode << " is " << dm[warpIndex] * 1/common->graphHessian[tempNode][warpIndex] << 
             //   " " << dm[warpIndex] << " " << warpIndex << " " << localMaps[tempNode].parentInfo[warpIndex][warpIndex] << endl;
             localMaps[tempNode].changeInPos[warpIndex] += value;
-            localMaps[tempNode].numConstraints++;
+            if (warpIndex == 0) {
+               localMaps[tempNode].numConstraints++;
+            }
             tempNode = localMaps[tempNode].indexParentNode;
          }
       }
@@ -3037,107 +3040,6 @@ void GraphSlamCPU::combineNodes(double alignError, int numOtherGlobalPoints) {
    slamPose.setYPR(ys, ps, rs);
 
    common->combineMode = 1;
-}
-
-void GraphSlamCPU::captureScan(const vector<uint8_t>& points, Pose correction) {
-
-   int row, col;
-   int off;
-   
-   int step = SkipVal;
-   //maximum number of points per scan
-   int pointsPerScan = (RGBDWidth / step) * (RGBDHeight / step);
-
-   tf::Transform trans = correction.toTF();
-
-   KinectScan *newScan = new KinectScan();
-   newScan->points.resize(pointsPerScan);
-   newScan->rgb.resize(pointsPerScan);
-
-   if (activeMapIndex < 0) {
-      return;
-   }
-   newScan->localMapIndex = activeMapIndex;
-   newScan->scanIndex = localMaps[newScan->localMapIndex].scans.size() - 1;
-   int i = 0;
-   int skipSize = 32 * RGBDWidth;
-   cout << "*********** Capturing scan" << endl;
-   for (row = 0; row < RGBDHeight; row+=step) {
-      off = skipSize * row;
-      for (col = 0; col < RGBDWidth; col+=step) {
-         int start = off + col * 32;
-         float *arr = (float *) &(points[start]);
-         Point p;
-         p.x = arr[0];
-         p.y = arr[1];
-         p.z = arr[2];
-
-         if (!isnan(p.x)/* && !isnan(p.y) && !isnan(p.z)*/) {
-            newScan->points[i] = trans * p.toTF();
-            double dist = newScan->points[i].x * newScan->points[i].x + newScan->points[i].y * newScan->points[i].y;
-            if (dist > RGBDMinDistance && newScan->points[i].z > RGBDMinHeight && 
-                  newScan->points[i].z < RGBDMaxHeight && dist < RGBDMaxDistance) {
-               newScan->rgb[i] = arr[4];
-               i++;
-            }
-         }
-      }
-   }
-   newScan->points.resize(i);
-   newScan->points.resize(i);
-   kinectScans.push_back(newScan);
-   messageSize += i * 32;
-}
-
-void GraphSlamCPU::getPoints(vector<uint8_t>& points) {
-   
-   int curSize;
-   if (lastCloudPublished == 0) {
-      curSize = 0;
-   } else {
-      curSize = points.size();
-   }
-   points.resize(messageSize);
-
-
-   int i;
-   for (i = lastCloudPublished; i < kinectScans.size(); i++) {
-      int curMap = kinectScans[i]->localMapIndex;
-      int scanIndex = kinectScans[i]->scanIndex;
-      double scanX = localMaps[curMap].scans[scanIndex]->pose[0] +
-         localMaps[curMap].scans[scanIndex]->correction[0];
-      double scanY = localMaps[curMap].scans[scanIndex]->pose[1] +
-         localMaps[curMap].scans[scanIndex]->correction[1];
-      double scanTh = localMaps[curMap].scans[scanIndex]->pose[2] +
-         localMaps[curMap].scans[scanIndex]->correction[2];
-      double cosTh = cos(localMaps[curMap].currentGlobalPosTh);
-      double sinTh = sin(localMaps[curMap].currentGlobalPosTh);
-      double mapPosX =  scanX * cosTh - scanY * sinTh +
-         localMaps[curMap].currentGlobalPosX;
-      double mapPosY =  scanX * sinTh + scanY * cosTh +
-         localMaps[curMap].currentGlobalPosY;
-      double mapPosTh = localMaps[curMap].currentGlobalPosTh + scanTh;
-      int j;
-      int size = kinectScans[i]->points.size();
-      cosTh = cos(mapPosTh);
-      sinTh = sin(mapPosTh);
-      for (j = 0; j < size; j++) {
-         float *arr = (float *) &(points[curSize]);
-         Point p = kinectScans[i]->points[j];
-         arr[0] = p.x * cosTh - p.y * sinTh + mapPosX;
-         arr[1] = p.x * sinTh + p.y * cosTh + mapPosY;
-         arr[2] = p.z;
-         arr[4] = kinectScans[i]->rgb[j];
-         //arr[3] = 0;
-         //arr[5] = 0;
-         //arr[6] = 0;
-         //arr[7] = 0;
-         curSize += 32;
-      }
-      
-   }
-
-   lastCloudPublished = i;
 }
 
 void GraphSlamCPU::updateTestMap() {
