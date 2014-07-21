@@ -200,7 +200,8 @@ void Ogmbicp::transformToRobot(double &dx, double &dy, double &dz, double &dth) 
 
 crosbot::ImagePtr Ogmbicp::drawMap(LocalMapPtr localMap) {
    Time currentTime = Time::now();
-   if ((currentTime - lastImgTime).toSec() > ImgTransmitTime / 1000000.0) {
+   if (ImgTransmitTime > 0 &&
+       (currentTime - lastImgTime).toSec() > ImgTransmitTime / 1000000.0) {
       lastImgTime = currentTime;
       getLocalMap(localMap);
       ImagePtr localMapImage = localMap->getImage();
