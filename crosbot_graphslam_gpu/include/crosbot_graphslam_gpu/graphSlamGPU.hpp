@@ -56,6 +56,7 @@ private:
       double nextOffsetY;
       double nextOffsetTh;
       int numWarpPoints;
+      Pose globalPose;
    } LocalMap; 
 
 

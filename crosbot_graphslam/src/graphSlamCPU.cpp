@@ -633,6 +633,24 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             updateRobotMapCentres();
          }
 
+         vector<LocalMapInfoPtr> changes;
+         for(int k = 0; k < nextLocalMap; k++) {
+            if (localMaps[k].startingPos[0] != localMaps[k].currentGlobalPosX ||
+                  localMaps[k].startingPos[1] != localMaps[k].currentGlobalPosY ||
+                  localMaps[k].startingPos[2] != localMaps[k].currentGlobalPosTh) {
+               double ys, ps, rs;
+               localMaps[k].globalPose.getYPR(ys, ps, rs);
+               localMaps[k].globalPose.position.x = localMaps[k].currentGlobalPosX;
+               localMaps[k].globalPose.position.y = localMaps[k].currentGlobalPosY;
+               ys = localMaps[k].currentGlobalPosTh;
+               localMaps[k].globalPose.setYPR(ys, ps, rs);
+
+               //LocalMapInfo temp(localMaps[k].globalPose, k);
+               changes.push_back(new LocalMapInfo(localMaps[k].globalPose, k));
+            }
+         }
+         graphSlamNode->publishOptimiseLocalMapInfo(changes);
+
          t1 = ros::WallTime::now();
          updateGlobalMap();
          t2 = ros::WallTime::now();
@@ -687,6 +705,9 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
    currentLocalMapICPPose = icpPose;
    numGlobalPoints += numLocalPoints;
    currentLocalMap = nextLocalMap;
+
+   LocalMapInfo newMap(slamPose, currentLocalMap);
+   graphSlamNode->publishLocalMapInfo(newMap);
 
 }}
 
@@ -896,6 +917,8 @@ void GraphSlamCPU::createNewLocalMap(int oldLocalMap, int newLocalMap, int paren
    localMaps[newLocalMap].parentOffsetX = common->currentOffsetX;
    localMaps[newLocalMap].parentOffsetY = common->currentOffsetY;
    localMaps[newLocalMap].parentOffsetTh = common->currentOffsetTh;
+
+   localMaps[newLocalMap].globalPose = slamPose;
 
    common->currentOffsetX = 0;
    common->currentOffsetY = 0;

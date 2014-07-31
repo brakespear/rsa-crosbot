@@ -67,6 +67,7 @@ private:
       double internalCovar[3][3];
 
       double startingPos[3];
+      Pose globalPose;
 
       int numConstraints;
       int indexNextNode;

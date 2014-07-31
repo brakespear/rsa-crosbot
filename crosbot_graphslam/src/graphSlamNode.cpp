@@ -19,6 +19,8 @@ GraphSlamNode::GraphSlamNode(GraphSlam &graphSlam): icp_frame(DEFAULT_ICPFRAME),
    isInit = false;
    lastCaptured = ros::Time::now();
    lastPublishedMap = ros::Time::now();
+
+   graph_slam.graphSlamNode = this;
 }
 
 void GraphSlamNode::initialise(ros::NodeHandle &nh) {
@@ -31,6 +33,8 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("global_map_image_pub", global_map_image_pub, "globalImage");
    paramNH.param<std::string>("slam_history_pub", slam_history_pub, "slamHistory");
    paramNH.param<std::string>("global_grid_pub", global_grid_pub, "slamGrid");
+   paramNH.param<std::string>("local_map_pub", local_map_pub, "localMapInfo");
+   paramNH.param<std::string>("optimise_map_pub", optimise_map_pub, "optimiseMapInfo");
    paramNH.param<std::string>("snap_list_srv", snap_list_srv, "snaps_list");
    paramNH.param<std::string>("snap_update_srv", snap_update_srv, "snap_update");
    paramNH.param<std::string>("snap_get_srv", snap_get_srv, "snap_get");
@@ -44,6 +48,7 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
 
    paramNH.param<bool>("IncludeHighMapsSlice", IncludeHighMapSlice, false);
    paramNH.param<double>("HighMapSliceHeight", HighMapSliceHeight, 2.0);
+   paramNH.param<bool>("PublishLocalMapInfo", PublishLocalMapInfo, true);
 
    graph_slam.initialise(nh);
    graph_slam.start();
@@ -62,6 +67,11 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    snapListServer = nh.advertiseService(snap_list_srv, &GraphSlamNode::getSnapsList, this);
    snapUpdateServer = nh.advertiseService(snap_update_srv, &GraphSlamNode::snapUpdate, this);
    snapGetServer = nh.advertiseService(snap_get_srv, &GraphSlamNode::snapGet, this);
+
+   if (PublishLocalMapInfo) {
+      localMapInfoPub = nh.advertise<crosbot_graphslam::LocalMapMsg>(local_map_pub, 1);
+      optimiseMapPub = nh.advertise<crosbot_graphslam::LocalMapMsgList>(optimise_map_pub, 1);
+   }
 
    //Kinect subscriber
    if (useKinect) {
@@ -201,6 +211,23 @@ void GraphSlamNode::publishSlamHistory() {
    path.header.frame_id = slam_frame;
    path.header.stamp = ros::Time::now();
    slamHistoryPub.publish(path);
+}
+
+void GraphSlamNode::publishLocalMapInfo(LocalMapInfo& info) {
+   if (PublishLocalMapInfo) {
+      localMapInfoPub.publish(info.toROSsmall());
+   }
+}
+
+void GraphSlamNode::publishOptimiseLocalMapInfo(vector<LocalMapInfoPtr>& localMapInfo) {
+   if (PublishLocalMapInfo) {
+      crosbot_graphslam::LocalMapMsgList list;
+      list.localMaps.resize(localMapInfo.size());
+      for (int i = 0; i < localMapInfo.size(); i++) {
+         list.localMaps[0] = *(localMapInfo[i]->toROSsmall());
+      }
+      optimiseMapPub.publish(list);
+   }
 }
 
 geometry_msgs::TransformStamped GraphSlamNode::getTransform(const Pose& pose, std::string childFrame, 

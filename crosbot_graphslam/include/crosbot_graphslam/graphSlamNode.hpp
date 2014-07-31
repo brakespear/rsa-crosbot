@@ -25,6 +25,9 @@
 #include <crosbot_map/GetSnap.h>
 #include <crosbot_map/ModifySnap.h>
 
+#include <crosbot_graphslam/localMap.hpp>
+#include <crosbot_graphslam/LocalMapMsg.h>
+#include <crosbot_graphslam/LocalMapMsgList.h>
 #include <crosbot_graphslam/graphSlam.hpp>
 
 #define DEFAULT_ICPFRAME "/icp"
@@ -32,7 +35,9 @@
 #define DEFAULT_MAXWAIT4TRANSFORM 2.0
 
 using namespace std;
+using namespace crosbot;
 
+class GraphSlam;
 class GraphSlamNode {
 public:
 
@@ -47,6 +52,15 @@ public:
     * Shuts down the graph slam node
     */
    void shutdown();
+   /*
+    * Publishes information about a local map
+    */
+   void publishLocalMapInfo(LocalMapInfo& info);
+
+   /*
+    * Publishes info about local maps that have changed position
+    */
+   void publishOptimiseLocalMapInfo(vector<LocalMapInfoPtr>& localMapInfo);
 
 private:
   
@@ -55,7 +69,7 @@ private:
     */
    string icp_frame, base_frame, slam_frame;
    string scan_sub, snap_sub;
-   string global_map_image_pub, slam_history_pub, global_grid_pub;
+   string global_map_image_pub, slam_history_pub, global_grid_pub, local_map_pub, optimise_map_pub;
    string snap_list_srv, snap_update_srv, snap_get_srv;
 
    /*
@@ -65,12 +79,20 @@ private:
    double HighMapSliceHeight;
 
    /*
+    * Publish information about local maps
+    * - When created and when global map is optimised
+    */
+   bool PublishLocalMapInfo;
+
+   /*
     * ROS connections
     */
    ros::Subscriber scanSubscriber;
    ros::Subscriber snapSub;
    ros::Publisher imagePub;
    ros::Publisher slamHistoryPub;
+   ros::Publisher localMapInfoPub;
+   ros::Publisher optimiseMapPub;
    vector<ros::Publisher> slamGridPubs;
    ros::ServiceServer snapListServer;
    ros::ServiceServer snapUpdateServer;

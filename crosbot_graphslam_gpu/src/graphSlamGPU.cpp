@@ -1036,7 +1036,6 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
 
             }
          }
-         free(oldMapPositions);
 
          if (foundMoreLoops) {
             cout << "****Optimising again" << endl;
@@ -1068,6 +1067,27 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
                createExtraGlobalPointsSpace();
             }
          }
+
+         vector<LocalMapInfoPtr> changes;
+         for(int k = 0; k < nextLocalMap; k++) {
+            if (oldMapPositions[k*5] != globalMapPositions[k*5] ||
+                  oldMapPositions[k*5 + 1] != globalMapPositions[k*5 + 1] ||
+                  oldMapPositions[k*5 + 2] != globalMapPositions[k*5 + 2]) {
+               double ys, ps, rs;
+               localMaps[k].globalPose.getYPR(ys, ps, rs);
+               localMaps[k].globalPose.position.x = globalMapPositions[k*5];
+               localMaps[k].globalPose.position.y = globalMapPositions[k*5 + 1];
+               ys = globalMapPositions[k*5 + 2];
+               localMaps[k].globalPose.setYPR(ys, ps, rs);
+
+               //LocalMapInfo temp(localMaps[k].globalPose, k);
+               changes.push_back(new LocalMapInfo(localMaps[k].globalPose, k));
+            }
+         }
+         graphSlamNode->publishOptimiseLocalMapInfo(changes);
+         free(oldMapPositions);
+        
+         
          kernelSize = getGlobalWorkSize(maxNumLocalPoints);
          opencl_task->queueKernel(12, 1, kernelSize, LocalSize,
                0, NULL, NULL, false);
@@ -1144,6 +1164,7 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
       LocalMap temp;
       temp.numWarpPoints = 0;
       temp.indexNextNode = -1;
+      temp.globalPose = slamPose;
       localMaps.push_back(temp);
    }
    double cosTh = cos(-startICPTheta);
@@ -1173,6 +1194,9 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
    double ys, ps, rs;
    slamPose.getYPR(ys, ps, rs);
    globalMapPositions[currentLocalMap * 5 + 2] = ys;
+
+   LocalMapInfo newMap(slamPose, currentLocalMap);
+   graphSlamNode->publishLocalMapInfo(newMap);
 
    //Grow data structures if needed
    if (numGlobalPoints + MAX_LOCAL_POINTS > totalGlobalPoints) {
