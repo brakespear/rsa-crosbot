@@ -44,7 +44,7 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("HistoryTime", HistoryTime, 1000000);
    paramNH.param<int>("MinObservationCount", MinObservationCount, 30);
    paramNH.param<double>("InitHeight", InitHeight, 1.0);
-   paramNH.param<bool>("LocalMapWarp", LocalMapWarp, true);
+   paramNH.param<bool>("LocalMapWarp", LocalMapWarp, false);
    paramNH.param<double>("FreeAreaThreshold", FreeAreaThreshold, 0.2);
    paramNH.param<bool>("UseTempLoopClosures", UseTempLoopClosures, true);
    paramNH.param<double>("FreeAreaDistanceThreshold", FreeAreaDistanceThreshold, 0.5);

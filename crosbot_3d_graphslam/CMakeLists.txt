@@ -6,7 +6,7 @@ project(crosbot_3d_graphslam)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  std_msgs
+  std_msgs crosbot nav_msgs sensor_msgs tf message_generation crosbot_graphslam
 )
 
 ## System dependencies are found with CMake's conventions
@@ -79,9 +79,9 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
+  INCLUDE_DIRS include
 #  LIBRARIES crosbot_3d_graphslam
-#  CATKIN_DEPENDS roscpp std_msgs
+  CATKIN_DEPENDS roscpp std_msgs crosbot nav_msgs sensor_msgs tf crosbot_graphslam
 #  DEPENDS system_lib
 )
 
@@ -92,7 +92,7 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 # include_directories(include)
-include_directories(
+include_directories(include
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -102,16 +102,17 @@ include_directories(
 # )
 
 ## Declare a cpp executable
-# add_executable(crosbot_3d_graphslam_node src/crosbot_3d_graphslam_node.cpp)
+add_executable(crosbot_3d_graphslam src/main.cpp src/graphSlam3DNode.cpp src/graphSlam3D.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
 # add_dependencies(crosbot_3d_graphslam_node crosbot_3d_graphslam_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(crosbot_3d_graphslam_node
-#   ${catkin_LIBRARIES}
-# )
+target_link_libraries(crosbot_3d_graphslam
+   ${catkin_LIBRARIES}
+#newmat
+)
 
 #############
 ## Install ##
@@ -128,18 +129,18 @@ include_directories(
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS crosbot_3d_graphslam crosbot_3d_graphslam_node
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+ install(TARGETS crosbot_3d_graphslam
+   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+ )
 
 ## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
+ install(DIRECTORY include/${PROJECT_NAME}/
+   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+   FILES_MATCHING PATTERN "*.h"
+   PATTERN ".svn" EXCLUDE
+ )
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES
@@ -147,6 +148,13 @@ include_directories(
 #   # myfile2
 #   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 # )
+
+install(DIRECTORY launch
+    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+    FILES_MATCHING PATTERN "*.launch"
+    PATTERN ".svn" EXCLUDE
+ )
+
 
 #############
 ## Testing ##

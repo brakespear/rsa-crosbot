@@ -191,6 +191,11 @@ void GraphSlamGPU::initialiseTrack(Pose icpPose, PointCloudPtr cloud) {
    LocalMap temp;
    temp.indexNextNode = -1;
    localMaps.push_back(temp);
+
+   localMaps[0].globalPose = slamPose;
+   LocalMapInfo newMap(slamPose, 0);
+   graphSlamNode->publishLocalMapInfo(newMap);
+
 }
 
 void GraphSlamGPU::initialisePoints() {

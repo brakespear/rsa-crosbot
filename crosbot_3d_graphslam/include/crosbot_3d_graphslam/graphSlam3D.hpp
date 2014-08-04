@@ -1,0 +1,38 @@
+/*
+ * graphSlam3D.hpp
+ *
+ * Created on: 04/08/2014
+ *     Author: adrianr
+ */
+
+#ifndef GRAPHSLAM3D_HPP_
+#define GRAPHSLAM3D_HPP_
+
+#include <ros/ros.h>
+#include <crosbot/utils.hpp>
+#include <crosbot/data.hpp>
+
+using namespace std;
+using namespace crosbot;
+
+class GraphSlam3D {
+public:
+   /*
+    * Initialise parameters
+    */
+   void initialise(ros::NodeHandle &nh);
+
+   /*
+    * Start 3d graph slam
+    */
+   void start();
+
+   /*
+    * Shutdown node
+    */
+   void stop();
+
+};
+   
+
+#endif

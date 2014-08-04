@@ -140,6 +140,9 @@ void GraphSlamCPU::initialiseTrack(Pose icpPose, PointCloudPtr cloud) {
    localMaps[0].indexParentNode = -1;
    localMaps[0].treeLevel = 0;
 
+   localMaps[0].globalPose = slamPose;
+   LocalMapInfo newMap(slamPose, 0);
+   graphSlamNode->publishLocalMapInfo(newMap);
 }
 
 void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stamp) {
