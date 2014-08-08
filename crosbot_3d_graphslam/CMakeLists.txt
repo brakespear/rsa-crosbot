@@ -102,7 +102,7 @@ include_directories(include
 # )
 
 ## Declare a cpp executable
-add_executable(crosbot_3d_graphslam src/main.cpp src/graphSlam3DNode.cpp src/graphSlam3D.cpp)
+add_executable(crosbot_3d_graphslam src/main.cpp src/graphSlam3DNode.cpp src/graphSlam3D.cpp src/local3DMap.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes

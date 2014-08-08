@@ -12,6 +12,9 @@
 #include <crosbot/utils.hpp>
 #include <crosbot/data.hpp>
 
+#include <crosbot_graphslam/localMap.hpp>
+#include <crosbot_3d_graphslam/local3DMap.hpp>
+
 using namespace std;
 using namespace crosbot;
 
@@ -31,6 +34,20 @@ public:
     * Shutdown node
     */
    void stop();
+
+   /*
+    * Create a new local map
+    */
+   void newLocalMap(LocalMapInfoPtr localMapInfo);
+
+   /*
+    * A list of new positions of local maps
+    */
+   void haveOptimised(vector<LocalMapInfoPtr> newMapPositions);
+
+private:
+
+   bool finishedSetup;
 
 };
    
