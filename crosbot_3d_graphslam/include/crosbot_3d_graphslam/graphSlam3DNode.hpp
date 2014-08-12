@@ -24,6 +24,7 @@
 using namespace std;
 using namespace crosbot;
 
+class GraphSlam3D;
 class GraphSlam3DNode {
 public:
 
@@ -38,12 +39,17 @@ public:
     * Shuts doen the node
     */
    void shutdown();
+   
+   /*
+    * publishes the full information about a local map
+    */
+   void publishLocalMap(LocalMapInfoPtr localMap);
 
 private:
    /*
     * ROS config params
     */
-   string slam_frame;
+   string slam_frame, base_frame;
    string local_map_sub, optimise_map_sub, kinect_sub;
    string local_map_pub;
 
@@ -54,6 +60,13 @@ private:
    ros::Subscriber localMapSub;
    ros::Subscriber optimiseMapSub;
    ros::Publisher localMapPub;
+   tf::TransformListener tfListener;
+
+   /*
+    * Other params
+    */
+   //Number of points to skip when processing kinect scan
+   int SkipPoints;
 
    GraphSlam3D& graph_slam_3d;
 
@@ -71,6 +84,7 @@ private:
     * Callback for receiving information about local maps after they have been optimised
     */
    void callbackOptimiseMap(const crosbot_graphslam::LocalMapMsgListConstPtr& localMapMsgList);
+
 
 };
 

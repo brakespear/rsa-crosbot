@@ -14,12 +14,17 @@
 
 #include <crosbot_graphslam/localMap.hpp>
 #include <crosbot_3d_graphslam/local3DMap.hpp>
+#include <crosbot_3d_graphslam/graphSlam3DNode.hpp>
 
 using namespace std;
 using namespace crosbot;
 
+class GraphSlam3DNode;
+
 class GraphSlam3D {
 public:
+   GraphSlam3D();
+
    /*
     * Initialise parameters
     */
@@ -36,6 +41,11 @@ public:
    void stop();
 
    /*
+    * Add a new frame to the current local map
+    */
+   void addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose slamPose);
+
+   /*
     * Create a new local map
     */
    void newLocalMap(LocalMapInfoPtr localMapInfo);
@@ -45,9 +55,28 @@ public:
     */
    void haveOptimised(vector<LocalMapInfoPtr> newMapPositions);
 
+   GraphSlam3DNode *graphSlam3DNode;
 private:
 
+   /*
+    * Configuration parameters
+    */
+
+   //Size of a single cell in a local map in metres
+   double CellSize;
+   //Total width of the local map
+   double LocalMapWidth;
+   //Height of the local map
+   double LocalMapHeight;
+
    bool finishedSetup;
+
+   VoxelGrid *localMap;
+   vector<Local3DMap *> maps;
+   int currentMap;
+
+   ReadWriteLock masterLock;
+
 
 };
    

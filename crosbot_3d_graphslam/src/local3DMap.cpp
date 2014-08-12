@@ -7,6 +7,74 @@
 
 #include <crosbot_3d_graphslam/local3DMap.hpp>
 
+VoxelColumn::VoxelColumn(double height, double res) {
+}
+
+VoxelColumn::~VoxelColumn() {
+}
+
+inline void VoxelColumn::add(Point point) {
+}
+
+inline VoxelCell *VoxelColumn::get(int z) {
+   return NULL;
+}
+
+VoxelGrid::VoxelGrid(double width, double height, double res): 
+         width(width), height(height), res(res) {
+   dimWidth = width / res;
+   dimHeight = height / res;
+
+   offXY = dimWidth / 2;
+   offZ = dimHeight / 2;
+
+   grid = (VoxelColumn ***) malloc(sizeof(VoxelColumn **) * dimWidth);
+   int x,y;
+   for (y = 0; y < dimWidth; ++y) {
+      grid[y] = (VoxelColumn **) malloc(sizeof(VoxelColumn *) * dimWidth);
+      for (x = 0; x < dimWidth; ++x) {
+         grid[y][x] = NULL;
+      }
+   }
+}
+
+VoxelGrid::~VoxelGrid() {
+   clearGrid();
+   int x, y;
+   for (y = 0; y < dimWidth; y++) {
+      free(grid[y]);
+   }
+   free(grid);
+}
+
+void VoxelGrid::clearGrid() {
+   int x, y;
+   for (y = 0; y < dimWidth; y++) {
+      for (x = 0; x < dimWidth; x++) {
+         if (grid[y][x] != NULL) {
+            delete grid[y][x];
+            grid[y][x] = NULL;
+         } 
+      }
+   }
+}
+
+void VoxelGrid::addScan(DepthPointsPtr points) {
+}
+
+PointCloudPtr VoxelGrid::extractPoints() {
+   return NULL;
+}
+
+Local3DMap::Local3DMap(Pose pose): globalPose(pose) {
+}
+
+Pose Local3DMap::getPose() {
+   return globalPose;
+}
+
+
+
 
 //Think about:
 //How can make it easy to put onto GPU as will need to do so

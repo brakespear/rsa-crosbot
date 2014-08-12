@@ -33,6 +33,9 @@ public:
 
    LocalMapInfo(): index(-1) {}
    LocalMapInfo(Pose pose, uint32_t index): pose(pose), index(index) {}
+   LocalMapInfo(Pose pose, uint32_t index, PointCloudPtr cloud): 
+      pose(pose), index(index), cloud(cloud) {}
+
 
 #ifdef ROS_VERSION
    inline LocalMapInfo& operator=(const crosbot_graphslam::LocalMapMsg& msg) {

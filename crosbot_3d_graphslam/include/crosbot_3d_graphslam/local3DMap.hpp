@@ -8,15 +8,18 @@
 #ifndef LOCAL3DMAP_HPP_
 #define LOCAL3DMAP_HPP_
 
+#include <crosbot/data.hpp>
+#include <crosbot_3d_graphslam/depthPoints.hpp>
+
 struct avColour {
    int r;
    int g;
    int b;
 
-   inline void add(uint8_t rN, uint8_t bN, uint8_t gN) {
-      r += rN;
-      b += bN;
-      g += gN;
+   inline void add(Colour& c) {
+      r += c.r;
+      b += c.b;
+      g += c.g;
    }
 
    inline Colour getColour(int numObs) {
@@ -26,6 +29,7 @@ struct avColour {
 typedef struct avColour AvColour;
 
 class VoxelCell {
+public:
    Point point;
    AvColour colour;
    int numObs;
@@ -37,11 +41,11 @@ public:
    VoxelColumn(double height, double res);
    ~VoxelColumn();
 
-   void add (Point point);
-   VoxelCell *get(int z);
+   inline void add (Point point);
+   inline VoxelCell *get(int z);
    
    
-   VoxelCells *cells;
+   VoxelCell *cells;
    int i, j;
 };
 
@@ -51,15 +55,25 @@ public:
  */
 class VoxelGrid {
 public:
-   OccupancyGrid(double width, double height, double res);
+   VoxelGrid(double width, double height, double res);
+   ~VoxelGrid();
 
    void clearGrid();
 
-   addScan(DepthPoints& points);
+   void addScan(DepthPointsPtr points);
 
    PointCloudPtr extractPoints();
 
 private:
+   double width;
+   double height;
+   double res;
+   int dimWidth;
+   int dimHeight;
+
+   int offXY;
+   int offZ;
+
    VoxelColumn ***grid;
 
 };
@@ -69,8 +83,9 @@ private:
  */
 class Local3DMap {
 public:
-
+   Local3DMap(Pose pose);
    
+   Pose getPose();
 
 private:
 
