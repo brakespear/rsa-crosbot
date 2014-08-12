@@ -68,6 +68,8 @@ private:
    double LocalMapWidth;
    //Height of the local map
    double LocalMapHeight;
+   //Minimum number of observations in a cell needed before considered occupied
+   int ObsThresh;
 
    bool finishedSetup;
 

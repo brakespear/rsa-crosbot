@@ -12,9 +12,9 @@
 #include <crosbot_3d_graphslam/depthPoints.hpp>
 
 struct avColour {
-   int r;
-   int g;
-   int b;
+   uint32_t r;
+   uint32_t g;
+   uint32_t b;
 
    inline void add(Colour& c) {
       r += c.r;
@@ -31,9 +31,15 @@ typedef struct avColour AvColour;
 class VoxelCell {
 public:
    Point point;
-   AvColour colour;
+   AvColour avColour;
    int numObs;
    //Some kind of probability of being occupied
+   
+   VoxelCell();
+   
+   inline void addPoint(Point& point, Colour& colour);
+
+   inline void getCellInfo(Point& point, Colour& colour);
 };
 
 class VoxelColumn {
@@ -41,12 +47,18 @@ public:
    VoxelColumn(double height, double res);
    ~VoxelColumn();
 
-   inline void add (Point point);
-   inline VoxelCell *get(int z);
+   inline void add (Point& point, Colour& colour);
+   inline VoxelCell *get(double z);
+   void extractCells(PointCloudPtr cloud, int obsThresh);
    
    
    VoxelCell *cells;
    int i, j;
+private:
+   double height;
+   double res;
+   int dimHeight;
+   double offZ;
 };
 
 
@@ -62,19 +74,21 @@ public:
 
    void addScan(DepthPointsPtr points);
 
-   PointCloudPtr extractPoints();
+   inline int getIndex(double x, double y);
+
+   PointCloudPtr extractPoints(int obsThresh);
 
 private:
    double width;
    double height;
    double res;
    int dimWidth;
-   int dimHeight;
+   //int dimHeight;
 
-   int offXY;
-   int offZ;
+   double offXY;
+   //double offZ;
 
-   VoxelColumn ***grid;
+   VoxelColumn **grid;
 
 };
 

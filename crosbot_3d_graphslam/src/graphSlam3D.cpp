@@ -20,6 +20,7 @@ void GraphSlam3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("CellSize", CellSize, 0.1);
    paramNH.param<double>("LocalMapWidth", LocalMapWidth, 10.0);
    paramNH.param<double>("LocalMapHeight", LocalMapHeight, 4.0);
+   paramNH.param<int>("ObsThres", ObsThresh, 5);
 }
 
 void GraphSlam3D::start() {
@@ -30,6 +31,21 @@ void GraphSlam3D::stop() {
 }
 
 void GraphSlam3D::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose slamPose) {
+
+   if (finishedSetup) {
+
+      tf::Transform offset =  (maps[currentMap]->getPose().toTF().inverse()) * slamPose.toTF();
+      //Pose displacement = slamPose - maps[currentMap].getPose();
+      depthPoints->transform(offset * sensorPose.toTF());
+
+   //Transform/filter the points
+
+      {{ Lock lock(masterLock);
+
+      localMap->addScan(depthPoints);
+
+      }}
+   }
 }
 
 void GraphSlam3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
@@ -37,7 +53,7 @@ void GraphSlam3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
    {{ Lock lock(masterLock);
 
    if (finishedSetup) {
-      PointCloudPtr cloud = localMap->extractPoints();
+      PointCloudPtr cloud = localMap->extractPoints(ObsThresh);
       LocalMapInfoPtr oldLocalMap = new LocalMapInfo(maps[currentMap]->getPose(), currentMap,
             cloud);
       graphSlam3DNode->publishLocalMap(oldLocalMap);
