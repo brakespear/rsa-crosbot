@@ -26,7 +26,7 @@ void GraphSlam3DNode::initialise(ros::NodeHandle& nh) {
    paramNH.param<std::string>("local_map_sub", local_map_sub, "localMapInfo");
    paramNH.param<std::string>("optimise_map_sub", optimise_map_sub, "optimiseMapInfo");
    paramNH.param<std::string>("kinect_sub", kinect_sub, "/camera/depth_registered/points");
-   paramNH.param<std::string>("local_map_pub", local_map_pub, "localMapPub");
+   paramNH.param<std::string>("local_map_pub", local_map_pub, "localMapPoints");
 
    paramNH.param<int>("SkipPoints", SkipPoints, 1);
 
