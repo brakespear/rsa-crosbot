@@ -67,7 +67,7 @@ void GraphSlam3DNode::callbackKinect(const sensor_msgs::PointCloud2ConstPtr& ptC
  		fprintf(stderr, "graph slam 3d: Error getting transform. (%s) (%d.%d)\n", ex.what(),
    		ptCloud->header.stamp.sec, ptCloud->header.stamp.nsec);
    	return;
-   } 
+   }
 
    DepthPointsPtr depthPoints = new DepthPoints(ptCloud, SkipPoints);
    graph_slam_3d.addFrame(depthPoints, sensorPose, slamPose);
@@ -79,7 +79,6 @@ void GraphSlam3DNode::callbackLocalMap(const crosbot_graphslam::LocalMapMsgConst
 }
 
 void GraphSlam3DNode::callbackOptimiseMap(const crosbot_graphslam::LocalMapMsgListConstPtr& localMapMsgList) {
-   cout << "yolo" << endl;
    vector<LocalMapInfoPtr> newPos;
    for (int i = 0; i < localMapMsgList->localMaps.size(); i++) {
       newPos.push_back(new LocalMapInfo(localMapMsgList->localMaps[i]));
@@ -88,6 +87,7 @@ void GraphSlam3DNode::callbackOptimiseMap(const crosbot_graphslam::LocalMapMsgLi
 }
 
 void GraphSlam3DNode::publishLocalMap(LocalMapInfoPtr localMap) {
+   localMap->cloud->frameID = slam_frame;
    localMapPub.publish(localMap->toROS());
 }
 

@@ -68,7 +68,7 @@ public:
       rval->header.stamp = timestamp.toROS();
       rval->pose = pose.toROS();
 
-      rval->cloud.push_back(*(cloud->toROS()));
+      rval->cloud.push_back(*(cloud->tosROS1()));
 
       return rval;
    }

@@ -7,6 +7,8 @@
 
 #include <crosbot_3d_graphslam/local3DMap.hpp>
 
+using namespace std;
+
 VoxelCell::VoxelCell() {
    numObs = 0;
    avColour.b = 0;
@@ -129,7 +131,7 @@ PointCloudPtr VoxelGrid::extractPoints(int obsThresh) {
          grid[i]->extractCells(cloud, obsThresh);
       }
    }
-
+   cout << "Number of points extracted is: " << cloud->cloud.size() << " " << cloud->colours.size() << endl;
    return cloud;
 }
 
