@@ -25,7 +25,16 @@ void GraphSlamDisplay::stop() {
 }
 
 void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
+   
+   tf::Transform mapPose = localMapPoints->pose.toTF();
+   int startIndex = points.cloud.size();
+   points.cloud.resize(startIndex + localMapPoints->cloud->cloud.size());
+   points.colours.resize(startIndex + localMapPoints->cloud->colours.size());
 
+   for (int i = 0; i < localMapPoints->cloud->cloud.size(); i++) {
+      points.cloud[startIndex + i] = mapPose * localMapPoints->cloud->cloud[i].toTF(); 
+      points.colours[startIndex + i] = localMapPoints->cloud->colours[i];
+   }
 }
 
 PointCloud &GraphSlamDisplay::getPointCloud() {

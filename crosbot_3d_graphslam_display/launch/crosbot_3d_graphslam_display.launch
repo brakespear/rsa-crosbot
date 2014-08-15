@@ -1,0 +1,54 @@
+<launch>
+	<param name="use_sim_time" value="true" />
+	
+	<!--node pkg="tf" type="static_transform_publisher" name="laser_broadcast"
+		args="0 0 1 0 0 0 base_link laser 100" >
+	</node-->
+	
+	<!--node pkg="tf" type="static_transform_publisher" name="odom_broadcast"
+		args="0 0 0 0 0 0 odom base_link 100" >
+	</node-->
+
+	<!--node pkg="crosbot_map" type="localmap" name="localmap" >
+		<param name="map_frame" value="icp" />
+		<!- -param name="base_frame" value="/base_footprint" /- ->
+
+		<remap from="image" to="/mbicp/image" />
+	</node-->
+	
+	<node pkg="image_view" type="image_view" name="globalmap_view">
+      <remap from="image" to="globalImage" />
+		<!--remap from="image" to="/mbicp/image" /-->
+	</node>
+	<node pkg="image_view" type="image_view" name="localmap_view">
+      <remap from="image" to="localImage" />
+	</node>
+	<!--node pkg="image_view" type="image_view" name="testmap_view">
+      <remap from="image" to="slamTest" />
+	</node-->
+	<!--node pkg="image_view" type="image_view" name="image_view">
+		<remap from="image" to="/camera/rgb/image_color" />
+   </node-->
+	
+	<node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp">
+		<!--param name="odom_frame" Xvalue="odom" value="" /-->
+		<param name="base_frame" value="base_footprint" />
+      <param name="icp_frame" value="icp_test" />
+	</node>
+
+	<node pkg="crosbot_graphslam" type="crosbot_graphslam" name="crosbot_graphslam">
+		<param name="base_frame" value="base_footprint" />
+      <param name="icp_frame" value="icp_test" />
+	</node>
+
+	<node pkg="crosbot_3d_graphslam" type="crosbot_3d_graphslam" name="crosbot_3d_graphslam" output="screen">
+	</node>
+	<node pkg="crosbot_3d_graphslam_display" type="crosbot_3d_graphslam_display" name="crosbot_3d_graphslam_display" output="screen">
+	</node>
+
+	<!--node pkg="crosbot_ui" type="gui" args="$(env PWD)/bhuman.gui" name="gui" output="screen" >
+	</node-->
+	
+	<include file="$(find crosbot_graphslam)/launch/createPointCloud.launch" />
+	
+</launch>	
