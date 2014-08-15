@@ -55,7 +55,7 @@ void OgmbicpCPU::initialiseTrack(Pose sensorPose, PointCloudPtr cloud) {
 void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
 
    if (discardScan) {
-      cout << "Ignoring scan" << endl;
+      //cout << "Ignoring scan" << endl;
       return;
    }
 
