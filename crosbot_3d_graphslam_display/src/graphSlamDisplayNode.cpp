@@ -54,7 +54,7 @@ void GraphSlamDisplayNode::callbackOptimiseMap(const crosbot_graphslam::LocalMap
 void GraphSlamDisplayNode::publishPointCloud() {
    PointCloud &pc = graph_slam_display.getPointCloud();
    cout << "about to publish point cloud" << endl << endl << endl;
-   pointCloudPub.publish(pc.tosROS1());
+   pointCloudPub.publish(pc.toROS1());
    cout << "published point cloud" << endl << endl << endl;
 }
 

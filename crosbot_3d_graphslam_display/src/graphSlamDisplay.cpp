@@ -31,12 +31,12 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
    tf::Transform mapPose = localMapPoints->pose.toTF();
    int startIndex = points.cloud.size();
    points.cloud.resize(startIndex + localMapPoints->cloud->cloud.size());
-   //points.colours.resize(startIndex + localMapPoints->cloud->colours.size());
+   points.colours.resize(startIndex + localMapPoints->cloud->colours.size());
 
    cout << "Number of points in cloud received is: " << localMapPoints->cloud->cloud.size() << " " << localMapPoints->cloud->colours.size() << endl;
    for (int i = 0; i < localMapPoints->cloud->cloud.size(); i++) {
       points.cloud[startIndex + i] = mapPose * localMapPoints->cloud->cloud[i].toTF(); 
-      //points.colours[startIndex + i] = localMapPoints->cloud->colours[i];
+      points.colours[startIndex + i] = localMapPoints->cloud->colours[i];
    }
 }
 
