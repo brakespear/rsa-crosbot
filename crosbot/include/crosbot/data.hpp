@@ -1,5 +1,5 @@
 /*
- * data.h
+ * data.hpp
  *
  *  Have to define our own classes because ROS is %@&#ing stupid.
  *
@@ -18,6 +18,7 @@
 
 #include <crosbot/PointCloudMsg.h>
 #include <crosbot/ColouredCloudMsg.h>
+#include <crosbot/ColourMsg.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
 
@@ -442,7 +443,7 @@ public:
 
 	Image() :
 		height(0), width(0), encoding(Unknown),
-		step(0), data(NULL)
+		step(0), dataLength(0), data(NULL)
 	{}
 
 	Image(Encoding encoding, unsigned int height, unsigned int width);
@@ -671,7 +672,6 @@ public:
 
 #ifdef ROS_VERSION
 
-	// TODO: read colours from ROS messages
 	PointCloud(const PointCloudMsg& c) {
 		timestamp = c.header.stamp;
 		frameID = c.header.frame_id;
@@ -680,6 +680,11 @@ public:
 		cloud.resize(n);
 		for (size_t i = 0; i < n; i++) {
 			cloud[i] = c.points[i];
+		}
+		n = c.colours.size();
+		colours.resize(n);
+		for (size_t i = 0; i < n; i++) {
+			colours[i] = c.colours[i];
 		}
 	}
 
@@ -692,6 +697,11 @@ public:
 		for (size_t i = 0; i < n; i++) {
 			cloud[i] = c->points[i];
 		}
+		n = c->colours.size();
+		colours.resize(n);
+		for (size_t i = 0; i < n; i++) {
+			colours[i] = c->colours[i];
+		}
 	}
 
 	PointCloud(const sensor_msgs::PointCloud& c) {
@@ -702,6 +712,33 @@ public:
 		cloud.resize(n);
 		for (size_t i = 0; i < n; i++) {
 			cloud[i] = c.points[i];
+		}
+
+		for (size_t ch = 0; ch < c.channels.size(); ++ch) {
+			const sensor_msgs::ChannelFloat32& channel = c.channels[ch];
+			if (channel.name == "rgb") {
+				n = channel.values.size();
+				colours.resize(n);
+				for (size_t i = 0; i < n; i++) {
+					uint32_t cInt = *((uint32_t *)&channel.values[i]);
+					Colour& colour = colours[i];
+					colour.r = (cInt >> 16) & 0xFF;
+					colour.g = (cInt >> 8) & 0xFF;
+					colour.b = cInt & 0xFF;
+					colour.a = 0;
+				}
+			} else if (channel.name == "rgba") {
+				n = channel.values.size();
+				colours.resize(n);
+				for (size_t i = 0; i < n; i++) {
+					uint32_t cInt = *((uint32_t *)&channel.values[i]);
+					Colour& colour = colours[i];
+					colour.r = (cInt >> 24) & 0xFF;
+					colour.g = (cInt >> 16) & 0xFF;
+					colour.b = (cInt >> 8) & 0xFF;
+					colour.a = cInt & 0xFF;
+				}
+			}
 		}
 	}
 
@@ -802,7 +839,7 @@ public:
     	return rval;
     }
 
-    inline sensor_msgs::PointCloudPtr tosROS1() const {
+    inline sensor_msgs::PointCloudPtr toROS1() const {
     	sensor_msgs::PointCloudPtr rval(new sensor_msgs::PointCloud());
     	rval->header.stamp = timestamp.toROS();
     	rval->header.frame_id = frameID;

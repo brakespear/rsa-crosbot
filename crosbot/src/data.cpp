@@ -337,7 +337,7 @@ inline PointCloud& PointCloud_Pointcloud(PointCloud& cloud, const sensor_msgs::P
 				colour.r = *(point+colourOffset+2);
 
 				if (haveRGBA)
-					colour.r = *(point+colourOffset+3);
+					colour.a = *(point+colourOffset+3);
 				else
 					colour.a = 255;
 			}
