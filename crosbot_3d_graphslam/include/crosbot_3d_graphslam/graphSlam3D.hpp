@@ -71,6 +71,7 @@ private:
    //Minimum number of observations in a cell needed before considered occupied
    int ObsThresh;
 
+   //Set to true when the first local map message is received from graph slam
    bool finishedSetup;
 
    VoxelGrid *localMap;
@@ -78,7 +79,6 @@ private:
    int currentMap;
 
    ReadWriteLock masterLock;
-
 
 };
    

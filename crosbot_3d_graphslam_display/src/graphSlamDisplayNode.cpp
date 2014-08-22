@@ -20,7 +20,8 @@ GraphSlamDisplayNode::GraphSlamDisplayNode(GraphSlamDisplay& graphSlamDisplay):
 void GraphSlamDisplayNode::initialise(ros::NodeHandle& nh) {
    ros::NodeHandle paramNH("~");
    paramNH.param<std::string>("local_map_sub", local_map_sub, "localMapPoints");
-   paramNH.param<std::string>("optimise_map_sub", optimise_map_sub, "optimiseMapInfo");
+   //Subsribe to new optimised map positions given by 3D slam
+   paramNH.param<std::string>("optimise_map_sub", optimise_map_sub, "optimised3DLocalMaps");
    paramNH.param<std::string>("point_cloud_pub", point_cloud_pub, "pointCloudPub");
 
    graph_slam_display.initialise(nh);
@@ -50,6 +51,7 @@ void GraphSlamDisplayNode::callbackOptimiseMap(const crosbot_graphslam::LocalMap
    for (int i = 0; i < localMapMsgList->localMaps.size(); i++) {
       newPos.push_back(new LocalMapInfo(localMapMsgList->localMaps[i]));
    }
+   graph_slam_display.correctMap(newPos);
 }
 
 void GraphSlamDisplayNode::publishPointCloud() {

@@ -224,7 +224,7 @@ void GraphSlamNode::publishOptimiseLocalMapInfo(vector<LocalMapInfoPtr>& localMa
       crosbot_graphslam::LocalMapMsgList list;
       list.localMaps.resize(localMapInfo.size());
       for (int i = 0; i < localMapInfo.size(); i++) {
-         list.localMaps[0] = *(localMapInfo[i]->toROSsmall());
+         list.localMaps[i] = *(localMapInfo[i]->toROSsmall());
       }
       optimiseMapPub.publish(list);
    }

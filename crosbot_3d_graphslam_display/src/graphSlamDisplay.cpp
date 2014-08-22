@@ -128,6 +128,10 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
    }
 }
 
+void GraphSlamDisplay::correctMap(vector<LocalMapInfoPtr> newMapPositions) {
+   //TODO: move the map positions and do warping
+}
+
 PointCloud &GraphSlamDisplay::getPointCloud() {
    return points;
 }

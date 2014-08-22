@@ -41,9 +41,14 @@ public:
    void shutdown();
    
    /*
-    * publishes the full information about a local map
+    * Publishes the full information about a local map
     */
    void publishLocalMap(LocalMapInfoPtr localMap);
+
+   /*
+    * Publishes the new positions of local maps
+    */
+   void publishOptimisedMapPositions(vector<LocalMapInfoPtr> &localMaps);
 
 private:
    /*
@@ -51,7 +56,7 @@ private:
     */
    string slam_frame, base_frame;
    string local_map_sub, optimise_map_sub, kinect_sub;
-   string local_map_pub;
+   string local_map_pub, optimised_local_maps_pub;
 
    /*
     * ROS connections
@@ -60,6 +65,7 @@ private:
    ros::Subscriber localMapSub;
    ros::Subscriber optimiseMapSub;
    ros::Publisher localMapPub;
+   ros::Publisher optimisedLocalMapsPub;
    tf::TransformListener tfListener;
 
    /*

@@ -101,6 +101,8 @@ public:
    
    Pose getPose();
 
+   void updatePose(Pose pose);
+
 private:
 
    Pose globalPose;

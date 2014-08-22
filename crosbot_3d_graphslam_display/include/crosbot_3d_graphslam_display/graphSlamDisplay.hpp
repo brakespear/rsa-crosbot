@@ -54,6 +54,11 @@ public:
    void addMap(LocalMapInfoPtr localMapPoints);
 
    /*
+    * Corrects positions of local maps when the map has been optimised
+    */
+   void correctMap(vector<LocalMapInfoPtr> newMapPositions);
+
+   /*
     * Returns the point cloud of entire map
     */
    PointCloud &getPointCloud();

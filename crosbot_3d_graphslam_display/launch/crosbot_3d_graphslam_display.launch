@@ -47,9 +47,6 @@
 	<node pkg="crosbot_3d_graphslam_display" type="crosbot_3d_graphslam_display" name="crosbot_3d_graphslam_display" output="screen">
 	</node>
 
-	<!--node pkg="crosbot_ui" type="gui" args="$(env PWD)/bhuman.gui" name="gui" output="screen" >
-	</node-->
-	
 	<include file="$(find crosbot_graphslam)/launch/createPointCloud.launch" />
 	
 </launch>	

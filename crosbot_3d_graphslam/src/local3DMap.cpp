@@ -142,6 +142,10 @@ Pose Local3DMap::getPose() {
    return globalPose;
 }
 
+void Local3DMap::updatePose(Pose pose) {
+   globalPose = pose;
+}
+
 
 
 

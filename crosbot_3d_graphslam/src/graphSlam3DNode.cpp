@@ -27,6 +27,7 @@ void GraphSlam3DNode::initialise(ros::NodeHandle& nh) {
    paramNH.param<std::string>("optimise_map_sub", optimise_map_sub, "optimiseMapInfo");
    paramNH.param<std::string>("kinect_sub", kinect_sub, "/camera/depth_registered/points");
    paramNH.param<std::string>("local_map_pub", local_map_pub, "localMapPoints");
+   paramNH.param<std::string>("optimsed_local_maps_pub", optimised_local_maps_pub, "optimised3DLocalMaps");
 
    paramNH.param<int>("SkipPoints", SkipPoints, 1);
 
@@ -37,6 +38,7 @@ void GraphSlam3DNode::initialise(ros::NodeHandle& nh) {
    localMapSub = nh.subscribe(local_map_sub, 10, &GraphSlam3DNode::callbackLocalMap, this);
    optimiseMapSub = nh.subscribe(optimise_map_sub, 10, &GraphSlam3DNode::callbackOptimiseMap, this);
    localMapPub = nh.advertise<crosbot_graphslam::LocalMapMsg>(local_map_pub, 10);
+   optimisedLocalMapsPub = nh.advertise<crosbot_graphslam::LocalMapMsgList>(optimised_local_maps_pub, 10);
 
 }
 
@@ -89,5 +91,14 @@ void GraphSlam3DNode::callbackOptimiseMap(const crosbot_graphslam::LocalMapMsgLi
 void GraphSlam3DNode::publishLocalMap(LocalMapInfoPtr localMap) {
    localMap->cloud->frameID = slam_frame;
    localMapPub.publish(localMap->toROS());
+}
+
+void GraphSlam3DNode::publishOptimisedMapPositions(vector<LocalMapInfoPtr> &localMaps) {
+   crosbot_graphslam::LocalMapMsgList list;
+   list.localMaps.resize(localMaps.size());
+   for (int i = 0; i < localMaps.size(); i++) {
+      list.localMaps[i] = *(localMaps[i]->toROSsmall());
+   }
+   optimisedLocalMapsPub.publish(list);
 }
 
