@@ -11,25 +11,37 @@
 #include <ros/ros.h>
 #include <crosbot/utils.hpp>
 #include <crosbot/data.hpp>
+#include <crosbot/thread.hpp>
 #include <crosbot_graphslam/localMap.hpp>
 
+#include <pcl/point_types.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/surface/gp3.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/io/vtk_io.h>
 
 using namespace std;
 using namespace crosbot;
 
-class GraphSlamDisplay {
+class GraphSlamDisplay : public Thread {
 public:
+   /*
+    * Configuration parameters
+    */
+   //Should the full point cloud be published?
+   bool PublishPointCloud;
+   //Reconstruct surfaces from the point cloud
+   bool CreateMesh;
+
+
    GraphSlamDisplay();
 
    /*
     * Initialise parameters
     */
    void initialise(ros::NodeHandle &nh);
-
-   /*
-    * Start 3d graph slam
-    */
-   void start();
 
    /*
     * Shutdown node
@@ -49,14 +61,26 @@ public:
 private:
 
    /*
-    * Configuration parameters
-    */
-
-
-   /*
     * Total world points
     */
    PointCloud points;
+
+   /*
+    * Mesh vector
+    */
+   vector<pcl::PolygonMesh *> meshes;
+
+   pcl::visualization::PCLVisualizer *viewer;
+
+
+   Mutex viewerLock;
+   bool viewerUpdate;
+   pcl::PolygonMesh *currentMesh;
+   int currentMeshIndex;
+   /*
+    * Runs the pcl visualiser in its own thread
+    */
+   void run();
 };
    
 

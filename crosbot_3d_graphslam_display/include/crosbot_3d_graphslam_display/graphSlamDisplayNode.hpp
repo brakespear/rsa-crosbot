@@ -52,6 +52,7 @@ private:
    ros::Subscriber optimiseMapSub;
    ros::Publisher pointCloudPub;
 
+   
    GraphSlamDisplay& graph_slam_display;
 
    /* 

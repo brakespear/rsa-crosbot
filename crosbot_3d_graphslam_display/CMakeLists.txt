@@ -6,7 +6,7 @@ project(crosbot_3d_graphslam_display)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  std_msgs crosbot crosbot_graphslam nav_msgs sensor_msgs tf
+  std_msgs crosbot crosbot_graphslam nav_msgs sensor_msgs tf pcl pcl_ros
 )
 
 ## System dependencies are found with CMake's conventions
@@ -81,7 +81,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES crosbot_3d_graphslam_display
-  CATKIN_DEPENDS roscpp std_msgs nav_msgs sensor_msgs tf crosbot crosbot_graphslam
+  CATKIN_DEPENDS roscpp std_msgs nav_msgs sensor_msgs tf crosbot crosbot_graphslam pcl pcl_ros
 #  DEPENDS system_lib
 )
 

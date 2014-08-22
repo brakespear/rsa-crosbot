@@ -24,12 +24,13 @@ void GraphSlamDisplayNode::initialise(ros::NodeHandle& nh) {
    paramNH.param<std::string>("point_cloud_pub", point_cloud_pub, "pointCloudPub");
 
    graph_slam_display.initialise(nh);
-   graph_slam_display.start();
 
    localMapSub = nh.subscribe(local_map_sub, 10, &GraphSlamDisplayNode::callbackLocalMap, this);
    optimiseMapSub = nh.subscribe(optimise_map_sub, 10, &GraphSlamDisplayNode::callbackOptimiseMap, this);
-   pointCloudPub = nh.advertise<sensor_msgs::PointCloud>(point_cloud_pub, 10);
 
+   if (graph_slam_display.PublishPointCloud) {
+      pointCloudPub = nh.advertise<sensor_msgs::PointCloud>(point_cloud_pub, 10);
+   }
 }
 
 void GraphSlamDisplayNode::shutdown() {
@@ -52,9 +53,9 @@ void GraphSlamDisplayNode::callbackOptimiseMap(const crosbot_graphslam::LocalMap
 }
 
 void GraphSlamDisplayNode::publishPointCloud() {
-   PointCloud &pc = graph_slam_display.getPointCloud();
-   cout << "about to publish point cloud" << endl << endl << endl;
-   pointCloudPub.publish(pc.toROS1());
-   cout << "published point cloud" << endl << endl << endl;
+   if (graph_slam_display.PublishPointCloud) {
+      PointCloud &pc = graph_slam_display.getPointCloud();
+      pointCloudPub.publish(pc.toROS1());
+   }
 }
 
