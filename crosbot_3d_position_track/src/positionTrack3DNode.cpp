@@ -15,6 +15,7 @@ using namespace crosbot;
 
 PositionTrack3DNode::PositionTrack3DNode(PositionTrack3D& positionTrack): 
    position_track_3d(positionTrack) {
+      isInit = true;
 }
 
 void PositionTrack3DNode::initialise(ros::NodeHandle& nh) {
@@ -59,7 +60,11 @@ void PositionTrack3DNode::callbackKinect(const sensor_msgs::PointCloud2ConstPtr&
    }
 
    DepthPointsPtr depthPoints = new DepthPoints(ptCloud, SkipPoints, true);
-   position_track_3d.processFrame(depthPoints, sensorPose, icpPose);
+   if (isInit) {
+   } else {
+      position_track_3d.processFrame(depthPoints, sensorPose, icpPose);
+      isInit = false;
+   }
 
 }
 

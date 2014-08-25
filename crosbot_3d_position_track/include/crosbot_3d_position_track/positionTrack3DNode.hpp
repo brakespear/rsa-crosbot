@@ -58,6 +58,8 @@ private:
 
    PositionTrack3D& position_track_3d;
 
+   bool isInit;
+
    /*
     * Callback for receiving a new frame from a 3d camera
     */
