@@ -11,7 +11,7 @@
 //DepthPoints::DepthPoints(const sensor_msgs::PointCloud2ConstPtr& cloud,double minDist, 
 //      double maxDist, int skip, bool filter = false, bool calcNormals = false) {
 
-DepthPoints::DepthPoints(const sensor_msgs::PointCloud2ConstPtr& c, int skip = 1) { 
+DepthPoints::DepthPoints(const sensor_msgs::PointCloud2ConstPtr& c, int skip, bool ignoreColour) { 
    timestamp = c->header.stamp;
    frameID = c->header.frame_id;
 
@@ -40,6 +40,10 @@ DepthPoints::DepthPoints(const sensor_msgs::PointCloud2ConstPtr& c, int skip = 1
          offsetColour = field.offset;
          haveRGBA = true;
       }
+   }
+
+   if (ignoreColour) {
+      offsetColour = -1;
    }
    
    cloud.resize(numPoints);

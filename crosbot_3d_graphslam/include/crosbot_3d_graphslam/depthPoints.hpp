@@ -22,7 +22,7 @@ public:
    int width;
    int height;
    
-   DepthPoints(const sensor_msgs::PointCloud2ConstPtr& c, int skip);
+   DepthPoints(const sensor_msgs::PointCloud2ConstPtr& c, int skip = 1, bool ignoreColour = false);
    //DepthPoints(const sensor_msgs::PointCloud2ConstPtr& cloud, double minDist, double maxDist, 
    //      int skip, bool filter = false, bool calcNormals = false);
 

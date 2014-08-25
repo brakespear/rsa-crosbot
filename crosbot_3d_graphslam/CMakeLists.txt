@@ -80,7 +80,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
-#  LIBRARIES crosbot_3d_graphslam
+  LIBRARIES depthPoints
   CATKIN_DEPENDS roscpp std_msgs crosbot nav_msgs sensor_msgs tf crosbot_graphslam
 #  DEPENDS system_lib
 )
@@ -97,9 +97,9 @@ include_directories(include
 )
 
 ## Declare a cpp library
-# add_library(crosbot_3d_graphslam
-#   src/${PROJECT_NAME}/crosbot_3d_graphslam.cpp
-# )
+add_library(depthPoints
+   src/depthPoints.cpp
+ )
 
 ## Declare a cpp executable
 add_executable(crosbot_3d_graphslam src/main.cpp src/graphSlam3DNode.cpp src/graphSlam3D.cpp src/local3DMap.cpp src/depthPoints.cpp)
@@ -109,9 +109,13 @@ add_executable(crosbot_3d_graphslam src/main.cpp src/graphSlam3DNode.cpp src/gra
 # add_dependencies(crosbot_3d_graphslam_node crosbot_3d_graphslam_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(crosbot_3d_graphslam
+target_link_libraries(crosbot_3d_graphslam depthPoints
    ${catkin_LIBRARIES}
 #newmat
+)
+
+target_link_libraries(depthPoints
+   ${catkin_LIBRARIES}
 )
 
 #############
@@ -129,7 +133,7 @@ target_link_libraries(crosbot_3d_graphslam
 # )
 
 ## Mark executables and/or libraries for installation
- install(TARGETS crosbot_3d_graphslam
+ install(TARGETS depthPoints
    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

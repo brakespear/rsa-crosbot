@@ -11,6 +11,7 @@
 #include <ros/ros.h>
 #include <crosbot/utils.hpp>
 #include <crosbot/data.hpp>
+#include <crosbot_3d_graphslam/depthPoints.hpp>
 
 using namespace std;
 using namespace crosbot;
@@ -31,6 +32,11 @@ public:
     * Shutdown node
     */
    void stop();
+
+   /*
+    * Process a kinect frame
+    */
+   void processFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose icpPose);
 
 };
    

@@ -40,13 +40,21 @@ private:
    /*
     * ROS config params
     */
-   string icp_frame;
+   string icp_frame, base_frame;
    string kinect_sub;
+
+   /*
+    * Other config params
+    */
+   //Number of kinect points to skip
+   int SkipPoints;
 
    /*
     * ROS connections
     */
    ros::Subscriber kinectSub;
+   tf::TransformListener tfListener;
+
 
    PositionTrack3D& position_track_3d;
 

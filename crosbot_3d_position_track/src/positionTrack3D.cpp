@@ -18,3 +18,6 @@ void PositionTrack3D::start() {
 
 void PositionTrack3D::stop() {
 }
+
+void PositionTrack3D::processFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose icpPose) {
+}
