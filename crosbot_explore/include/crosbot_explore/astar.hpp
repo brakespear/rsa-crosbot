@@ -74,7 +74,7 @@ public:
 		k(DEFAULT_RISK_K), cull(0), maxExpandC(20), expandScale(10)
 	{}
 
-	CellPath getCellPath(VoronoiGridPtr grid, Index2D start, Index2D goal, ImagePtr);
+	virtual CellPath getCellPath(VoronoiGridPtr grid, Index2D start, Index2D goal, ImagePtr);
 };
 
 } // namespace crosbot

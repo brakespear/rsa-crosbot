@@ -14,7 +14,7 @@
 
 namespace crosbot {
 
-#define DEFAULT_WAIT_FOR_THREAD_CLOSE		10000
+#define DEFAULT_WAIT_FOR_THREAD_CLOSE		10000 // Milliseconds
 
 struct _ThreadData;
 /**

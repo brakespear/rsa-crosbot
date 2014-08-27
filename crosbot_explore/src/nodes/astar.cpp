@@ -134,12 +134,12 @@ public:
 		
 		// TODO: read voronoi constraints
 		ConfigElementPtr voronoiCfg = cfg->getChild("voronoi");
-                if (voronoiCfg != NULL) {
-                        voronoiConstraints.restricted = voronoiCfg->getParamAsDouble("restrict", voronoiConstraints.restricted);
-                        voronoiConstraints.partial = voronoiCfg->getParamAsDouble("partial", voronoiConstraints.partial);
-                        voronoiConstraints.expand = voronoiCfg->getParamAsDouble("expand", voronoiConstraints.expand);
-                        voronoiConstraints.orphanThreshold = voronoiCfg->getParamAsInt("orphan", voronoiConstraints.orphanThreshold);
-                }
+		if (voronoiCfg != NULL) {
+				voronoiConstraints.restricted = voronoiCfg->getParamAsDouble("restrict", voronoiConstraints.restricted);
+				voronoiConstraints.partial = voronoiCfg->getParamAsDouble("partial", voronoiConstraints.partial);
+				voronoiConstraints.expand = voronoiCfg->getParamAsDouble("expand", voronoiConstraints.expand);
+				voronoiConstraints.orphanThreshold = voronoiCfg->getParamAsInt("orphan", voronoiConstraints.orphanThreshold);
+		}
 
 		gridSub = nh.subscribe("map", 1, &AstarNode::callbackOccGrid, this);
 		historySub = nh.subscribe("history", 1, &AstarNode::callbackHistory, this);

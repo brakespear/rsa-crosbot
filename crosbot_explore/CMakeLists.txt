@@ -73,11 +73,13 @@ add_library(crosbot_explore
 ## Declare a cpp executable
 add_executable(astar src/nodes/astar.cpp)
 add_executable(explorer src/nodes/explorer.cpp)
+add_executable(move src/nodes/move.cpp)
 
 ## Add dependencies to the executable
 add_dependencies(crosbot_explore ${PROJECT_NAME}_gencpp)
 add_dependencies(astar ${PROJECT_NAME} crosbot_explore)
 add_dependencies(explorer ${PROJECT_NAME} crosbot_explore)
+add_dependencies(move ${PROJECT_NAME} crosbot_explore)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(crosbot_explore
@@ -88,6 +90,9 @@ target_link_libraries(astar
   ${catkin_LIBRARIES} crosbot_explore
 )
 target_link_libraries(explorer
+  ${catkin_LIBRARIES} crosbot_explore
+)
+target_link_libraries(move
   ${catkin_LIBRARIES} crosbot_explore
 )
 
@@ -103,7 +108,7 @@ target_link_libraries(explorer
 # )
 
 ## Mark executables and/or libraries for installation
-install(TARGETS crosbot_explore astar
+install(TARGETS crosbot_explore astar move
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
