@@ -1,5 +1,5 @@
 <launch>
-	<include file="$(find comp3431)/launch/crosbot-fastslam.launch" />
+	<include file="$(find crosbot_explore)/launch/crosbot-fastslam.launch" />
 	
 	<include file="$(find turtlebot_rviz_launchers)/launch/view_navigation.launch" />
 	
