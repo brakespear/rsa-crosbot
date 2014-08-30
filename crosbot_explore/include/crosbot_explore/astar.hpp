@@ -15,7 +15,7 @@ namespace crosbot {
 
 #define DEFAULT_SKELETON_DISCOUNT		0.5
 #define DEFAULT_RESTRICTED_RISK			INFINITY
-#define DEFAULT_RISK_K					5 // 3
+#define DEFAULT_RISK_K					25 // 50 // 5 // 3
 
 typedef std::vector<Pose> Plan;
 typedef std::vector<Index2D> CellPath;

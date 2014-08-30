@@ -139,8 +139,8 @@ public:
 
 		scanSub = nh.subscribe("scan", 1, &FastSLAMModule::callbackScan, this);
 		snapSub = nh.subscribe("snap", 1000, &FastSLAMModule::callbackSnap, this);
-		gridPub = nh.advertise<nav_msgs::OccupancyGrid>("map", 1);
-		historyPub = nh.advertise<nav_msgs::Path>("history", 1);
+		gridPub = nh.advertise< nav_msgs::OccupancyGrid >("map", 1, true);
+		historyPub = nh.advertise< nav_msgs::Path >("history", 1);
 
 		// read configuration/parameters
 		ConfigElementPtr config = new ROSConfigElement(paramNH);

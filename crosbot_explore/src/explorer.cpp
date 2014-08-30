@@ -144,7 +144,9 @@ Pose Explorer::findWallFollowTarget(const VoronoiGrid& voronoi, const Pose& robo
 		return Pose(INFINITY, INFINITY, INFINITY);
 	}
 
-	return Pose(voronoi.getPosition(currentCell), Quaternion());
+	Index2D saferCell = findSaferSkeletonCell(voronoi, currentCell, robotCell);
+
+	return Pose(voronoi.getPosition(saferCell), Quaternion());
 }
 
 Point Explorer::findWall(const VoronoiGrid& voronoi, const Pose& robot, double startAngle) {
@@ -321,6 +323,42 @@ Index2D Explorer::findNextSkeletonCell(const VoronoiGrid& voronoi, const Index2D
 	}
 
 	return Index2D(-1,-1);
+}
+
+Index2D Explorer::findSaferSkeletonCell(const VoronoiGrid& voronoi, const Index2D currentCell, const Index2D robot) {
+	uint32_t n = 0;
+	Index2D safeCell = currentCell;
+	double currentRisk = cellTraversibleRisk(voronoi, currentCell, robot);
+	Index2D searchOrder[4];
+	searchOrder[0] = Index2D(0,1);
+	searchOrder[1] = Index2D(0,-1);
+	searchOrder[2] = Index2D(1,0);
+	searchOrder[3] = Index2D(-1,0);
+
+	bool riskDecreasing = true;
+	for (; n < search.maxIterations && riskDecreasing; ++n) {
+		riskDecreasing = false;
+		for (int ne = 0; ne < 4; ++ne) {
+			Index2D neighbour = safeCell + searchOrder[ne];
+
+			if (!CELL_IS_VALID(neighbour, voronoi))
+				continue;
+
+			const VoronoiGrid::VoronoiCell& cell = voronoi.cells[neighbour.y * voronoi.width + neighbour.x];
+			if (!(cell.status & VoronoiGrid::VoronoiCell::Skeleton))
+				continue;
+
+			double neighbourRisk = cellTraversibleRisk(voronoi, neighbour, robot);
+			neighbourRisk *= 1 + neighbour.distanceTo(currentCell) / currentCell.distanceTo(robot);
+			if (neighbourRisk < currentRisk) {
+				safeCell = neighbour;
+				currentRisk = neighbourRisk;
+				riskDecreasing = true;
+			}
+		}
+	}
+
+	return currentCell;
 }
 
 Pose Explorer::findWaypointTarget(const VoronoiGrid& voronoi, const Pose& robot) {

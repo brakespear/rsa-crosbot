@@ -15,6 +15,7 @@
 #include <tf/transform_listener.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <crosbot_explore/SetMode.h>
+#include <crosbot_explore/FollowPath.h>
 
 
 namespace crosbot {
@@ -24,28 +25,33 @@ namespace crosbot {
 class MoveNode {
 protected:
 	ros::Subscriber goalSub, mapSub;
-	ros::ServiceClient explorerSrv;
 
 	class PlanningThread : public Thread {
 	public:
 		Pose goal;
 		nav_msgs::OccupancyGridConstPtr latestMap;
-
+		tf::TransformListener tfListener;
 		ReadWriteLock dataLock;
-		tf::TransformListener tf_listener;
 
 		crosbot::AStarPlanner planner;
-		bool operating, paused;
+		bool operating, explorerPaused;
+		ros::Publisher debugPub, pathPub;
+		ros::ServiceClient followPathSrv, setModeSrv;
 
 		VoronoiGrid::Constraints voronoiConstraints;
 		std::string baseFrame;
+
+		uint32_t updateInterval; // Microseconds
+		double distanceThreshold, angleThreshold;
 		PlanningThread() :
-			goal(INFINITY, INFINITY, INFINITY), operating(true), paused(false)
+			goal(INFINITY, INFINITY, INFINITY), operating(true), explorerPaused(false),
+			updateInterval(150000),
+			distanceThreshold(0.5), angleThreshold(DEG2RAD(10))
 		{}
 
 		void setGoal(const Pose& goal) {
 			Lock lock(dataLock, true);
-			// TODO: pause explorer
+			pauseExplorer();
 			this->goal = goal;
 		}
 
@@ -54,10 +60,61 @@ protected:
 			latestMap = map;
 		}
 
+		void pauseExplorer() {
+			if (!explorerPaused && setMode(0))
+				explorerPaused = true;
+		}
+
+		bool setMode(int mode) {
+			if (!((void *)setModeSrv)) {
+				ros::NodeHandle nh;
+				setModeSrv = nh.serviceClient< crosbot_explore::SetMode >("/explore/set_mode", true);
+			}
+
+			if ((void *)setModeSrv) {
+				crosbot_explore::SetMode::Request req;
+				crosbot_explore::SetMode::Response res;
+
+				req.mode = mode;
+				return setModeSrv.call(req, res);
+			}
+			return false;
+		}
+
+		void sendPath(const Plan& path, const std::string& frameId) {
+			if (!((void *)followPathSrv)) {
+				ros::NodeHandle nh;
+				followPathSrv = nh.serviceClient< crosbot_explore::FollowPath >("/explore/follow_path", true);
+			}
+
+			if ((void *)followPathSrv) {
+				crosbot_explore::FollowPath::Request req;
+				crosbot_explore::FollowPath::Response res;
+				req.path.header.frame_id = frameId;
+				req.path.poses.resize(path.size());
+				for (size_t i = 0; i < path.size(); ++i) {
+					req.path.poses[i].pose = path[i].toROS();
+				}
+
+				if (followPathSrv.call(req, res)) {
+					setMode(1);
+				}
+			}
+		}
+
+#define SLEEP_INTERVAL		50000
 		void run() {
 			VoronoiGridPtr voronoi;
 
+			ros::Time nextUpdate = ros::Time::now();
+			Pose currentPose(INFINITY, INFINITY, INFINITY);
 			while (operating) {
+				ros::Time now = ros::Time::now();
+				if (now < nextUpdate) {
+					usleep(SLEEP_INTERVAL);
+					continue;
+				}
+
 				Pose goal;
 				nav_msgs::OccupancyGridConstPtr currentMap;
 				{{
@@ -69,21 +126,63 @@ protected:
 					}
 				}}
 
-
-				if (!goal.isFinite() || latestMap == NULL) {
-					// TODO: pause explorer
+				if (latestMap == NULL || !goal.isFinite()) {
+					pauseExplorer();
+					usleep(SLEEP_INTERVAL);
+					continue;
 				}
 
+				tf::StampedTransform transform;
+				try {
+					tfListener.lookupTransform(currentMap->header.frame_id, baseFrame, ros::Time(0), transform);
+					currentPose = transform;
+				} catch (tf::TransformException& te) {
+					ROS_WARN("Unable to determine current pose: %s", te.what());
+					continue;
+				}
+
+				ImagePtr debugImage;
 				if (voronoi == NULL) {
-					// TODO: create voronoi grid
+					voronoi = new VoronoiGrid(*currentMap, voronoiConstraints, currentPose);
 				}
 
-				// TODO: plan to goal
+				if ((void *)debugPub) {
+					debugImage = voronoi->getImage();
+				}
 
-				// TODO: send path to explorer
+				if (currentPose.position.distanceTo(goal.position) < distanceThreshold) {
+					// At the position so just rotate.
+					ROS_INFO("Arrived at %.3lf, %.3lf, %.3lf.", goal.position.x, goal.position.y, goal.position.z);
+
+					// TODO: Rotate into position
+					{{
+						Lock lock(dataLock, true);
+						if (this->goal == goal)
+							this->goal = Pose(INFINITY, INFINITY, INFINITY);
+					}}
+					continue;
+				}
+
+				// plan to goal
+				Plan plan = planner.getPath(voronoi, currentPose, goal, debugImage);
+				if (plan.size() > 0) {
+					// send path to explorer
+					sendPath(plan, voronoi->frame);
+				} else {
+					ROS_WARN("Unable to plan a path to %.3lf, %.3lf, %.3lf.", goal.position.x, goal.position.y, goal.position.z);
+				}
+
+				if (((void *)debugPub) && debugImage != NULL) {
+					debugPub.publish(debugImage->toROS());
+				}
+
+				nextUpdate += ros::Duration(0, updateInterval*1000);
+				if (nextUpdate < now) {
+					nextUpdate = now;
+				}
 			}
 
-			// TODO: pause explorer
+			pauseExplorer();
 		}
 
 
@@ -120,8 +219,9 @@ public:
 
 		mapSub = nh.subscribe("map", 1, &MoveNode::callbackMap, this);
 		goalSub = nh.subscribe("goal", 1, &MoveNode::callbackGoal, this);
+		thread.debugPub = nh.advertise< sensor_msgs::Image >("debug", 1);
 
-//		thread.start();
+		thread.start();
 	}
 
 	void shutdown() {
