@@ -7,11 +7,13 @@
 		<remap from="map" to="/localmap" />
 		<remap from="cmd_vel" to="/cmd_vel_mux/input/navi" />
 <rosparam>
+  maxVel: 0.25
   voronoi:
     restrict: 0.20
     partial: 0.25
+    orphan: 10
   search:
-    distance: 0.60
+    distance: 0.40
 </rosparam>
 	</node>
 </launch>

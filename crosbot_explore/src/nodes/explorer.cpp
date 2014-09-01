@@ -26,7 +26,7 @@ using namespace crosbot_explore;
 
 class ExplorerNode : public Explorer {
 protected:
-	VoronoiGrid::Constraints voronoiConstraints;
+//	VoronoiGrid::Constraints voronoiConstraints;
 	std::string baseFrame;
 
 	ros::Subscriber gridSub, historySub;

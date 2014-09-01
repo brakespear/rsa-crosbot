@@ -185,9 +185,9 @@ protected:
 				risk += 0.0;
 			} else if (vCell.status & VoronoiGrid::VoronoiCell::PatiallyRestricted) {
 				if (vCell.distanceFromWall > partialMax)
-					risk += 1;
+					risk += 2;
 				else
-					risk += 1 + (partialMax - vCell.distanceFromWall) / partialScale;
+					risk += 2 + (partialMax - vCell.distanceFromWall) / partialScale;
 			} else {
 				if (vCell.distanceFromWall > expansionMax)
 					risk += 0.0;
@@ -207,6 +207,8 @@ protected:
 	virtual Index2D findFirstSkeletonCell(const VoronoiGrid& voronoi, const Pose& robot, double startAngle);
 	virtual Index2D findNextSkeletonCell(const VoronoiGrid& voronoi, const Index2D currentCell, const Index2D previous);
 	virtual Index2D findSaferSkeletonCell(const VoronoiGrid& voronoi, const Index2D currentCell, const Index2D robot);
+	virtual Index2D findSaferCell(const VoronoiGrid& voronoi, const Index2D currentCell, const Index2D robot);
+//	virtual void findSaferTarget(double& voronoiAngle, double& voronoiDistance, const Pose& robot);
 
 	// functions for the waypoint follow implementation
 	virtual double traversibleDistance(const VoronoiGrid& voronoi, const Point position, const double angle, const double max = INFINITY);
