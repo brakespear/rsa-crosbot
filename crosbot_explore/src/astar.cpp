@@ -37,15 +37,15 @@ Plan PathPlanner::getPath(VoronoiGridPtr voronoi, Pose start, Pose goal, ImagePt
 	else if ((unsigned int)startCell.y >= voronoi->height)
 		startCell.y = voronoi->height - 1;
 
-	if (startCell.x < 0)
-		startCell.x = 0;
-	else if ((unsigned int)startCell.x >= voronoi->width)
-		startCell.x = voronoi->width - 1;
+	if (endCell.x < 0)
+		endCell.x = 0;
+	else if ((unsigned int)endCell.x >= voronoi->width)
+		endCell.x = voronoi->width - 1;
 
-	if (startCell.y < 0)
-		startCell.y = 0;
-	else if ((unsigned int)startCell.y >= voronoi->height)
-		startCell.y = voronoi->height - 1;
+	if (endCell.y < 0)
+		endCell.y = 0;
+	else if ((unsigned int)endCell.y >= voronoi->height)
+		endCell.y = voronoi->height - 1;
 
 	CellPath cells = getCellPath(voronoi, startCell, endCell, image);
 
