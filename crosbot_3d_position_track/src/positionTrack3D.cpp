@@ -53,6 +53,13 @@ void PositionTrack3D::stop() {
 void PositionTrack3D::initialiseFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose icpPose) {
    cout << "Position track 3D: starting compile" << endl;
 
+   //Set config options
+   positionTrackConfig.ScanWidth = depthPoints->width;
+   positionTrackConfig.ScanHeight = depthPoints->height;
+
+   clPositionTrackConfig = opencl_manager->deviceAlloc(sizeof(oclPositionTrackConfig),
+         CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &positionTrackConfig);
+
    numDepthPoints = depthPoints->width * depthPoints->height;
    //Round up to the nearest 16 for memory coalescing
    numDepthPoints = ((numDepthPoints + 15) / 16) * 16;

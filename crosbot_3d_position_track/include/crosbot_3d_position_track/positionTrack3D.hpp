@@ -80,9 +80,15 @@ private:
    /*
     * GPU data structures
     */
+
+   //depth points for a frame
    oclDepthPoints *points;
    cl_mem clPoints;
    size_t pointsSize;
+   //config attributes
+   oclPositionTrackConfig positionTrackConfig;
+   cl_mem clPositionTrackConfig;
+
 
    /*
     * GPU structure methods

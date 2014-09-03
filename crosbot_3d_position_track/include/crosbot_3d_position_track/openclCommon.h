@@ -37,5 +37,12 @@ typedef struct {
 #endif
 } oclDepthPoints;
 
+typedef struct {
+   //width and height of a single scan
+   ocl_int ScanWidth;
+   ocl_int ScanHeight;
+
+} oclPositionTrackConfig;
+
 
 #endif
