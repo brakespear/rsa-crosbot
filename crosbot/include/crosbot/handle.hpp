@@ -98,6 +98,10 @@ public:
 		_refCount = 0;
 	}
 
+	HandledObject(const HandledObject&) {
+		_refCount = 0;
+	}
+
 	virtual ~HandledObject() {
 	};
 
