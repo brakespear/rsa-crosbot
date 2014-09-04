@@ -167,6 +167,7 @@ public:
 		rwlockPtr = NULL;
 		mutexPtr->lock();
 		locked = true;
+		write = false;
 	}
 	
 	Lock(ReadWriteLock& rwlock, bool write = false) {

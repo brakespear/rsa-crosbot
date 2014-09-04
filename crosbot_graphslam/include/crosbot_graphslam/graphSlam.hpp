@@ -11,6 +11,7 @@
 #include <ros/ros.h>
 #include <crosbot/utils.hpp>
 #include <crosbot/data.hpp>
+#include <crosbot/thread.hpp>
 #include <crosbot_map/localmap.hpp>
 #include <crosbot_map/tag.hpp>
 #include <sensor_msgs/LaserScan.h>

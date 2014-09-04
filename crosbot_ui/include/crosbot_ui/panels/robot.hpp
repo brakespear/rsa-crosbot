@@ -13,6 +13,7 @@
 #include <crosbot_ui/opengl.hpp>
 
 #include <ros/ros.h>
+#include <crosbot/thread.hpp>
 
 namespace crosbot {
 

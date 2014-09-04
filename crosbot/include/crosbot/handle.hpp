@@ -14,7 +14,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <exception>
+
+#define		REF_COUNT_TYPE	long int
+
+#if __cplusplus < 201103L
+
 #include <crosbot/thread.hpp>
+#include <string.h>
 
 namespace crosbot {
 
@@ -23,19 +29,24 @@ namespace crosbot {
  */
 class HandledObject {
 private:
-	int _refCount;
+	REF_COUNT_TYPE _refCount;
 	Mutex _refMutex;
 public:
 	HandledObject() {
 		_refCount = 0;
 	}
-	
+
 	virtual ~HandledObject() {
 	};
-	
+
 	void __incRef() {
 		Lock lock(_refMutex);
 		++_refCount;
+	}
+
+	void __incRef() const {
+		Lock lock(*((Mutex *)&_refMutex));
+		++*((int *)&_refCount);
 	}
 
 	void __decRef() {
@@ -50,10 +61,84 @@ public:
 		}
 	}
 
-	int __getRef() {
+	void __decRef() const {
+		Lock lock(*((Mutex *)&_refMutex));
+		--*((int *)&_refCount);
+		if (_refCount < 0) {
+			fprintf(stderr, "How did the ref count go below zero?\n");
+		}
+		if (_refCount == 0) {
+			lock.unlock();
+			delete this;
+		}
+	}
+
+	REF_COUNT_TYPE __getRef() const {
 		return _refCount;
 	}
 };
+
+} // namespace crosbot
+
+#else
+
+#include <atomic>
+#include <string>
+
+namespace crosbot {
+
+/**
+ * A reference counted self managed object.
+ */
+class HandledObject {
+private:
+	std::atomic< REF_COUNT_TYPE > _refCount;
+public:
+	HandledObject() {
+		_refCount = 0;
+	}
+
+	virtual ~HandledObject() {
+	};
+
+	void __incRef() {
+		++_refCount;
+	}
+
+	void __incRef() const {
+		++*((std::atomic< int > *)&_refCount);
+	}
+
+	void __decRef() {
+		--_refCount;
+		if (_refCount < 0) {
+			fprintf(stderr, "How did the ref count go below zero?\n");
+		}
+		if (_refCount == 0) {
+			delete this;
+		}
+	}
+
+	void __decRef() const {
+		--*((std::atomic< int > *)&_refCount);
+		if (_refCount < 0) {
+			fprintf(stderr, "How did the ref count go below zero?\n");
+		}
+		if (_refCount == 0) {
+			delete this;
+		}
+	}
+
+	REF_COUNT_TYPE __getRef() const {
+		return _refCount.load();
+	}
+};
+
+} // namespace crosbot
+
+#endif
+
+namespace crosbot {
 
 inline bool operator==(const HandledObject& lhs, const HandledObject& rhs)
 {

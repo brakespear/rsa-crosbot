@@ -9,6 +9,8 @@
 #include <crosbot_explore/astar.hpp>
 #include <crosbot/utils.hpp>
 
+#include <queue>
+
 namespace crosbot {
 
 Plan PathPlanner::getPath(VoronoiGridPtr voronoi, Pose start, Pose goal, ImagePtr image) {
