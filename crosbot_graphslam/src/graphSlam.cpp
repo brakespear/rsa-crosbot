@@ -364,7 +364,7 @@ void GraphSlam::captureScan(const vector<uint8_t>& points, Pose correction) {
          p.y = arr[1];
          p.z = arr[2];
 
-         if (!isnan(p.x)/* && !isnan(p.y) && !isnan(p.z)*/) {
+         if (!::isnan(p.x)/* && !::isnan(p.y) && !::isnan(p.z)*/) {
             newScan->points[i] = trans * p.toTF();
             double dist = newScan->points[i].x * newScan->points[i].x + newScan->points[i].y * newScan->points[i].y;
             if (dist > RGBDMinDistance && newScan->points[i].z > RGBDMinHeight && 
