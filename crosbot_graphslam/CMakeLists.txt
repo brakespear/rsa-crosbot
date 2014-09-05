@@ -96,6 +96,7 @@ catkin_package(
 # include_directories(include)
 include_directories(include
   ${catkin_INCLUDE_DIRS}
+  /usr/include/suitesparse
 )
 
 ## Declare a cpp library
@@ -115,6 +116,7 @@ add_executable(crosbot_graphslam src/graphSlamNode.cpp src/graphSlam.cpp src/gra
 target_link_libraries(crosbot_graphslam graphslam
    ${catkin_LIBRARIES}
    newmat
+   cxsparse
 )
 
 target_link_libraries(graphslam
