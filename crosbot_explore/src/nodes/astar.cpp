@@ -8,6 +8,7 @@
 #include <ros/ros.h>
 #include <crosbot_explore/astar.hpp>
 #include <crosbot/utils.hpp>
+#include <crosbot/thread.hpp>
 #include <crosbot_map/voronoi.hpp>
 #include <crosbot/config.hpp>
 

@@ -11,6 +11,7 @@
 #include <crosbot/data.hpp>
 #include <crosbot/config.hpp>
 #include <crosbot_map/tag.hpp>
+#include <crosbot/thread.hpp>
 
 #include <nav_msgs/OccupancyGrid.h>
 
