@@ -126,7 +126,7 @@ protected:
    //Total covariance at which a new local map will be created
    double LocalMapCovarianceThreshold;
    //Number of iterations of the graph optimiser
-   int NumOfOptimisationIts;
+   int MaxNumOfOptimisationIts;
    //Amount a local maps moves before it is evaluated for temp loop closures
    double LargeMovementThreshold;
    //amount two local maps have to overlap to be considered potentially matching
@@ -140,6 +140,11 @@ protected:
    //Amount the last scan of a local map needs to be corrected before the local map is warped
    double LocalMapWarpThreshXY;
    double LocalMapWarpThreshTh;
+   //Maximum movement of a map for the graph optimsation to be considered
+   //to converge
+   double MaxOptMoveXY;
+   double MaxOptMoveTh;
+
 
    //Kinect Params
    

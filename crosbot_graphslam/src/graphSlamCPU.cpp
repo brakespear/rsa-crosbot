@@ -7,6 +7,8 @@
  * CPU version of graph slam
  */
 
+//NOTE: requires libsuitesparse-dev to be installed
+
 #include <newmat/newmat.h>
 #include <crosbot_graphslam/graphSlamCPU.hpp>
 
@@ -616,11 +618,11 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          }
          if (foundMoreLoops) {
             cout << "****Optimising again" << endl;
-            for (int numIterations = 1; numIterations < NumOfOptimisationIts; numIterations++) {
+            /*for (int numIterations = 1; numIterations < NumOfOptimisationIts; numIterations++) {
                getGlobalHessianMatrix();
                calculateOptimisationChange(numIterations, 0);
                updateGlobalPositions();
-            }
+            }*/
             updateRobotMapCentres();
          }
 
@@ -2495,7 +2497,6 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations, int type) {
  * - Make it work for partial loop closures and only optimise for with > roots (will need to find the
  *   constraint index associated with the index of the root
  * - Add symmetric parts and any other useful bits from previous work
- * - Find how many Optimization iterations are needed, or stop when converges
  * - Fiddle around with info matrices and angles to get cholesky decomp to work
  */
 
@@ -2519,7 +2520,7 @@ void GraphSlamCPU::optimiseGraph() {
    double startY = localMaps[0].currentGlobalPosY;
    double startTh = localMaps[0].currentGlobalPosTh;  
 
-   for (int numIterations = 1; numIterations < 20/*NumOfOptimisationIts*/; numIterations++) {
+   for (int numIterations = 0; numIterations < MaxNumOfOptimisationIts; numIterations++) {
 
       //Initialise areas of Hessian and b where more than one constraint
       //will write
@@ -2535,6 +2536,11 @@ void GraphSlamCPU::optimiseGraph() {
             }
          }
       }
+
+      //debugging
+      double maxX = 0;
+      double maxY = 0;
+      double maxTh = 0;
 
       //Set the values in H and b
       for (int constraintI = 0; constraintI < common->numConstraints; constraintI++) {
@@ -2624,7 +2630,7 @@ void GraphSlamCPU::optimiseGraph() {
                   - constraint[2];
          ANGNORM(error[2]);
 
-         if (numIterations == 1 || numIterations == 19) {
+         if (numIterations == 1 || numIterations == 10) {
             cout << "Error : " << iNode << " " << jNode << " is: " << error[0] << " " << error[1]
                << " " << error[2] << endl;
          }
@@ -2702,20 +2708,35 @@ void GraphSlamCPU::optimiseGraph() {
          //cout << "Map " << x << " before: " << localMaps[x].currentGlobalPosX << " " <<
          //   localMaps[x].currentGlobalPosY << " " << localMaps[x].currentGlobalPosTh << 
          //   " change: " << b[x*3] << " " << b[x * 3 + 1] << " " << b[x * 3 + 2] << endl;
-         double cosTh = cos(b[x * 3 + 2]);
+         /*double cosTh = cos(b[x * 3 + 2]);
          double sinTh = sin(b[x * 3 + 2]);
          double oldX = localMaps[x].currentGlobalPosX;
          double oldY = localMaps[x].currentGlobalPosY;
          localMaps[x].currentGlobalPosX = oldX * cosTh - oldY * sinTh + b[x*3];
          localMaps[x].currentGlobalPosY = oldX * sinTh + oldY * cosTh + b[x*3 + 1];
-         localMaps[x].currentGlobalPosTh += b[x * 3 + 2];
-
-         /*localMaps[x].currentGlobalPosX += b[x * 3];
-         localMaps[x].currentGlobalPosY += b[x * 3 + 1];
          localMaps[x].currentGlobalPosTh += b[x * 3 + 2];*/
+
+         localMaps[x].currentGlobalPosX += b[x * 3];
+         localMaps[x].currentGlobalPosY += b[x * 3 + 1];
+         localMaps[x].currentGlobalPosTh += b[x * 3 + 2];
          ANGNORM(localMaps[x].currentGlobalPosTh);
+
+
+         if (fabs(b[x*3]) > maxX) {
+            maxX = fabs(b[x * 3]);
+         }
+         if (fabs(b[x*3 + 1]) > maxY) {
+            maxY = fabs(b[x * 3 + 1]);
+         }
+         if (fabs(b[x*3 + 2]) > maxTh) {
+            maxTh = fabs(b[x * 3 + 2]);
+         }
       }
-      cout << "Finished iteration" << endl;
+      cout << "Finished iteration " << maxX << " " << maxY << " " << maxTh << endl;
+      if (maxX < MaxOptMoveXY && maxY < MaxOptMoveXY && maxTh < MaxOptMoveTh) {
+         cout << "Finished optimising. Took " << numIterations << " iterations" << endl;
+         break;
+      }
    }
    cs_spfree(sparseH);
    free(b);
