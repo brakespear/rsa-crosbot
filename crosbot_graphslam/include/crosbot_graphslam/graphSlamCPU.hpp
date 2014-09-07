@@ -254,7 +254,7 @@ private:
    //full loop closure
    void calculateOptimisationChange(int numIterations, int type);
 
-   void optimiseGraph();
+   void optimiseGraph(int type);
 
    //Updates the global positions of all local maps
    void updateGlobalPositions();

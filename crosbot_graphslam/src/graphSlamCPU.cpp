@@ -587,7 +587,12 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          if (!loopClosed) {
             optType = -1;
          }
-         optimiseGraph();
+         optimiseGraph(optType);
+         if (loopClosed) {
+            optType = 0;
+            evaluateTempConstraints();
+            optimiseGraph(optType);
+         }
          /*for (int numIterations = 1; numIterations < NumOfOptimisationIts * 2; numIterations++) {
             getGlobalHessianMatrix();
             if (numIterations == NumOfOptimisationIts && loopClosed) {
@@ -618,6 +623,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          }
          if (foundMoreLoops) {
             cout << "****Optimising again" << endl;
+            optimiseGraph(0);
             /*for (int numIterations = 1; numIterations < NumOfOptimisationIts; numIterations++) {
                getGlobalHessianMatrix();
                calculateOptimisationChange(numIterations, 0);
@@ -2500,8 +2506,17 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations, int type) {
  * - Fiddle around with info matrices and angles to get cholesky decomp to work
  */
 
+//For partial constraint optimisation - move constraint to lastINode if iNode is in different tree
+//(can work this out by index of inode and index of last constraint inode
+//
+//For adding wieghts, just add weights and ignore 0 weighted ones
+//Can deal with symmetry in same way as before
+//
+//For opts 1 (optimise full constraints only - first optimise with partial constraints off,
+//then evaluate, then optimise with on :)
+
 //First: find mmax movement in x,y, theta each iteration
-void GraphSlamCPU::optimiseGraph() {
+void GraphSlamCPU::optimiseGraph(int type) {
 
    //Set the number of rows in the matrix (3 * the number of maps
    //the will be optimising)
