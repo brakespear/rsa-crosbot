@@ -98,6 +98,7 @@ void GraphSlamCPU::initialiseTrack(Pose icpPose, PointCloudPtr cloud) {
    localMaps[0].parentOffsetX = 0;
    localMaps[0].parentOffsetY = 0;
    localMaps[0].parentOffsetTh = 0;
+   localMaps[0].minOptNode = 0;
    common->startICPTh = 0;
    common->currentOffsetX = 0;
    common->currentOffsetY = 0;
@@ -857,6 +858,7 @@ void GraphSlamCPU::createNewLocalMap(int oldLocalMap, int newLocalMap, int paren
    //localMaps[oldLocalMap].robotMapCentreY = common->currentOffsetY/2.0;
    localMaps[newLocalMap].indexParentNode = parentLocalMap;
    localMaps[newLocalMap].treeLevel = localMaps[parentLocalMap].treeLevel + 1;
+   localMaps[newLocalMap].minOptNode = newLocalMap;
    common->minMapRangeX = INFINITY;
    common->maxMapRangeX = 0;
    common->minMapRangeY = INFINITY;
@@ -1936,6 +1938,22 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex, bool fullLoop, int current
                   localMaps[common->potentialMatches[matchIndex]].numPoints << endl;
 
             }
+
+            //set the min opt level
+            int parentIndex = common->loopConstraintParent[loopIndex];
+            int curMinOptLevel = localMaps[parentIndex].minOptNode;
+            int mapIndex = currentMap;
+            while (mapIndex != parentIndex) {
+               localMaps[mapIndex].minOptNode = curMinOptLevel;
+               mapIndex = localMaps[mapIndex].indexParentNode;
+            }
+            mapIndex = common->loopConstraintI[loopIndex];
+            while (mapIndex != parentIndex) {
+               localMaps[mapIndex].minOptNode = curMinOptLevel;
+               mapIndex = localMaps[mapIndex].indexParentNode;
+            }
+            //end of set min opt level
+
             common->loopConstraintInfo[loopIndex][0][0] = 0;
             common->loopConstraintInfo[loopIndex][0][1] = 0;
             common->loopConstraintInfo[loopIndex][0][2] = 0;
@@ -2498,42 +2516,57 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations, int type) {
    }
 }
 
-/*
- * Still to do:
- * - Make it work for partial loop closures and only optimise for with > roots (will need to find the
- *   constraint index associated with the index of the root
- * - Add symmetric parts and any other useful bits from previous work
- * - Fiddle around with info matrices and angles to get cholesky decomp to work
- */
-
-//For partial constraint optimisation - move constraint to lastINode if iNode is in different tree
-//(can work this out by index of inode and index of last constraint inode
-//
-//For adding wieghts, just add weights and ignore 0 weighted ones
-//Can deal with symmetry in same way as before
-//
-//For opts 1 (optimise full constraints only - first optimise with partial constraints off,
-//then evaluate, then optimise with on :)
-
-//First: find mmax movement in x,y, theta each iteration
+//Type = 1 is only optimsing from parent of the full loop closure
+//Type = -1 is for partial loop closures only - Only since last full loop closure
+//Type = 0 is everything
 void GraphSlamCPU::optimiseGraph(int type) {
 
+   //Calculate the starting node
+   int startingNode;
+   int startingIndex = 0;
+   if (type == -1) {
+      startingNode = previousINode;
+      startingIndex = lastFullLoopIndex + 1;
+      if (startingIndex < 0) {
+         startingNode = 0;
+         startingIndex = 0;
+      }
+   } else if (type == 1) {
+      int constraintIndex = common->constraintIndex[common->numConstraints - 1];
+      //startingNode = common->loopConstraintParent[constraintIndex];
+      startingNode = localMaps[common->loopConstraintParent[constraintIndex]].minOptNode;
+      cout << "Full loop: " << startingNode << " " << common->loopConstraintI[constraintIndex] <<
+         " " << common->loopConstraintJ[constraintIndex] << endl;
+
+      for (int i = 0; i < common->numConstraints; i++) {
+         int constraintType = common->constraintType[i];
+         constraintIndex = common->constraintIndex[i];
+         if (constraintType != 1 && localMaps[constraintIndex].indexParentNode == startingNode) {
+            startingIndex = i;
+            break;
+         }
+      }
+   } else {
+      startingNode = 0;
+      startingIndex = 0;
+   }
+   cout << "starting node is : " << startingNode << " " << startingIndex << " " << type << endl << endl;
+         
    //Set the number of rows in the matrix (3 * the number of maps
    //the will be optimising)
-   int nrows = 3 * nextLocalMap;
-   //Number of cells that will be stored in the map
-   int nzmax = (nextLocalMap + common->numConstraints * 2) * 9;
+   int numMaps = nextLocalMap - startingNode;
+   int nrows = 3 * numMaps;
+   //Overestimate of number of cells that will be stored in the map
+   int nzmax = (numMaps + (common->numConstraints - startingNode) * 2) * 9;
 
    //Allocate the dense b array
    double *b = (double *) malloc(sizeof(double) * nrows);
    //Allocate the sparse hessian matrix
    cs *sparseH = cs_spalloc(nrows, nrows, nzmax, 1, 1);
-   //Set the number of entries in the sparse matrix
-   sparseH->nz = nzmax;
 
-   double startX = localMaps[0].currentGlobalPosX;
-   double startY = localMaps[0].currentGlobalPosY;
-   double startTh = localMaps[0].currentGlobalPosTh;  
+   double startX = localMaps[startingNode].currentGlobalPosX;
+   double startY = localMaps[startingNode].currentGlobalPosY;
+   double startTh = localMaps[startingNode].currentGlobalPosTh;  
 
    for (int numIterations = 0; numIterations < MaxNumOfOptimisationIts; numIterations++) {
 
@@ -2541,8 +2574,8 @@ void GraphSlamCPU::optimiseGraph(int type) {
       //will write
       memset(b, 0, sizeof(double) * nrows);
       int count = 0;
-      for (int x = 0; x < nextLocalMap; x++) {
-         int off = x * 3;
+      for (int x = startingNode; x < nextLocalMap; x++) {
+         int off = (x - startingNode) * 3;
          for (int j = 0; j < 3; j++) {
             for (int i = 0; i < 3; i++, count++) {
                sparseH->i[count] = off + i;
@@ -2558,12 +2591,14 @@ void GraphSlamCPU::optimiseGraph(int type) {
       double maxTh = 0;
 
       //Set the values in H and b
-      for (int constraintI = 0; constraintI < common->numConstraints; constraintI++) {
+      for (int constraintI = startingIndex; constraintI < common->numConstraints; constraintI++) {
 
          int constraintType = common->constraintType[constraintI];
          int constraintIndex = common->constraintIndex[constraintI];
          int iNode;
          int jNode;
+
+         double weight;
          //Information matrix for constraint
          double info[3][3];
          //Actual constraint and the error in the constraint
@@ -2583,7 +2618,11 @@ void GraphSlamCPU::optimiseGraph(int type) {
          double BTA[3][3];
          double BTB[3][3];
 
-         if (constraintType == 1) {
+         if (constraintType == 1) { //Loop closing constraint
+            //Just doing full loop closures, so skip partial closures
+            if (type == 1 && !common->loopConstraintFull[constraintIndex]) {
+               continue;
+            }
             iNode = common->loopConstraintI[constraintIndex];
             jNode = common->loopConstraintJ[constraintIndex];
             for (int y = 0; y < 3; y++) {
@@ -2594,6 +2633,58 @@ void GraphSlamCPU::optimiseGraph(int type) {
             constraint[0] = common->loopConstraintXDisp[constraintIndex];
             constraint[1] = common->loopConstraintYDisp[constraintIndex];
             constraint[2] = common->loopConstraintThetaDisp[constraintIndex];
+         
+            weight = common->loopConstraintWeight[constraintIndex];
+            if (weight == 0) {
+               continue;
+            }
+            //Doing partial loop closure
+            if (type == -1) {
+               int mapIndex;
+               int parentIndex = common->loopConstraintParent[constraintIndex];
+               for (mapIndex = jNode; mapIndex != previousINode && mapIndex != parentIndex;
+                     mapIndex = localMaps[mapIndex].indexParentNode);
+
+               if (mapIndex != iNode) {
+                  //Transform constraint to be from mapIndex instead of iNode
+                  if (numIterations == 0) {
+                     cout << "Moving iNode of partial constraint. Orig iNode is " << iNode << endl;
+                  }
+                 
+                  double rotateAngle = localMaps[iNode].currentGlobalPosTh -
+                     localMaps[mapIndex].currentGlobalPosTh;
+                  double cosTh = cos(rotateAngle);
+                  double sinTh = sin(rotateAngle);
+
+                  double tempX = cosTh * constraint[0] - sinTh * constraint[1];
+                  double tempY = sinTh * constraint[0] + cosTh * constraint[1];
+                  constraint[0] = tempX + localMaps[mapIndex].currentGlobalPosX - 
+                     localMaps[iNode].currentGlobalPosX;
+                  constraint[1] = tempY + localMaps[mapIndex].currentGlobalPosY -
+                     localMaps[iNode].currentGlobalPosY;
+                  constraint[2] += rotateAngle;
+
+                  double tempRot[3][3];
+                  double temp[3][3];
+                  tempRot[0][0] = cosTh;
+                  tempRot[1][1] = cosTh;
+                  tempRot[1][0] = sinTh;
+                  tempRot[0][1] = -sinTh;
+                  tempRot[2][2] = 1;
+                  tempRot[0][2] = 0;
+                  tempRot[1][2] = 0;
+                  tempRot[2][0] = 0;
+                  tempRot[2][1] = 0;
+
+                  mult3x3Matrix(tempRot, info, temp);
+                  tempRot[0][1] *= -1;
+                  tempRot[1][0] *= -1;
+                  mult3x3Matrix(temp, tempRot, info);
+
+                  iNode = mapIndex;
+               }
+
+            }
          } else {
             iNode = localMaps[constraintIndex].indexParentNode;
             jNode = constraintIndex;
@@ -2605,6 +2696,7 @@ void GraphSlamCPU::optimiseGraph(int type) {
             constraint[0] = localMaps[constraintIndex].parentOffsetX;
             constraint[1] = localMaps[constraintIndex].parentOffsetY;
             constraint[2] = localMaps[constraintIndex].parentOffsetTh;
+            weight = 1;
          }
          double sinI = sin(localMaps[iNode].currentGlobalPosTh);
          double cosI = cos(localMaps[iNode].currentGlobalPosTh);
@@ -2644,8 +2736,15 @@ void GraphSlamCPU::optimiseGraph(int type) {
          error[2] = localMaps[jNode].currentGlobalPosTh - localMaps[iNode].currentGlobalPosTh
                   - constraint[2];
          ANGNORM(error[2]);
+      
+         if (PreventMatchesSymmetrical && (error[2] > 3.0 * M_PI / 4.0 || 
+                  error[2] < -3.0 * M_PI / 4.0)) {
+            cout << "Fixing residual angles " << error[2] << " " << iNode << " " << jNode << endl;
+            common->loopConstraintWeight[constraintIndex] = 0;
+            continue;
+         }
 
-         if (numIterations == 1 || numIterations == 10) {
+         if (numIterations == 0 || numIterations == 10) {
             cout << "Error : " << iNode << " " << jNode << " is: " << error[0] << " " << error[1]
                << " " << error[2] << endl;
          }
@@ -2655,36 +2754,49 @@ void GraphSlamCPU::optimiseGraph(int type) {
 
          mult3x3Matrix(AT, info, temp);
          //-= because b is really -b, as solving Hx = -b
-         b[iNode * 3] -= temp[0][0] * error[0] + temp[0][1] * error[1] + temp[0][2] * error[2];
-         b[iNode * 3 + 1] -= temp[1][0] * error[0] + temp[1][1] * error[1] + temp[1][2] * error[2];
-         b[iNode * 3 + 2] -= temp[2][0] * error[0] + temp[2][1] * error[1] + temp[2][2] * error[2];
+         b[(iNode - startingNode) * 3] -= (temp[0][0] * error[0] + 
+               temp[0][1] * error[1] + temp[0][2] * error[2]) * weight;
+         b[(iNode - startingNode) * 3 + 1] -= (temp[1][0] * error[0] + 
+               temp[1][1] * error[1] + temp[1][2] * error[2]) * weight;
+         b[(iNode - startingNode) * 3 + 2] -= (temp[2][0] * error[0] + 
+               temp[2][1] * error[1] + temp[2][2] * error[2]) * weight;
 
          mult3x3Matrix(temp, A, ATA);
          mult3x3Matrix(temp, B, ATB);
 
          mult3x3Matrix(BT, info, temp);
-         b[jNode * 3] -= temp[0][0] * error[0] + temp[0][1] * error[1] + temp[0][2] * error[2];
-         b[jNode * 3 + 1] -= temp[1][0] * error[0] + temp[1][1] * error[1] + temp[1][2] * error[2];
-         b[jNode * 3 + 2] -= temp[2][0] * error[0] + temp[2][1] * error[1] + temp[2][2] * error[2];
+         b[(jNode - startingNode) * 3] -= (temp[0][0] * error[0] + 
+               temp[0][1] * error[1] + temp[0][2] * error[2]) * weight;
+         b[(jNode - startingNode) * 3 + 1] -= (temp[1][0] * error[0] + 
+               temp[1][1] * error[1] + temp[1][2] * error[2]) * weight;
+         b[(jNode - startingNode) * 3 + 2] -= (temp[2][0] * error[0] + 
+               temp[2][1] * error[1] + temp[2][2] * error[2]) * weight;
 
          mult3x3Matrix(temp, A, BTA);
          mult3x3Matrix(temp, B, BTB);
 
+         if (iNode - startingNode < 0 || jNode - startingNode < 0) {
+            cout << "### We have a problem " << iNode << " " << jNode << " " << startingNode << endl;
+         }
+
          for (int j = 0; j < 3; j++) {
             for (int i = 0; i < 3; i++) {
-               sparseH->x[iNode * 9 + j * 3 + i] += ATA[i][j];
-               sparseH->x[jNode * 9 + j * 3 + i] += BTB[i][j];
+               sparseH->x[(iNode - startingNode) * 9 + j * 3 + i] += weight * ATA[i][j];
+               sparseH->x[(jNode - startingNode) * 9 + j * 3 + i] += weight * BTB[i][j];
 
-               sparseH->i[count] = iNode * 3 + i;
-               sparseH->p[count] = jNode * 3 + j;
-               sparseH->x[count] = ATB[i][j];
+               sparseH->i[count] = (iNode - startingNode) * 3 + i;
+               sparseH->p[count] = (jNode - startingNode) * 3 + j;
+               sparseH->x[count] = weight * ATB[i][j];
                count++;
-               sparseH->i[count] = jNode * 3 + i;
-               sparseH->p[count] = iNode * 3 + j;
-               sparseH->x[count] = BTA[i][j];
+               sparseH->i[count] = (jNode - startingNode) * 3 + i;
+               sparseH->p[count] = (iNode - startingNode) * 3 + j;
+               sparseH->x[count] = weight * BTA[i][j];
                count++;
             }
          }
+         //Set the number of entries in the sparse matrix
+         sparseH->nz = count;
+
          //row index is T->i
          //column index is T->p
          //actual value is T->X
@@ -2718,7 +2830,7 @@ void GraphSlamCPU::optimiseGraph(int type) {
       }
 
       //b has the solution!!
-      for (int x = 0; x < nextLocalMap; x++) {
+      for (int x = 0; x < numMaps; x++) {
          ANGNORM(b[x * 3 + 2]);
          //cout << "Map " << x << " before: " << localMaps[x].currentGlobalPosX << " " <<
          //   localMaps[x].currentGlobalPosY << " " << localMaps[x].currentGlobalPosTh << 
@@ -2731,10 +2843,10 @@ void GraphSlamCPU::optimiseGraph(int type) {
          localMaps[x].currentGlobalPosY = oldX * sinTh + oldY * cosTh + b[x*3 + 1];
          localMaps[x].currentGlobalPosTh += b[x * 3 + 2];*/
 
-         localMaps[x].currentGlobalPosX += b[x * 3];
-         localMaps[x].currentGlobalPosY += b[x * 3 + 1];
-         localMaps[x].currentGlobalPosTh += b[x * 3 + 2];
-         ANGNORM(localMaps[x].currentGlobalPosTh);
+         localMaps[x + startingNode].currentGlobalPosX += b[x * 3];
+         localMaps[x + startingNode].currentGlobalPosY += b[x * 3 + 1];
+         localMaps[x + startingNode].currentGlobalPosTh += b[x * 3 + 2];
+         ANGNORM(localMaps[x + startingNode].currentGlobalPosTh);
 
 
          if (fabs(b[x*3]) > maxX) {
@@ -2749,21 +2861,21 @@ void GraphSlamCPU::optimiseGraph(int type) {
       }
       cout << "Finished iteration " << maxX << " " << maxY << " " << maxTh << endl;
       if (maxX < MaxOptMoveXY && maxY < MaxOptMoveXY && maxTh < MaxOptMoveTh) {
-         cout << "Finished optimising. Took " << numIterations << " iterations" << endl;
+         cout << "Finished optimising. Took " << (numIterations + 1) << " iterations" << endl;
          break;
       }
    }
    cs_spfree(sparseH);
    free(b);
 
-   double offX = localMaps[0].currentGlobalPosX - startX;
-   double offY = localMaps[0].currentGlobalPosY - startY;
-   double offTh = localMaps[0].currentGlobalPosTh - startTh;
+   double offX = localMaps[startingNode].currentGlobalPosX - startX;
+   double offY = localMaps[startingNode].currentGlobalPosY - startY;
+   double offTh = localMaps[startingNode].currentGlobalPosTh - startTh;
 
-   cout << "map 0 is at: " << localMaps[0].currentGlobalPosX << " " << 
-      localMaps[0].currentGlobalPosY << " " << localMaps[0].currentGlobalPosTh << endl;
+   cout << "map " << startingNode << " is at: " << localMaps[startingNode].currentGlobalPosX << " " << 
+      localMaps[startingNode].currentGlobalPosY << " " << localMaps[startingNode].currentGlobalPosTh << endl;
 
-   for(int i = 0; i < nextLocalMap; i++) {
+   for(int i = startingNode; i < nextLocalMap; i++) {
       /*localMaps[i].currentGlobalPosX -= offX;
       localMaps[i].currentGlobalPosY -= offY;
       localMaps[i].currentGlobalPosTh -= offTh;*/
@@ -2778,8 +2890,8 @@ void GraphSlamCPU::optimiseGraph(int type) {
 
       ANGNORM(localMaps[i].currentGlobalPosTh);
    }
-   cout << "map 0 is now at: " << localMaps[0].currentGlobalPosX << " " << 
-      localMaps[0].currentGlobalPosY << " " << localMaps[0].currentGlobalPosTh << endl;
+   cout << "map " << startingNode << " is now at: " << localMaps[startingNode].currentGlobalPosX << " " << 
+      localMaps[startingNode].currentGlobalPosY << " " << localMaps[startingNode].currentGlobalPosTh << endl;
 }
 
 inline double GraphSlamCPU::getGlobalPosIndex(int node, int index) {
