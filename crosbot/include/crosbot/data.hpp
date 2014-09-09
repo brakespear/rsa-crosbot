@@ -383,7 +383,7 @@ class Data : public HandledObject {
 public:
 	Time timestamp;
 
-	Data(Time stamp = Time::now()) : timestamp(stamp) {}
+	Data(Time stamp = Time::now()) : HandledObject(), timestamp(stamp) {}
 	virtual ~Data() {}
 };
 
