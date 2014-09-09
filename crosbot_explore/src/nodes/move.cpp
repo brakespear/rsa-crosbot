@@ -45,7 +45,7 @@ protected:
 		double distanceThreshold, angleThreshold;
 		PlanningThread() :
 			goal(INFINITY, INFINITY, INFINITY), operating(true), explorerPaused(false),
-			updateInterval(150000),
+			updateInterval(500000),
 			distanceThreshold(0.5), angleThreshold(DEG2RAD(10))
 		{}
 
