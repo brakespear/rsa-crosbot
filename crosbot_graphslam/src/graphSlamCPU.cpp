@@ -419,9 +419,48 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
          }
       }
       cout << endl;
+      cout << "Stamp: " << stamp << endl;
    }
 
    finishedSetup = true;
+
+
+   //Temp output
+   /*if (numIterations == 100) {
+      cout << "OUTPUTTING DATA " << nextLocalMap << endl;
+      FILE *f = fopen("/home/adrianrobolab/mapVerify/slamPos.txt", "w");
+
+      int scanCount = 0;
+      for(int mapI = 0; mapI <= currentLocalMap; mapI++) {
+         for (int scanI = 0; scanI < localMaps[mapI].scans.size(); scanI++, scanCount++) {
+            if (scanCount % 10 == 0) {
+               double posX = localMaps[mapI].scans[scanI]->pose[0] + localMaps[mapI].scans[scanI]->correction[0];
+               double posY = localMaps[mapI].scans[scanI]->pose[1] + localMaps[mapI].scans[scanI]->correction[1];
+               double posTh = localMaps[mapI].scans[scanI]->pose[2] + localMaps[mapI].scans[scanI]->correction[2];
+
+               double globPosX;
+               double globPosY;
+               double globPosTh;
+               convertToGlobalCoord(posX, posY, localMaps[mapI].currentGlobalPosX, 
+                     localMaps[mapI].currentGlobalPosY, localMaps[mapI].currentGlobalPosTh, &globPosX,
+                     &globPosY);
+               globPosTh = posTh + localMaps[mapI].currentGlobalPosTh;
+
+               ostringstream ss;
+               ss << localMaps[mapI].scans[scanI]->stamp;
+
+               fprintf(f, "%s %lf %lf %lf %d", ss.str().c_str(), 
+                     globPosX, globPosY, globPosTh, localMaps[mapI].scans[scanI]->points.size());
+               for (int c = 0; c < localMaps[mapI].scans[scanI]->points.size(); c++) {
+                  fprintf(f, " %lf %lf", localMaps[mapI].scans[scanI]->points[c].x,
+                        localMaps[mapI].scans[scanI]->points[c].y);
+               }
+               fprintf(f, "\n");
+            }
+         }
+      }
+      fclose(f);
+   }*/
 }
 
 void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
@@ -610,9 +649,11 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          cout << "Time to optimise " << tote.toSec() * 1000.0f << "ms" << endl;
          bool foundMoreLoops = false;
          for (int k = 0; loopClosed && UseTempLoopClosures && k < nextLocalMap; k++) {
+            double angleMov = localMaps[k].currentGlobalPosTh - localMaps[k].startingPos[2];
+            ANGNORM(angleMov);
             if (fabs(localMaps[k].currentGlobalPosX - localMaps[k].startingPos[0]) > LargeMovementThreshold ||
                   fabs(localMaps[k].currentGlobalPosY - localMaps[k].startingPos[1]) > LargeMovementThreshold ||
-                  fabs(localMaps[k].currentGlobalPosTh - localMaps[k].startingPos[2]) > LargeMovementThreshold) {
+                  fabs(angleMov) > LargeMovementThreshold) {
                      
                cout << "Map " << k << " moved a lot " << localMaps[k].currentGlobalPosX << " " <<
                  localMaps[k].currentGlobalPosY << " " << localMaps[k].currentGlobalPosTh << "  " <<
@@ -2954,6 +2995,7 @@ void GraphSlamCPU::optimiseGraph(int type) {
       localMaps[previousINode].currentGlobalPosX = startX;
       localMaps[previousINode].currentGlobalPosY = startY;
       localMaps[previousINode].currentGlobalPosTh = startTh;
+      ANGNORM(localMaps[previousINode].currentGlobalPosTh);
    }
    //cout << "map " << startingNode << " is now at: " << localMaps[startingNode].currentGlobalPosX << " " << 
    //   localMaps[startingNode].currentGlobalPosY << " " << localMaps[startingNode].currentGlobalPosTh << endl;
