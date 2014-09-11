@@ -53,7 +53,7 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("PerScanInfoScaleFactor", PerScanInfoScaleFactor, 5000);
    paramNH.param<double>("GradientDistanceThreshold", GradientDistanceThreshold, 0.2);
    paramNH.param<double>("LocalMapCovarianceThreshold", LocalMapCovarianceThreshold, 1.0);
-   paramNH.param<int>("NumOfOptimisationIts", MaxNumOfOptimisationIts, 20);
+   paramNH.param<int>("MaxNumOfOptimisationIts", MaxNumOfOptimisationIts, 50);
    paramNH.param<double>("LargeMovementThreshold", LargeMovementThreshold, 0.5);
    paramNH.param<int>("OverlapThreshold", OverlapThreshold, 30);
    paramNH.param<double>("TempConstraintMovementXY", TempConstraintMovementXY, 0.5);

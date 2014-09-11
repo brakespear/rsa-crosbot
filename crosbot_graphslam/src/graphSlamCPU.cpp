@@ -1357,14 +1357,21 @@ void GraphSlamCPU::prepareLocalMap() {
             //a[y][x] = localMaps[currentLocalMap].internalCovar[y][x] / (double)lastI;
             //a[y][x] = (localMaps[currentLocalMap].scans[lastI]->covar[y][x] * 
             //   localMaps[currentLocalMap].scans[lastI]->covar[y][x]) * 1000000;
-            a[y][x] = ((localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 
-               (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI)) * InformationScaleFactor;
-            //a[y][x] = (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 10000;
+            //a[y][x] = ((localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 
+            //   (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI)) * InformationScaleFactor;
+            a[y][x] = (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 10;
          }
       }
 
       invert3x3Matrix(a, localMaps[currentLocalMap].parentInfo);
       //invert3x3Matrix(localMaps[currentLocalMap].scans[lastI]->covar, localMaps[currentLocalMap].parentInfo);
+      cout << "Info of standard constraint: ";
+      for (y = 0; y < 3; y++) {
+         for (x = 0; x < 3; x++) {
+            cout << localMaps[currentLocalMap].parentInfo[y][x] << " ";
+         }
+      }
+      cout << endl;
       
             
       //invert3x3Matrix(localMaps[currentLocalMap].internalCovar, localMaps[currentLocalMap].parentInfo);
@@ -2568,6 +2575,8 @@ void GraphSlamCPU::optimiseGraph(int type) {
    //Calculate the starting node
    int startingNode;
    int startingIndex = 0;
+
+   //type = 0;
    
    if (type == -1) {
       //startingNode = previousINode;
@@ -2742,6 +2751,9 @@ void GraphSlamCPU::optimiseGraph(int type) {
                      localMaps[iNode].currentGlobalPosY;
                   constraint[2] += rotateAngle;*/
 
+                  //cosTh = cos(startTh);
+                  //sinTh = sin(startTh);
+
                   double tempRot[3][3];
                   double temp[3][3];
                   tempRot[0][0] = cosTh;
@@ -2822,9 +2834,13 @@ void GraphSlamCPU::optimiseGraph(int type) {
             continue;
          }
 
-         if (numIterations == 0 || numIterations == 10) {
+         if (numIterations == 0 || numIterations == MaxNumOfOptimisationIts - 1) {
             cout << "Error : " << iNode << " " << jNode << " is: " << error[0] << " " << error[1]
-               << " " << error[2] << endl;
+               << " " << error[2];
+            if (fabs(error[0]) > 0.4 || fabs(error[1]) > 0.4 || fabs(error[2]) > 0.4) {
+                  cout << " *****";
+            }
+            cout << endl;
          }
 
          transpose3x3Matrix(A, AT);
