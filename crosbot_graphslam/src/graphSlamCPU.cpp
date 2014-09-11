@@ -231,9 +231,9 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
                double mapGradX = common->grid[ogIndex].gradX / length;
                double mapGradY = common->grid[ogIndex].gradY / length;
                if (length > 0) {
-                  //double temp = x * mapGradX + y * mapGradY * 0.1;
+                  double temp = x * mapGradX + y * mapGradY;
                   //TODO: find a better way to estimate the angular covar of a scan
-                  double temp = 0.5;
+                  //double temp = 0.5;
                   tempCovar[0][0] += mapGradX * mapGradX;
                   tempCovar[0][1] += mapGradX * mapGradY;
                   tempCovar[0][2] += mapGradX * temp;
@@ -1357,9 +1357,12 @@ void GraphSlamCPU::prepareLocalMap() {
             //a[y][x] = localMaps[currentLocalMap].internalCovar[y][x] / (double)lastI;
             //a[y][x] = (localMaps[currentLocalMap].scans[lastI]->covar[y][x] * 
             //   localMaps[currentLocalMap].scans[lastI]->covar[y][x]) * 1000000;
+            
             //a[y][x] = ((localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 
             //   (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI)) * InformationScaleFactor;
-            a[y][x] = (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 10;
+            //a[y][x] = (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 100;
+            a[y][x] = ((localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 
+               (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI)) * 100000;
          }
       }
 
@@ -2923,11 +2926,14 @@ void GraphSlamCPU::optimiseGraph(int type) {
       cs_spfree(compH);
       if (retVal != 1) {
          cout << "Colesky failed. Can't optimise " << retVal << endl;
-         return;
+         break;
       }
 
       //b has the solution!!
       for (int x = 0; x < numMaps; x++) {
+         if (b[x * 3 + 2] > 100) {
+            cout << "AAAAAAAAAAAARGGGG angle is big: " << b[x * 3 + 2] << endl;
+         }
          ANGNORM(b[x * 3 + 2]);
          //cout << "Map " << x << " before: " << localMaps[x].currentGlobalPosX << " " <<
          //   localMaps[x].currentGlobalPosY << " " << localMaps[x].currentGlobalPosTh << 
