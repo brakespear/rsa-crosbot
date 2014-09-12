@@ -98,6 +98,13 @@ void PositionTrack3D::processFrame(DepthPointsPtr depthPoints, Pose sensorPose, 
 
    writeBuffer(clPoints, CL_TRUE, 0, pointsSize, points->pointX, 0, 0, 0,
          "Copying depth points to GPU");
+
+   //Pose has a Point3D position field and a quaternion orientation field
+   //Point3D has x,y,z fields, quaternion has x,y,z,w fields
+   
+   //Can do something like:
+   tf::Quaternion quat = sensorPose.orienation.toTF();
+   tf::Matrix3x3 basis(quat);
 }
 
 inline int PositionTrack3D::getGlobalWorkSize(int numThreads) {
