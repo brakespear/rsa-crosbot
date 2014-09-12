@@ -426,7 +426,13 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
 
 
    //Temp output for seeding manual relations entry
-   /*if (numIterations == 100) {
+   /*ostringstream tt;
+   tt << stamp;
+   const char *st = tt.str().c_str();
+   double stampTime;
+   sscanf(st, "%lf", &stampTime);*/
+   /*if (stampTime > 1364015711.983) {
+   //if (numIterations == 100) {
       cout << "OUTPUTTING DATA " << nextLocalMap << endl;
       FILE *f = fopen("/home/adrianrobolab/mapVerify/slamPos.txt", "w");
 
@@ -463,12 +469,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
    }*/
 
    //temp output for printing slam positions
-   /*ostringstream tt;
-   tt << stamp;
-   char *st = stamp.str().c_str();
-   double stampTime;
-   sscanf(st, "%lf", &stampTime);
-   if (stampTime > 1364015711.983) {*/
+   //if (stampTime > 1364015711.983) {
    /*if (numIterations == 100) {
       cout << "OUTPUTTIND STATE NOW" << endl << endl;
       FILE *f = fopen("/home/adrianrobolab/mapVerify/slamPositions.txt", "w");
@@ -1404,9 +1405,9 @@ void GraphSlamCPU::prepareLocalMap() {
             
             //a[y][x] = ((localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 
             //   (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI)) * InformationScaleFactor;
-            a[y][x] = (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 10000;
-            //a[y][x] = ((localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 
-            //   (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI)) * 100000;
+            //a[y][x] = (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 10000;
+            a[y][x] = ((localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 
+               (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI)) * 100000;
          }
       }
 
@@ -1997,7 +1998,7 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex, bool fullLoop, int current
 
          //if (!fullLoop) { tempO = false; }
          cout << "The matching score is......" << score << endl;
-         if (((fullLoop && score < FreeAreaThreshold) || (!fullLoop && score < previousScore && score < FreeAreaThreshold && score != -1)) && !stopMatch) {
+         if (((fullLoop && score < FreeAreaThreshold) || (!fullLoop && score < previousScore && score < FreeAreaThreshold && score != -1 && overlapNum > OverlapThreshold)) && !stopMatch) {
 
             //If successful match, add match information to data structures
             int mIndex = common->numConstraints;
@@ -2619,6 +2620,13 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations, int type) {
 //Type = 0 is everything
 void GraphSlamCPU::optimiseGraph(int type) {
 
+
+   double previousError = INFINITY;
+   double lambda = 1.0;
+   double currentError = 0;
+   bool rewind = false;
+
+
    //Calculate the starting node
    int startingNode;
    int startingIndex = 0;
@@ -2677,6 +2685,8 @@ void GraphSlamCPU::optimiseGraph(int type) {
    //Allocate the sparse hessian matrix
    cs *sparseH = cs_spalloc(nrows, nrows, nzmax, 1, 1);
 
+   double *oldB = (double *) malloc(sizeof(double) * nrows);
+
    double startX, startY, startTh;
    if (type == -1) {
       startX = localMaps[previousINode].currentGlobalPosX;
@@ -2701,6 +2711,9 @@ void GraphSlamCPU::optimiseGraph(int type) {
                sparseH->i[count] = off + i;
                sparseH->p[count] = off + j;
                sparseH->x[count] = 0;
+               if (i == j) {
+                  sparseH->x[count] = lambda;
+               }
             }
          }
       }
@@ -2708,6 +2721,7 @@ void GraphSlamCPU::optimiseGraph(int type) {
       double maxX = 0;
       double maxY = 0;
       double maxTh = 0;
+      currentError = 0;
 
       //Set the values in H and b
       for (int constraintI = startingIndex; constraintI < common->numConstraints; constraintI++) {
@@ -2881,6 +2895,13 @@ void GraphSlamCPU::optimiseGraph(int type) {
             continue;
          }
 
+         currentError += (error[0]  * (error[0] * info[0][0] + error[1] * info[1][0] + error[2] * info[2][0]) +
+                         error[1]  * (error[0] * info[0][1] + error[1] * info[1][1] + error[2] * info[2][1]) +
+                         error[2]  * (error[0] * info[0][2] + error[1] * info[1][2] + error[2] * info[2][2])) *
+                         weight;
+
+                        
+
          if (numIterations == 0 || numIterations == MaxNumOfOptimisationIts - 1) {
             cout << "Error : " << iNode << " " << jNode << " is: " << error[0] << " " << error[1]
                << " " << error[2];
@@ -2947,6 +2968,38 @@ void GraphSlamCPU::optimiseGraph(int type) {
          //actual value is T->X
       }
 
+      currentError /= numMaps;
+      if (currentError > previousError && !rewind) {
+         cout << "Unwinding change because bad " << currentError << " " << previousError << endl;
+         rewind = true;
+         for (int x = 0; x< numMaps; x++) {
+            if (type == -1 && x == 0) {
+               localMaps[previousINode].currentGlobalPosX -= oldB[x * 3];
+               localMaps[previousINode].currentGlobalPosY -= oldB[x * 3 + 1];
+               localMaps[previousINode].currentGlobalPosTh -= oldB[x * 3 + 2];
+               ANGNORM(localMaps[previousINode].currentGlobalPosTh);
+            } else {
+               localMaps[x + startingNode].currentGlobalPosX -= oldB[x * 3];
+               localMaps[x + startingNode].currentGlobalPosY -= oldB[x * 3 + 1];
+               localMaps[x + startingNode].currentGlobalPosTh -= oldB[x * 3 + 2];
+               ANGNORM(localMaps[x + startingNode].currentGlobalPosTh);
+            }
+            //oldB[x * 3] = 0;
+            //oldB[x * 3 + 1] = 0;
+            //oldB[x * 3 + 2] = 0;
+         }
+         numIterations--;
+         lambda *= 2.0;
+         continue; 
+      } else {
+         if (lambda > 1.0) {
+            lambda /= 2.0;
+         }
+         previousError = currentError;
+      }
+      rewind = false;
+
+
       /*cout << "Count is: " << count << " nzmax is " << nzmax << endl;
       cout << "First square of matrix is: " << endl;
       for (int j = 0; j < 3; j++) {
@@ -2982,6 +3035,9 @@ void GraphSlamCPU::optimiseGraph(int type) {
             cout << "AAAAAAAAAAAARGGGG angle is big: " << b[x * 3 + 2] << endl;
          }
          ANGNORM(b[x * 3 + 2]);
+         oldB[x * 3] = b[x* 3];
+         oldB[x * 3 + 1] = b[x* 3 + 1];
+         oldB[x * 3 + 2] = b[x* 3 + 2];
          //cout << "Map " << x << " before: " << localMaps[x].currentGlobalPosX << " " <<
          //   localMaps[x].currentGlobalPosY << " " << localMaps[x].currentGlobalPosTh << 
          //   " change: " << b[x*3] << " " << b[x * 3 + 1] << " " << b[x * 3 + 2] << endl;
@@ -3015,7 +3071,7 @@ void GraphSlamCPU::optimiseGraph(int type) {
             maxTh = fabs(b[x * 3 + 2]);
          }
       }
-      cout << "Finished iteration " << maxX << " " << maxY << " " << maxTh << endl;
+      cout << "Finished iteration " << maxX << " " << maxY << " " << maxTh << " " << currentError << endl;
       if (maxX < MaxOptMoveXY && maxY < MaxOptMoveXY && maxTh < MaxOptMoveTh) {
          cout << "Finished optimising. Took " << (numIterations + 1) << " iterations" << endl;
          break;
@@ -3023,6 +3079,7 @@ void GraphSlamCPU::optimiseGraph(int type) {
    }
    cs_spfree(sparseH);
    free(b);
+   free(oldB);
 
    double offX, offY, offTh;
    if (type == -1) {
