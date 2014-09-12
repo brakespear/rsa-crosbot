@@ -425,7 +425,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
    finishedSetup = true;
 
 
-   //Temp output
+   //Temp output for seeding manual relations entry
    /*if (numIterations == 100) {
       cout << "OUTPUTTING DATA " << nextLocalMap << endl;
       FILE *f = fopen("/home/adrianrobolab/mapVerify/slamPos.txt", "w");
@@ -457,6 +457,50 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
                }
                fprintf(f, "\n");
             }
+         }
+      }
+      fclose(f);
+   }*/
+
+   //temp output for printing slam positions
+   /*ostringstream tt;
+   tt << stamp;
+   char *st = stamp.str().c_str();
+   double stampTime;
+   sscanf(st, "%lf", &stampTime);
+   if (stampTime > 1364015711.983) {*/
+   /*if (numIterations == 100) {
+      cout << "OUTPUTTIND STATE NOW" << endl << endl;
+      FILE *f = fopen("/home/adrianrobolab/mapVerify/slamPositions.txt", "w");
+
+      //int scanCount = 0;
+      for(int mapI = 0; mapI <= currentLocalMap; mapI++) {
+         for (int scanI = 0; scanI < localMaps[mapI].scans.size(); scanI++) {
+            //if (scanCount % 10 == 0) {
+               double posX = localMaps[mapI].scans[scanI]->pose[0] + localMaps[mapI].scans[scanI]->correction[0];
+               double posY = localMaps[mapI].scans[scanI]->pose[1] + localMaps[mapI].scans[scanI]->correction[1];
+               double posTh = localMaps[mapI].scans[scanI]->pose[2] + localMaps[mapI].scans[scanI]->correction[2];
+
+               double globPosX;
+               double globPosY;
+               double globPosTh;
+               convertToGlobalCoord(posX, posY, localMaps[mapI].currentGlobalPosX, 
+                     localMaps[mapI].currentGlobalPosY, localMaps[mapI].currentGlobalPosTh, &globPosX,
+                     &globPosY);
+               globPosTh = posTh + localMaps[mapI].currentGlobalPosTh;
+
+               ostringstream ss;
+               ss << localMaps[mapI].scans[scanI]->stamp;
+
+               fprintf(f, "FLASER 0 %lf %lf %lf 0 0 0 %s NAME %s\n", 
+                     globPosX, globPosY, globPosTh, ss.str().c_str(), ss.str().c_str());
+               //for (int c = 0; c < localMaps[mapI].scans[scanI]->points.size(); c++) {
+               //   fprintf(f, " %lf %lf", localMaps[mapI].scans[scanI]->points[c].x,
+               //         localMaps[mapI].scans[scanI]->points[c].y);
+               //}
+               //fprintf(f, "\n");
+               //scanCount++;
+            //}
          }
       }
       fclose(f);
@@ -1360,9 +1404,9 @@ void GraphSlamCPU::prepareLocalMap() {
             
             //a[y][x] = ((localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 
             //   (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI)) * InformationScaleFactor;
-            //a[y][x] = (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 100;
-            a[y][x] = ((localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 
-               (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI)) * 100000;
+            a[y][x] = (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 10000;
+            //a[y][x] = ((localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI) * 
+            //   (localMaps[currentLocalMap].internalCovar[y][x] / (double) lastI)) * 100000;
          }
       }
 
@@ -2927,6 +2971,9 @@ void GraphSlamCPU::optimiseGraph(int type) {
       if (retVal != 1) {
          cout << "Colesky failed. Can't optimise " << retVal << endl;
          break;
+         /*for (int x = 0; x < numMaps; x++) {
+            b[x] = 0;
+         }*/
       }
 
       //b has the solution!!
@@ -2973,10 +3020,6 @@ void GraphSlamCPU::optimiseGraph(int type) {
          cout << "Finished optimising. Took " << (numIterations + 1) << " iterations" << endl;
          break;
       }
-      /*if (maxX > 500 || maxY > 500 || maxTh > 500) {
-         cout << "##### Something going wrong with optimiser, so quit now!! " << endl << endl;
-         break;
-      }*/
    }
    cs_spfree(sparseH);
    free(b);
@@ -3021,6 +3064,20 @@ void GraphSlamCPU::optimiseGraph(int type) {
    }
    //cout << "map " << startingNode << " is now at: " << localMaps[startingNode].currentGlobalPosX << " " << 
    //   localMaps[startingNode].currentGlobalPosY << " " << localMaps[startingNode].currentGlobalPosTh << endl;
+
+      /*cout << "Finished iteration " << maxX << " " << maxY << " " << maxTh << endl;
+      if (maxX < MaxOptMoveXY && maxY < MaxOptMoveXY && maxTh < MaxOptMoveTh) {
+         cout << "Finished optimising. Took " << (numIterations + 1) << " iterations" << endl;
+         break;
+      }
+
+      if (retVal != 1) {
+         break;
+      }
+
+   }
+   cs_spfree(sparseH);
+   free(b);*/
 }
 
 inline double GraphSlamCPU::getGlobalPosIndex(int node, int index) {
