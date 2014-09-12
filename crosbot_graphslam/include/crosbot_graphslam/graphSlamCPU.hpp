@@ -183,6 +183,7 @@ private:
    double previousScore;
    bool didOptimise;
    //bool tempO;
+   bool alreadyOutput;
 
    //debugging for timings
    ros::WallDuration totalTime;

@@ -37,6 +37,7 @@ GraphSlamCPU::GraphSlamCPU() {
    previousINode = 0;
 
    //tempO = false;
+   alreadyOutput = false;
 
    //kinect params
    lastCloudPublished = 0;
@@ -431,7 +432,8 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
    const char *st = tt.str().c_str();
    double stampTime;
    sscanf(st, "%lf", &stampTime);*/
-   /*if (stampTime > 1364015711.983) {
+   /*if (stampTime > 1364015744 && !alreadyOutput) {
+      alreadyOutput = true;
    //if (numIterations == 100) {
       cout << "OUTPUTTING DATA " << nextLocalMap << endl;
       FILE *f = fopen("/home/adrianrobolab/mapVerify/slamPos.txt", "w");
