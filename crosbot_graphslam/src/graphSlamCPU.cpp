@@ -471,10 +471,11 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
    }*/
 
    //temp output for printing slam positions
-   //if (stampTime > 1364015711.983) {
-   /*if (numIterations == 100) {
-      cout << "OUTPUTTIND STATE NOW" << endl << endl;
-      FILE *f = fopen("/home/adrianrobolab/mapVerify/slamPositions.txt", "w");
+   /*if (stampTime > 1364015711.983 && !alreadyOutput) {
+      alreadyOutput = true;
+   //if (numIterations == 100) {
+      cout << "OUTPUTTING STATE NOW" << endl << endl;
+      FILE *f = fopen("/home/adrian/slamPositions.txt", "w");
 
       //int scanCount = 0;
       for(int mapI = 0; mapI <= currentLocalMap; mapI++) {
@@ -495,7 +496,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
                ostringstream ss;
                ss << localMaps[mapI].scans[scanI]->stamp;
 
-               fprintf(f, "FLASER 0 %lf %lf %lf 0 0 0 %s NAME %s\n", 
+               fprintf(f, "FLASER 0 0 0 0 %lf %lf %lf %s NAME %s\n", 
                      globPosX, globPosY, globPosTh, ss.str().c_str(), ss.str().c_str());
                //for (int c = 0; c < localMaps[mapI].scans[scanI]->points.size(); c++) {
                //   fprintf(f, " %lf %lf", localMaps[mapI].scans[scanI]->points[c].x,
@@ -680,16 +681,16 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             evaluateTempConstraints();
             optimiseGraph(optType);
          }
-         /*for (int numIterations = 1; numIterations < NumOfOptimisationIts * 2; numIterations++) {
+         for (int numIterations = 1; numIterations < 10 * 2; numIterations++) {
             getGlobalHessianMatrix();
-            if (numIterations == NumOfOptimisationIts && loopClosed) {
+            if (numIterations == 10 && loopClosed) {
                optType = 0;
                evaluateTempConstraints();
             }
             calculateOptimisationChange(numIterations, optType);
             updateGlobalPositions();
 
-         }*/
+         }
          updateRobotMapCentres();
          ros::WallTime t2 = ros::WallTime::now();
          ros::WallDuration tote = t2 - t1;
@@ -716,7 +717,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          if (foundMoreLoops) {
             cout << "****Optimising again" << endl;
             optimiseGraph(0);
-            /*for (int numIterations = 1; numIterations < NumOfOptimisationIts; numIterations++) {
+            /*for (int numIterations = 1; numIterations < 10; numIterations++) {
                getGlobalHessianMatrix();
                calculateOptimisationChange(numIterations, 0);
                updateGlobalPositions();
