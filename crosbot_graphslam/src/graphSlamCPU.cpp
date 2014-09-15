@@ -469,9 +469,9 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
       }
       fclose(f);
    }*/
-
    //temp output for printing slam positions
    /*if (stampTime > 1364015711.983 && !alreadyOutput) {
+   //if (stampTime > 1364015663.983 && !alreadyOutput) {
       alreadyOutput = true;
    //if (numIterations == 100) {
       cout << "OUTPUTTING STATE NOW" << endl << endl;
@@ -681,7 +681,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             evaluateTempConstraints();
             optimiseGraph(optType);
          }
-         for (int numIterations = 1; numIterations < 10 * 2; numIterations++) {
+         /*for (int numIterations = 1; numIterations < 10 * 2; numIterations++) {
             getGlobalHessianMatrix();
             if (numIterations == 10 && loopClosed) {
                optType = 0;
@@ -690,7 +690,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             calculateOptimisationChange(numIterations, optType);
             updateGlobalPositions();
 
-         }
+         }*/
          updateRobotMapCentres();
          ros::WallTime t2 = ros::WallTime::now();
          ros::WallDuration tote = t2 - t1;
@@ -2898,10 +2898,10 @@ void GraphSlamCPU::optimiseGraph(int type) {
             continue;
          }
 
-         currentError += (error[0]  * (error[0] * info[0][0] + error[1] * info[1][0] + error[2] * info[2][0]) +
+         currentError += fabs((error[0]  * (error[0] * info[0][0] + error[1] * info[1][0] + error[2] * info[2][0]) +
                          error[1]  * (error[0] * info[0][1] + error[1] * info[1][1] + error[2] * info[2][1]) +
                          error[2]  * (error[0] * info[0][2] + error[1] * info[1][2] + error[2] * info[2][2])) *
-                         weight;
+                         weight);
 
                         
 
