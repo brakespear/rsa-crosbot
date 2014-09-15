@@ -468,7 +468,8 @@ void FastSLAMMap::moveParticles(Pose relativeMotion, MapCloudPtr cloud, bool cal
 
 	for (size_t i = 0; i < jobs.size(); i++) {
 		delete jobs[i];
-	} jobs.clear();
+	}
+	jobs.clear();
 }
 
 void FastSLAMMap::updateParticles(MapCloudPtr cloud) {

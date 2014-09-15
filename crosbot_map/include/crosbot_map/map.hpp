@@ -20,9 +20,10 @@ namespace crosbot {
 class Path : public HandledObject {
 public:
 	std::vector<Pose> path;
+	std::vector<Time> timestamps;
 
 	Path() {}
-	Path(Pose pose) {
+	Path(Pose pose, Time timstamp = Time(0,0)) {
 		path.push_back(pose);
 	}
 };

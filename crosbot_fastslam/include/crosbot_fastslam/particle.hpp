@@ -61,6 +61,10 @@ public:
 
 		for (size_t i = 0; i < history.size(); i++) {
 			rval->path.push_back(history[i].pose);
+			if (history[i].cloud != NULL)
+				rval->timestamps.push_back(history[i].cloud->timestamp);
+			else
+				rval->timestamps.push_back(Time(0,0));
 		}
 
 		if (rval->path.size() == 0 || rval->path[rval->path.size()-1] != pose)
