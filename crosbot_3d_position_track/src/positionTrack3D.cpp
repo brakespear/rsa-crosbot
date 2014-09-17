@@ -17,7 +17,7 @@ const string PositionTrack3D::file_names[] = {
 const int PositionTrack3D::num_files = sizeof(file_names) / sizeof(file_names[0]);
 const string PositionTrack3D::header_file = "/include/crosbot_3d_position_track/openclCommon.h";
 const string PositionTrack3D::kernel_names[] = {
-   "dsdf"
+   "transform3D"
 };
 const int PositionTrack3D::num_kernels = sizeof(kernel_names) / sizeof(kernel_names[0]);
 
@@ -103,8 +103,23 @@ void PositionTrack3D::processFrame(DepthPointsPtr depthPoints, Pose sensorPose, 
    //Point3D has x,y,z fields, quaternion has x,y,z,w fields
    
    //Can do something like:
-   tf::Quaternion quat = sensorPose.orienation.toTF();
+   tf::Quaternion quat = sensorPose.orientation.toTF();
    tf::Matrix3x3 basis(quat);
+   tf::Vector3 origin = sensorPose.position.toTF();
+   //or:
+   //tf::transfrom trans = ....
+   //tf::Matrix3x3 basis = trans.getBasis();
+   //tf::Vector3 origin = trans.getOrigin();
+   
+   ocl_float3 clBasis[3];
+   ocl_float3 clOrigin;
+   for (int j = 0; j < 3; j++) {
+      clBasis[j].x = basis[j][0];
+      clBasis[j].y = basis[j][1];
+      clBasis[j].z = basis[j][2];
+      clOrigin.x = origin[0];
+   }
+   //then can pass clBasis and clOrigin into kernel
 }
 
 inline int PositionTrack3D::getGlobalWorkSize(int numThreads) {
