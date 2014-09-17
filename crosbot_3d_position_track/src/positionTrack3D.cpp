@@ -87,14 +87,13 @@ void PositionTrack3D::initialiseDepthPoints() {
 void PositionTrack3D::processFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose icpPose) {
 
    int i;
-   int numPoints = depthPoints->width * depthPoints->height;
-   for (i = 0; i < numPoints; ++i) {
+   for (i = 0; i < numDepthPoints; ++i) {
       points->pointX[i] = depthPoints->cloud[i].x;
       points->pointY[i] = depthPoints->cloud[i].y;
       points->pointZ[i] = depthPoints->cloud[i].z;
    }
 
-   int globalSize = getGlobalWorkSize(numPoints);
+   int globalSize = getGlobalWorkSize(numDepthPoints);
 
    writeBuffer(clPoints, CL_TRUE, 0, pointsSize, points->pointX, 0, 0, 0,
          "Copying depth points to GPU");

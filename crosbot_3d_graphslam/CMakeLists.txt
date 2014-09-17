@@ -105,6 +105,7 @@ add_library(graphslam_3d
   src/depthPoints.cpp
   src/graphSlam3DNode.cpp
   src/graphSlam3D.cpp
+  src/local3DMap.cpp
 )
 
 ## Declare a cpp executable
