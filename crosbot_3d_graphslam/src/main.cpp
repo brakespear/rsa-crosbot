@@ -8,14 +8,14 @@
 #include <ros/ros.h>
 
 #include <crosbot_3d_graphslam/graphSlam3DNode.hpp>
-#include <crosbot_3d_graphslam/graphSlam3D.hpp>
+#include <crosbot_3d_graphslam/graphSlam3DCPU.hpp>
 
 int main(int argc, char **argv) {
    ros::init(argc, argv, "graphslam3D");
 
    ros::NodeHandle nh;
 
-   GraphSlam3D graphSlam3D;
+   GraphSlam3DCPU graphSlam3D;
    GraphSlam3DNode node(graphSlam3D);
    node.initialise(nh);
 

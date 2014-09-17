@@ -28,35 +28,35 @@ public:
    /*
     * Initialise parameters
     */
-   void initialise(ros::NodeHandle &nh);
+   virtual void initialise(ros::NodeHandle &nh);
 
    /*
     * Start 3d graph slam
     */
-   void start();
+   virtual void start() = 0;
 
    /*
     * Shutdown node
     */
-   void stop();
+   virtual void stop() = 0;
 
    /*
     * Add a new frame to the current local map
     */
-   void addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose slamPose);
+   virtual void addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose slamPose) = 0;
 
    /*
     * Create a new local map
     */
-   void newLocalMap(LocalMapInfoPtr localMapInfo);
+   virtual void newLocalMap(LocalMapInfoPtr localMapInfo) = 0;
 
    /*
     * A list of new positions of local maps
     */
-   void haveOptimised(vector<LocalMapInfoPtr> newMapPositions);
+   virtual void haveOptimised(vector<LocalMapInfoPtr> newMapPositions) = 0;
 
    GraphSlam3DNode *graphSlam3DNode;
-private:
+protected:
 
    /*
     * Configuration parameters
@@ -68,15 +68,10 @@ private:
    double LocalMapWidth;
    //Height of the local map
    double LocalMapHeight;
-   //Minimum number of observations in a cell needed before considered occupied
-   int ObsThresh;
+
 
    //Set to true when the first local map message is received from graph slam
    bool finishedSetup;
-
-   VoxelGrid *localMap;
-   vector<Local3DMap *> maps;
-   int currentMap;
 
    ReadWriteLock masterLock;
 

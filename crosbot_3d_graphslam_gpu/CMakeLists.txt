@@ -1,12 +1,18 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(crosbot_3d_graphslam)
+project(crosbot_3d_graphslam_gpu)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  crosbot
+  crosbot_3d_graphslam
+  crosbot_graphslam
+  nav_msgs
   roscpp
-  std_msgs crosbot nav_msgs sensor_msgs tf message_generation crosbot_graphslam
+  sensor_msgs
+  std_msgs
+  tf
 )
 
 ## System dependencies are found with CMake's conventions
@@ -66,7 +72,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate added messages and services with any dependencies listed here
 # generate_messages(
 #   DEPENDENCIES
-#   std_msgs
+#   nav_msgs#   sensor_msgs#   std_msgs
 # )
 
 ###################################
@@ -80,8 +86,8 @@ find_package(catkin REQUIRED COMPONENTS
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES depthPoints graphslam_3d
-  CATKIN_DEPENDS roscpp std_msgs crosbot nav_msgs sensor_msgs tf crosbot_graphslam
+#  LIBRARIES crosbot_3d_graphslam_gpu
+  CATKIN_DEPENDS crosbot crosbot_3d_graphslam crosbot_graphslam nav_msgs roscpp sensor_msgs std_msgs tf
 #  DEPENDS system_lib
 )
 
@@ -94,35 +100,27 @@ catkin_package(
 # include_directories(include)
 include_directories(include
   ${catkin_INCLUDE_DIRS}
+  #/opt/AMDAPP/include
+  /usr/local/cuda/include
+
 )
 
 ## Declare a cpp library
-add_library(depthPoints
-   src/depthPoints.cpp
- )
-
-add_library(graphslam_3d
-  src/depthPoints.cpp
-  src/graphSlam3DNode.cpp
-  src/graphSlam3D.cpp
-)
+# add_library(crosbot_3d_graphslam_gpu
+#   src/${PROJECT_NAME}/crosbot_3d_graphslam_gpu.cpp
+# )
 
 ## Declare a cpp executable
-add_executable(crosbot_3d_graphslam src/main.cpp src/graphSlam3DNode.cpp src/graphSlam3D.cpp src/local3DMap.cpp src/graphSlam3DCPU.cpp src/depthPoints.cpp)
+add_executable(crosbot_3d_graphslam_gpu src/main.cpp src/graphSlam3DGPU.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
-# add_dependencies(crosbot_3d_graphslam_node crosbot_3d_graphslam_generate_messages_cpp)
+# add_dependencies(crosbot_3d_graphslam_gpu_node crosbot_3d_graphslam_gpu_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(crosbot_3d_graphslam depthPoints
+ target_link_libraries(crosbot_3d_graphslam_gpu
    ${catkin_LIBRARIES}
-#newmat
-)
-
-target_link_libraries(depthPoints
-   ${catkin_LIBRARIES}
-)
+ )
 
 #############
 ## Install ##
@@ -139,11 +137,11 @@ target_link_libraries(depthPoints
 # )
 
 ## Mark executables and/or libraries for installation
- install(TARGETS depthPoints
-   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
- )
+# install(TARGETS crosbot_3d_graphslam_gpu crosbot_3d_graphslam_gpu_node
+#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )
 
 ## Mark cpp header files for installation
  install(DIRECTORY include/${PROJECT_NAME}/
@@ -159,19 +157,18 @@ target_link_libraries(depthPoints
 #   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 # )
 
-install(DIRECTORY launch
-    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-    FILES_MATCHING PATTERN "*.launch"
-    PATTERN ".svn" EXCLUDE
+ install(DIRECTORY launch
+   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+   FILES_MATCHING PATTERN "*.launch"
+   PATTERN ".svn" EXCLUDE
  )
-
 
 #############
 ## Testing ##
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_crosbot_3d_graphslam.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_crosbot_3d_graphslam_gpu.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
