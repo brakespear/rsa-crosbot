@@ -7,6 +7,7 @@ project(crosbot_3d_graphslam_gpu)
 find_package(catkin REQUIRED COMPONENTS
   crosbot
   crosbot_3d_graphslam
+  crosbot_gpu
   crosbot_graphslam
   nav_msgs
   roscpp
@@ -87,7 +88,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES crosbot_3d_graphslam_gpu
-  CATKIN_DEPENDS crosbot crosbot_3d_graphslam crosbot_graphslam nav_msgs roscpp sensor_msgs std_msgs tf
+  CATKIN_DEPENDS crosbot crosbot_3d_graphslam crosbot_graphslam nav_msgs roscpp sensor_msgs std_msgs tf crosbot_gpu
 #  DEPENDS system_lib
 )
 

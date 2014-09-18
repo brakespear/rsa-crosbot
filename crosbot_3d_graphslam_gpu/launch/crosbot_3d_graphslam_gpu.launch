@@ -16,7 +16,7 @@
    </node-->
 	
 	<node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp">
-		<!--param name="odom_frame" Xvalue="odom" value="" /-->
+		<param name="odom_frame" value="odom" />
 		<param name="base_frame" value="base_footprint" />
       <param name="icp_frame" value="icp_test" />
 	</node>
@@ -29,7 +29,7 @@
 	<node pkg="crosbot_3d_graphslam_gpu" type="crosbot_3d_graphslam_gpu" name="crosbot_3d_graphslam_gpu" output="screen">
 	</node>
 
-   <node pkg="crosbot_3d_graphslam_display" type="crosbot_3d_graphslam_display" name="crosbot_3d_graphslam_display" output="screen">
+   <node pkg="crosbot_3d_graphslam_display" type="crosbot_3d_graphslam_display" name="crosbot_3d_graphslam_display" output="screen" />
 
 	<include file="$(find crosbot_graphslam)/launch/createPointCloud.launch" />
 	

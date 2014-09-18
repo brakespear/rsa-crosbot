@@ -42,7 +42,7 @@ typedef struct {
    ocl_int ScanWidth;
    ocl_int ScanHeight;
 
-} ocl3DGraphSlamConfig;
+} oclGraphSlam3DConfig;
 
 
 #endif

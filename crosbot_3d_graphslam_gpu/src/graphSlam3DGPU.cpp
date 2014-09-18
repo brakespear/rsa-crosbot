@@ -5,14 +5,14 @@
  *     Author: adrianr
  */
 
-#include <crosbot_3d_graphslam/graphSlam3DGPU.hpp>
+#include <crosbot_3d_graphslam_gpu/graphSlam3DGPU.hpp>
 #include <crosbot/utils.hpp>
 
 using namespace std;
 using namespace crosbot;
 
 const string GraphSlam3DGPU::file_names[] = {
-   "/src/opencl/graphSlam3D.cl"
+   "/src/opencl/graphSlam3d.cl"
 };
 const int GraphSlam3DGPU::num_files = sizeof(file_names) / sizeof(file_names[0]);
 const string GraphSlam3DGPU::header_file = "/include/crosbot_3d_graphslam_gpu/openclCommon.h";
@@ -37,6 +37,8 @@ GraphSlam3DGPU::GraphSlam3DGPU() : GraphSlam3D() {
 }
 
 GraphSlam3DGPU::~GraphSlam3DGPU() {
+   opencl_manager->deviceRelease(clPoints);
+   opencl_manager->deviceRelease(clGraphSlam3DConfig);
    delete opencl_task;
    delete opencl_manager;
 }
@@ -48,7 +50,6 @@ void GraphSlam3DGPU::initialise(ros::NodeHandle &nh) {
 }
 
 void GraphSlam3DGPU::start() {
-   localMap = new VoxelGrid(LocalMapWidth, LocalMapHeight, CellSize);
 }
 
 void GraphSlam3DGPU::stop() {
@@ -60,17 +61,17 @@ void GraphSlam3DGPU::initialiseGraphSlam(DepthPointsPtr depthPoints) {
 
    //Set config options
    graphSlam3DConfig.ScanWidth = depthPoints->width;
-   graphSLam3DConfig.ScanHeight = depthPoints->height;
+   graphSlam3DConfig.ScanHeight = depthPoints->height;
 
-   clGraphSLam3DConfig = opencl_manager->deviceAlloc(sizeof(ocl3DGraphSlamConfig),
+   clGraphSlam3DConfig = opencl_manager->deviceAlloc(sizeof(oclGraphSlam3DConfig),
          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &graphSlam3DConfig);
 
    numDepthPoints = depthPoints->width * depthPoints->height;
    //Round up to the nearest 16 for memory coalescing
    numDepthPoints = ((numDepthPoints + 15) / 16) * 16;
    stringstream ss;
-   ss << "-D NUM_DEPTH_POINTS=" << numDepthPoints <<
-         "-D LOCAL_SIZE=" << LocalSize;
+   ss << "-D NUM_DEPTH_POINTS=" << numDepthPoints;// <<
+//         "-D LOCAL_SIZE=" << LocalSize;
    opencl_task->compileProgram(rootDir, file_names, num_files, kernel_names, num_kernels,
          ss.str(), header_file);
 
@@ -84,44 +85,23 @@ void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
 
    if (finishedSetup && hasInitialised) {
 
-      //TODO: do I want to have a distance filter?
-      //depthPoints->filterDistance(minDist, maxDist);
-
       //Calculate offset of robot inside current local map
-      //tf::Transform offset =  (maps[currentMap]->getPose().toTF().inverse()) * slamPose.toTF();
+      tf::Transform robotPose =  (maps[currentMap]->getPose().toTF().inverse()) * slamPose.toTF();
       //Transform points from kinect frame of reference to be relative to local map
-      //depthPoints->transform(offset * sensorPose.toTF());
-      
+      tf::Transform offset = robotPose * sensorPose.toTF();
+     
+      //Copy the new points to gpu
       int i;
       for (i = 0; i < numDepthPoints; ++i) {
          points->pointX[i] = depthPoints->cloud[i].x;
          points->pointY[i] = depthPoints->cloud[i].y;
          points->pointZ[i] = depthPoints->cloud[i].z;
       }
-
-      int globalSize = getGlobalWorkSize(numDepthPoints);
-
       writeBuffer(clPoints, CL_TRUE, 0, pointsSize, points->pointX, 0, 0, 0,
             "Copying depth points to GPU");
 
-      //Can do something like:
-      tf::Quaternion quat = sensorPose.orientation.toTF();
-      tf::Matrix3x3 basis(quat);
-      tf::Vector3 origin = sensorPose.position.toTF();
-      //or:
-      //tf::transfrom trans = ....
-      //tf::Matrix3x3 basis = trans.getBasis();
-      //tf::Vector3 origin = trans.getOrigin();
-   
-      ocl_float3 clBasis[3];
-      ocl_float3 clOrigin;
-      for (int j = 0; j < 3; j++) {
-         clBasis[j].x = basis[j][0];
-         clBasis[j].y = basis[j][1];
-         clBasis[j].z = basis[j][2];
-         clOrigin.x = origin[0];
-      }
-
+      //transform points by offset in local map
+      transformPoints(numDepthPoints, offset);
 
       {{ Lock lock(masterLock);
 
@@ -129,7 +109,7 @@ void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
 
       }}
    } else if (!hasInitialised) {
-      initialiseGraphSlam();
+      initialiseGraphSlam(depthPoints);
    }
 }
 
@@ -137,12 +117,12 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
 
    {{ Lock lock(masterLock);
 
-   /*if (finishedSetup) {
-      PointCloudPtr cloud = localMap->extractPoints(ObsThresh);
+   if (finishedSetup) {
+      /*PointCloudPtr cloud = localMap->extractPoints(ObsThresh);
       LocalMapInfoPtr oldLocalMap = new LocalMapInfo(maps[currentMap]->getPose(), currentMap,
             cloud);
       graphSlam3DNode->publishLocalMap(oldLocalMap);
-      localMap->clearGrid();
+      localMap->clearGrid();*/
    }
    currentMap = localMapInfo->index;
    if (maps.size() == currentMap) {
@@ -151,7 +131,7 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       //At the moment graph slam creates new local maps in existing order, so just adding
       //a map onto the end should work
       cout << "Indexes don't match. ERROR" << endl;
-   }*/
+   }
 
    }}
    finishedSetup = true;
@@ -163,7 +143,7 @@ void GraphSlam3DGPU::haveOptimised(vector<LocalMapInfoPtr> newMapPositions) {
       {{ Lock lock(masterLock); 
 
           //Changes to local maps to be sent to viewer
-          /*vector<LocalMapInfoPtr> changes;
+          vector<LocalMapInfoPtr> changes;
 
           int i;
           for (i = 0; i < newMapPositions.size(); i++) {
@@ -173,7 +153,7 @@ void GraphSlam3DGPU::haveOptimised(vector<LocalMapInfoPtr> newMapPositions) {
           }
           //TODO: Do 3D loop closing here
           
-         graphSlam3DNode->publishOptimisedMapPositions(changes);*/
+         graphSlam3DNode->publishOptimisedMapPositions(changes);
 
       }}
 
@@ -187,6 +167,30 @@ void GraphSlam3DGPU::initialiseDepthPoints() {
    points->pointZ = &(points->pointX[numDepthPoints * 2]);
    pointsSize = sizeof(ocl_float) * numDepthPoints * 3;
    clPoints = opencl_manager->deviceAlloc(pointsSize, CL_MEM_READ_WRITE, NULL);
+}
+
+void GraphSlam3DGPU::transformPoints(int numPoints, tf::Transform trans) {
+   tf::Matrix3x3 basis = trans.getBasis();
+   tf::Vector3 origin = trans.getOrigin();
+
+   ocl_float3 clBasis[3];
+   ocl_float3 clOrigin;
+   for (int j = 0; j < 3; j++) {
+      clBasis[j].x = basis[j][0];
+      clBasis[j].y = basis[j][1];
+      clBasis[j].z = basis[j][2];
+      clOrigin.x = origin[0];
+   }
+   int globalSize = getGlobalWorkSize(numPoints);
+      
+   opencl_task->setArg(0, 0, sizeof(cl_mem), &clPoints);
+   opencl_task->setArg(1, 0, sizeof(int), &numPoints);
+   opencl_task->setArg(2, 0, sizeof(ocl_float3), &clOrigin);
+   opencl_task->setArg(3, 0, sizeof(ocl_float3), &clBasis);
+   opencl_task->setArg(4, 0, sizeof(ocl_float3), &clBasis[1]);
+   opencl_task->setArg(5, 0, sizeof(ocl_float3), &clBasis[2]);
+
+   opencl_task->queueKernel(0, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 }
 
 inline int GraphSlam3DGPU::getGlobalWorkSize(int numThreads) {

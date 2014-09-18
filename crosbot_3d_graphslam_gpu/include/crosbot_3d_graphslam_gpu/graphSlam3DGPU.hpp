@@ -37,6 +37,10 @@ private:
     */
    int LocalSize;
 
+   //GPU fields
+   OpenCLManager *opencl_manager;
+   OpenCLTask *opencl_task;
+
    //Constants for opencl
    static const string file_names[];
    static const int num_files;
@@ -63,6 +67,8 @@ private:
    oclGraphSlam3DConfig graphSlam3DConfig;
    cl_mem clGraphSlam3DConfig;
 
+   vector<Local3DMap *> maps;
+   int currentMap;
 
    bool hasInitialised;
 
@@ -71,8 +77,10 @@ private:
     */
    void initialiseDepthPoints();
    void initialiseGraphSlam(DepthPointsPtr depthPoints);
-
-
+   /*
+    * GPU wrapper methods
+    */
+   void transformPoints(int numPoints, tf::Transform trans);
 
    /*
     * GPU helper methods
