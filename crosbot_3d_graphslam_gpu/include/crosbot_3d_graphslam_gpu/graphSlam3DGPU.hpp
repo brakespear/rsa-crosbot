@@ -36,6 +36,19 @@ private:
     * GPU config params
     */
    int LocalSize;
+   int NumBlocksAllocated;
+
+   //Params that can probably move to general code
+   //Size of a block - should be a multiple of CellSize
+   double BlockSize;
+
+   //Derived params
+   int NumBlocksTotal;
+   int NumBlocksWidth;
+   int NumBlocksHeight;
+   //Cell counts for each block
+   int NumCellsTotal;
+   int NumCellsWidth;
 
    //GPU fields
    OpenCLManager *opencl_manager;
@@ -66,6 +79,10 @@ private:
    //config attributes
    oclGraphSlam3DConfig graphSlam3DConfig;
    cl_mem clGraphSlam3DConfig;
+   //local map structures
+   cl_mem clLocalMapBlocks;
+   cl_mem clLocalMapCells;
+   cl_mem clLocalMapCommon;
 
    vector<Local3DMap *> maps;
    int currentMap;
@@ -76,11 +93,16 @@ private:
     * GPU structure methods
     */
    void initialiseDepthPoints();
+   void initialiseLocalMap();
    void initialiseGraphSlam(DepthPointsPtr depthPoints);
    /*
     * GPU wrapper methods
     */
-   void transformPoints(int numPoints, tf::Transform trans);
+   void clearLocalMap(int numBlocks);
+   void checkBlocksExist(int numPoints, tf::Transform trans);
+   void addRequiredBlocks();
+   void addFrame(int numPoints, tf::Transform trans);
+
 
    /*
     * GPU helper methods

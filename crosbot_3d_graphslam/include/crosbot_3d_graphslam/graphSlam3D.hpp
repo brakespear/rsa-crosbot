@@ -55,6 +55,11 @@ public:
     */
    virtual void haveOptimised(vector<LocalMapInfoPtr> newMapPositions) = 0;
 
+   /*
+    * Set the parameters of the registered depth camera
+    */
+   void setCameraParams(double fx, double fy, double cx, double cy, double tx, double ty);
+
    GraphSlam3DNode *graphSlam3DNode;
 protected:
 
@@ -72,6 +77,18 @@ protected:
 
    //Set to true when the first local map message is received from graph slam
    bool finishedSetup;
+   //Set to true when have received the depth camera params
+   bool receivedCameraParams;
+
+   /*
+    * Camera params
+    */
+   double fx;
+   double fy;
+   double cx;
+   double cy;
+   double tx;
+   double ty;
 
    ReadWriteLock masterLock;
 

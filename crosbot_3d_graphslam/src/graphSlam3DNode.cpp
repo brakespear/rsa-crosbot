@@ -10,6 +10,8 @@
 #include <crosbot_3d_graphslam/graphSlam3DNode.hpp>
 #include <crosbot_3d_graphslam/depthPoints.hpp>
 
+#include<image_geometry/pinhole_camera_model.h>
+
 using namespace std;
 using namespace crosbot;
 
@@ -26,6 +28,7 @@ void GraphSlam3DNode::initialise(ros::NodeHandle& nh) {
    paramNH.param<std::string>("local_map_sub", local_map_sub, "localMapInfo");
    paramNH.param<std::string>("optimise_map_sub", optimise_map_sub, "optimiseMapInfo");
    paramNH.param<std::string>("kinect_sub", kinect_sub, "/camera/depth_registered/points");
+   paramNH.param<std::string>("camera_info_sub", camera_info_sub, "/camera/rgb/camera_info");
    paramNH.param<std::string>("local_map_pub", local_map_pub, "localMapPoints");
    paramNH.param<std::string>("optimsed_local_maps_pub", optimised_local_maps_pub, "optimised3DLocalMaps");
 
@@ -35,6 +38,7 @@ void GraphSlam3DNode::initialise(ros::NodeHandle& nh) {
    graph_slam_3d.start();
 
    kinectSub = nh.subscribe(kinect_sub, 1, &GraphSlam3DNode::callbackKinect, this);
+   cameraInfoSub = nh.subscribe(camera_info_sub, 1, &GraphSlam3DNode::callbackCameraInfo, this);
    localMapSub = nh.subscribe(local_map_sub, 10, &GraphSlam3DNode::callbackLocalMap, this);
    optimiseMapSub = nh.subscribe(optimise_map_sub, 10, &GraphSlam3DNode::callbackOptimiseMap, this);
    localMapPub = nh.advertise<crosbot_graphslam::LocalMapMsg>(local_map_pub, 10);
@@ -102,3 +106,17 @@ void GraphSlam3DNode::publishOptimisedMapPositions(vector<LocalMapInfoPtr> &loca
    optimisedLocalMapsPub.publish(list);
 }
 
+void GraphSlam3DNode::callbackCameraInfo(const sensor_msgs::CameraInfo& camInfo) {
+   image_geometry::PinholeCameraModel cameraModel;
+   cameraModel.fromCameraInfo(camInfo);
+   double fx = cameraModel.fx();
+   double fy = cameraModel.fy();
+   double cx = cameraModel.cx();
+   double cy = cameraModel.cy();
+   double tx = cameraModel.Tx();
+   double ty = cameraModel.Ty();
+
+   graph_slam_3d.setCameraParams(fx, fy, cx, cy, tx, ty);
+
+   cameraInfoSub.shutdown();
+}

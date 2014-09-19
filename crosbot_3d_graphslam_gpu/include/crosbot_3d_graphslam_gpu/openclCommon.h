@@ -16,12 +16,14 @@ typedef float3 ocl_float3;
 typedef float4 ocl_float4;
 typedef float ocl_float;
 typedef int ocl_int;
+typedef short ocl_short;
 #else
 typedef cl_float2 ocl_float2;
 typedef cl_float3 ocl_float3;
 typedef cl_float4 ocl_float4;
 typedef cl_float ocl_float;
 typedef cl_int ocl_int;
+typedef cl_short ocl_short;
 #endif
 
 //Stores kinect information for each scan
@@ -41,8 +43,55 @@ typedef struct {
    //width and height of a single scan
    ocl_int ScanWidth;
    ocl_int ScanHeight;
+   //Dimensions of local map
+   ocl_float LocalMapWidth;
+   ocl_float LocalMapHeight;
+   //Dimensions of a block of the local map
+   ocl_float BlockSize;
+   ocl_int NumBlocksTotal;
+   ocl_int NumBlocksWidth;
+   ocl_int NumBlocksHeight;
+   //Dimensions of a cell in a block of the local map
+   ocl_float CellSize;
+   ocl_int NumCellsTotal;
+   ocl_int NumCellsWidth;
+   ocl_int NumBlocksAllocated;
+   //camera params
+   ocl_float fx;
+   ocl_float fy;
+   ocl_float cx;
+   ocl_float cy;
+   ocl_float tx;
+   ocl_float ty;
+
 
 } oclGraphSlam3DConfig;
+
+typedef struct {
+#ifdef CL_RUNTIME
+   ocl_float distance[NUM_CELLS];
+   ocl_int weight[NUM_CELLS];
+   unsigned char r[NUM_CELLS];
+   unsigned char g[NUM_CELLS];
+   unsigned char b[NUM_CELLS];
+#else
+   ocl_float *distance;
+   ocl_short *weight;
+   unsigned char *r;
+   unsigned char *g;
+   unsigned char *b;
+#endif
+}  oclLocalBlock;
+
+typedef struct {
+   ocl_int numBlocks;
+   ocl_int numActiveBlocks;
+#ifdef CL_RUNTIME
+   ocl_int activeBlocks[MAX_NUM_ACTIVE_BLOCKS];
+#else
+   ocl_int *activeBlocks;
+#endif
+} oclLocalMapCommon;
 
 
 #endif

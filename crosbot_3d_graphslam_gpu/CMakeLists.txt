@@ -10,12 +10,12 @@ find_package(catkin REQUIRED COMPONENTS
   crosbot_gpu
   crosbot_graphslam
   nav_msgs
+  image_geometry
   roscpp
   sensor_msgs
   std_msgs
   tf
 )
-
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -88,7 +88,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES crosbot_3d_graphslam_gpu
-  CATKIN_DEPENDS crosbot crosbot_3d_graphslam crosbot_graphslam nav_msgs roscpp sensor_msgs std_msgs tf crosbot_gpu
+  CATKIN_DEPENDS crosbot crosbot_3d_graphslam crosbot_graphslam nav_msgs roscpp sensor_msgs std_msgs tf crosbot_gpu image_geometry
 #  DEPENDS system_lib
 )
 

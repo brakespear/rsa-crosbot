@@ -12,6 +12,7 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <sensor_msgs/CameraInfo.h>
 
 #include <crosbot/data.hpp>
 #include <crosbot/utils.hpp>
@@ -55,7 +56,7 @@ private:
     * ROS config params
     */
    string slam_frame, base_frame;
-   string local_map_sub, optimise_map_sub, kinect_sub;
+   string local_map_sub, optimise_map_sub, kinect_sub, camera_info_sub;
    string local_map_pub, optimised_local_maps_pub;
 
    /*
@@ -64,6 +65,7 @@ private:
    ros::Subscriber kinectSub;
    ros::Subscriber localMapSub;
    ros::Subscriber optimiseMapSub;
+   ros::Subscriber cameraInfoSub;
    ros::Publisher localMapPub;
    ros::Publisher optimisedLocalMapsPub;
    tf::TransformListener tfListener;
@@ -90,6 +92,11 @@ private:
     * Callback for receiving information about local maps after they have been optimised
     */
    void callbackOptimiseMap(const crosbot_graphslam::LocalMapMsgListConstPtr& localMapMsgList);
+
+   /*
+    * Callback for receiving camera info information
+    */
+   void callbackCameraInfo(const sensor_msgs::CameraInfo& camInfo);
 
 
 };

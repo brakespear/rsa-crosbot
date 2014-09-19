@@ -17,9 +17,16 @@ const string GraphSlam3DGPU::file_names[] = {
 const int GraphSlam3DGPU::num_files = sizeof(file_names) / sizeof(file_names[0]);
 const string GraphSlam3DGPU::header_file = "/include/crosbot_3d_graphslam_gpu/openclCommon.h";
 const string GraphSlam3DGPU::kernel_names[] = {
-   "transform3D"
+   "clearLocalMap",
+   "checkBlocksExist",
+   "addRequiredBlocks",
+   "addFrame"
 };
 const int GraphSlam3DGPU::num_kernels = sizeof(kernel_names) / sizeof(kernel_names[0]);
+#define CLEAR_LOCAL_MAP 0
+#define CHECK_REQUIRED_BLOCKS_EXIST 1
+#define ADD_REQUIRED_BLOCKS 2
+#define ADD_FRAME 3
 
 
 GraphSlam3DGPU::GraphSlam3DGPU() : GraphSlam3D() {
@@ -47,6 +54,18 @@ void GraphSlam3DGPU::initialise(ros::NodeHandle &nh) {
    GraphSlam3D::initialise(nh);
    ros::NodeHandle paramNH("~");
    paramNH.param<int>("LocalSize", LocalSize, 256);
+   paramNH.param<int>("NumBlocksAllocated", NumBlocksAllocated, 1000);
+
+   //Params that can probably move to general code
+   paramNH.param<double>("BlockSize", BlockSize, 0.2);
+
+   NumBlocksWidth = LocalMapWidth / BlockSize;
+   NumBlocksHeight = LocalMapHeight / BlockSize;
+   NumBlocksTotal = NumBlocksWidth * NumBlocksWidth * NumBlocksHeight;
+   NumCellsWidth = BlockSize / CellSize;
+   NumCellsTotal = NumCellsWidth * NumCellsWidth * NumCellsWidth;
+
+
 }
 
 void GraphSlam3DGPU::start() {
@@ -62,6 +81,22 @@ void GraphSlam3DGPU::initialiseGraphSlam(DepthPointsPtr depthPoints) {
    //Set config options
    graphSlam3DConfig.ScanWidth = depthPoints->width;
    graphSlam3DConfig.ScanHeight = depthPoints->height;
+   graphSlam3DConfig.LocalMapWidth = LocalMapWidth;
+   graphSlam3DConfig.LocalMapHeight = LocalMapHeight;
+   graphSlam3DConfig.BlockSize = BlockSize;
+   graphSlam3DConfig.NumBlocksTotal = NumBlocksTotal;
+   graphSlam3DConfig.NumBlocksWidth = NumBlocksWidth;
+   graphSlam3DConfig.NumBlocksHeight = NumBlocksHeight;
+   graphSlam3DConfig.CellSize = CellSize;
+   graphSlam3DConfig.NumCellsTotal = NumCellsTotal;
+   graphSlam3DConfig.NumCellsWidth = NumCellsWidth;
+   graphSlam3DConfig.NumBlocksAllocated = NumBlocksAllocated;
+   graphSlam3DConfig.fx = fx;
+   graphSlam3DConfig.fy = fy;
+   graphSlam3DConfig.cx = cx;
+   graphSlam3DConfig.cy = cy;
+   graphSlam3DConfig.tx = tx;
+   graphSlam3DConfig.ty = ty;
 
    clGraphSlam3DConfig = opencl_manager->deviceAlloc(sizeof(oclGraphSlam3DConfig),
          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &graphSlam3DConfig);
@@ -70,12 +105,15 @@ void GraphSlam3DGPU::initialiseGraphSlam(DepthPointsPtr depthPoints) {
    //Round up to the nearest 16 for memory coalescing
    numDepthPoints = ((numDepthPoints + 15) / 16) * 16;
    stringstream ss;
-   ss << "-D NUM_DEPTH_POINTS=" << numDepthPoints;// <<
-//         "-D LOCAL_SIZE=" << LocalSize;
+   ss << "-D NUM_DEPTH_POINTS=" << numDepthPoints <<
+         " -D LOCAL_SIZE=" << LocalSize <<
+         " -D NUM_CELLS=" << NumCellsTotal;
    opencl_task->compileProgram(rootDir, file_names, num_files, kernel_names, num_kernels,
          ss.str(), header_file);
 
    initialiseDepthPoints();
+   initialiseLocalMap();
+   clearLocalMap(NumBlocksAllocated);
 
    cout << "Graph slam 3D: finished compile" << endl;
    hasInitialised = true;
@@ -100,15 +138,15 @@ void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
       writeBuffer(clPoints, CL_TRUE, 0, pointsSize, points->pointX, 0, 0, 0,
             "Copying depth points to GPU");
 
-      //transform points by offset in local map
-      transformPoints(numDepthPoints, offset);
-
       {{ Lock lock(masterLock);
 
-      //localMap->addScan(depthPoints);
+      //Check that the required blocks in the local map exist
+      checkBlocksExist(numDepthPoints, offset);
+      addRequiredBlocks();
+      addFrame(numDepthPoints, offset);
 
       }}
-   } else if (!hasInitialised) {
+   } else if (!hasInitialised && receivedCameraParams) {
       initialiseGraphSlam(depthPoints);
    }
 }
@@ -169,7 +207,35 @@ void GraphSlam3DGPU::initialiseDepthPoints() {
    clPoints = opencl_manager->deviceAlloc(pointsSize, CL_MEM_READ_WRITE, NULL);
 }
 
-void GraphSlam3DGPU::transformPoints(int numPoints, tf::Transform trans) {
+void GraphSlam3DGPU::initialiseLocalMap() {
+   clLocalMapBlocks = opencl_manager->deviceAlloc(sizeof(ocl_int) * NumBlocksTotal, 
+         CL_MEM_READ_WRITE, NULL);
+
+   oclLocalBlock localBlock;
+   size_t localBlockSize = (sizeof(*(localBlock.distance)) +
+      sizeof(*(localBlock.weight)) +
+      sizeof(*(localBlock.r)) * 3) * NumCellsTotal;
+   clLocalMapCells = opencl_manager->deviceAlloc(localBlockSize * NumBlocksAllocated, 
+         CL_MEM_READ_WRITE, NULL);
+
+   clLocalMapCommon = opencl_manager->deviceAlloc(sizeof(oclLocalMapCommon),
+         CL_MEM_READ_WRITE, NULL);
+   
+}
+
+void GraphSlam3DGPU::clearLocalMap(int numBlocks) {
+   int kernelI = CLEAR_LOCAL_MAP
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clGraphSlam3DConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCells);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCommon);
+   opencl_task->setArg(4, kernelI, sizeof(int), &numBlocks);
+   int globalSize = LocalSize * 20;
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+}
+
+
+void GraphSlam3DGPU::checkBlocksExist(int numPoints, tf::Transform trans) {
    tf::Matrix3x3 basis = trans.getBasis();
    tf::Vector3 origin = trans.getOrigin();
 
@@ -182,15 +248,53 @@ void GraphSlam3DGPU::transformPoints(int numPoints, tf::Transform trans) {
       clOrigin.x = origin[0];
    }
    int globalSize = getGlobalWorkSize(numPoints);
-      
-   opencl_task->setArg(0, 0, sizeof(cl_mem), &clPoints);
-   opencl_task->setArg(1, 0, sizeof(int), &numPoints);
-   opencl_task->setArg(2, 0, sizeof(ocl_float3), &clOrigin);
-   opencl_task->setArg(3, 0, sizeof(ocl_float3), &clBasis);
-   opencl_task->setArg(4, 0, sizeof(ocl_float3), &clBasis[1]);
-   opencl_task->setArg(5, 0, sizeof(ocl_float3), &clBasis[2]);
+   int kernelI = CHECK_BLOCKS_EXIST;
+   
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clGraphSlam3DConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCommon);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clPoints);
+   opencl_task->setArg(4, kernelI, sizeof(int), &numPoints);
+   opencl_task->setArg(5, kernelI, sizeof(ocl_float3), &clOrigin);
+   opencl_task->setArg(6, kernelI, sizeof(ocl_float3), &clBasis[0]);
+   opencl_task->setArg(7, kernelI, sizeof(ocl_float3), &clBasis[1]);
+   opencl_task->setArg(8, kernelI, sizeof(ocl_float3), &clBasis[2]);
 
-   opencl_task->queueKernel(0, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+}
+
+void GraphSlam3DGPU::addRequiredBlocks() {
+
+   int kernelI = ADD_REQUIRED_BLOCKS;
+}
+
+void GraphSlam3DGPU::addFrame(int numPoints, tf::Transform trans) {
+   //trans takes point from sensor frame to local map frame.
+   //We need local map frame to snesor frame, so we take the inverse
+   tf::Transform offset = trans.inverse();
+   tf::Matrix3x3 basis = offset.getBasis();
+   tf::Vector3 origin = offset.getOrigin();
+
+   ocl_float3 clBasis[3];
+   ocl_float3 clOrigin;
+   for (int j = 0; j < 3; j++) {
+      clBasis[j].x = basis[j][0];
+      clBasis[j].y = basis[j][1];
+      clBasis[j].z = basis[j][2];
+      clOrigin.x = origin[0];
+   }
+   
+   int kernelI = ADD_FRAME;
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clGraphSlam3DConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCells);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCommon);
+   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clPoints);
+   opencl_task->setArg(5, kernelI, sizeof(ocl_float3), &clOrigin);
+   opencl_task->setArg(6, kernelI, sizeof(ocl_float3), &clBasis[0]);
+   opencl_task->setArg(7, kernelI, sizeof(ocl_float3), &clBasis[1]);
+   opencl_task->setArg(8, kernelI, sizeof(ocl_float3), &clBasis[2]);
+
 }
 
 inline int GraphSlam3DGPU::getGlobalWorkSize(int numThreads) {
