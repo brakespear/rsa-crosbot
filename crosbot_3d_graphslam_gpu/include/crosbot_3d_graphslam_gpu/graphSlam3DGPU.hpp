@@ -44,6 +44,8 @@ private:
    double BlockSize;
    double TruncNeg;
    double TruncPos;
+   //Max distance of a cell that will be added to tsdf
+   double MaxDistance;
 
    //Derived params
    int NumBlocksTotal;

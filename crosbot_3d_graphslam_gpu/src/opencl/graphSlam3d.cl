@@ -90,6 +90,7 @@ float3 getBlockPosition(constant oclGraphSlam3DConfig *config, int index) {
  * Gets the index of the adjacent block in z.
  */ 
 int getBlockAdjZ(constant oclGraphSlam3DConfig *config, int index, int dir) {
+   if (index < 0) return -1;
    int zVal = index / (config->NumBlocksWidth * config->NumBlocksWidth);
    if (dir < 0 && zVal > 0) {
       return index - (config->NumBlocksWidth * config->NumBlocksWidth);
@@ -103,6 +104,7 @@ int getBlockAdjZ(constant oclGraphSlam3DConfig *config, int index, int dir) {
  * Gets the index of the adjacent block in x.
  */ 
 int getBlockAdjX(constant oclGraphSlam3DConfig *config, int index, int dir) {
+   if (index < 0) return -1;
    int xVal = index % config->NumBlocksWidth;
    if (dir < 0 && xVal > 0) {
       return index - 1;
@@ -116,6 +118,7 @@ int getBlockAdjX(constant oclGraphSlam3DConfig *config, int index, int dir) {
  * Gets the index of the adjacent block in y.
  */ 
 int getBlockAdjY(constant oclGraphSlam3DConfig *config, int index, int dir) {
+   if (index < 0) return -1;
    int yVal = (index / config->NumBlocksWidth) % config->NumBlocksWidth;
    if (dir < 0 && yVal > 0) {
       return index - config->NumBlocksWidth;
@@ -149,7 +152,7 @@ void markBlockActive(constant oclGraphSlam3DConfig *config, global int *blocks,
       //Deal with the block
       if (blocks[bIndex] == -1) {
          //The block doesn't exist
-         int oldVal = atomic_dec(&blocks[bIndex]);
+         int oldVal = atomic_dec(&(blocks[bIndex]));
          if (oldVal == -1) {
             //First thread this time so set as active block
             int aIndex = atomic_inc(&(common->numActiveBlocks));
@@ -197,23 +200,70 @@ __kernel void checkBlocksExist(constant oclGraphSlam3DConfig *config,
          
          //todo: could find needed adjacent points by looking at the intersection of the ray with the block
 
-         /*float truncEst = config->TruncPos;
+         float truncEst = config->TruncPos;
          float3 blockPos = getBlockPosition(config, bIndex);
-         if (transP.x - blockPos.x < truncEst) {
+         /*if (transP.x - blockPos.x < truncEst) {
             markBlockActive(config, blocks, common, getBlockAdjX(config, bIndex, -1));
-         } else if (blockPos.x + config->BlockSize - transP.x < truncEst) {
+         } 
+         if (blockPos.x + config->BlockSize - transP.x < truncEst) {
             markBlockActive(config, blocks, common, getBlockAdjX(config, bIndex, 1));
          }
          if (transP.y - blockPos.y < truncEst) {
             markBlockActive(config, blocks, common, getBlockAdjY(config, bIndex, -1));
-         } else if (blockPos.y + config->BlockSize - transP.y < truncEst) {
+         } 
+         if (blockPos.y + config->BlockSize - transP.y < truncEst) {
             markBlockActive(config, blocks, common, getBlockAdjY(config, bIndex, 1));
          }
          if (transP.z - blockPos.z < truncEst) {
             markBlockActive(config, blocks, common, getBlockAdjZ(config, bIndex, -1));
-         } else if (blockPos.z + config->BlockSize - transP.z < truncEst) {
+         } 
+         if (blockPos.z + config->BlockSize - transP.z < truncEst) {
             markBlockActive(config, blocks, common, getBlockAdjZ(config, bIndex, 1));
          }*/
+
+         int adjXP = getBlockAdjX(config, bIndex, 1);
+         markBlockActive(config, blocks, common, adjXP);
+         int adjXN = getBlockAdjX(config, bIndex, -1);
+         markBlockActive(config, blocks, common, adjXN);
+         int adjYP = getBlockAdjX(config, bIndex, 1);
+         markBlockActive(config, blocks, common, adjYP);
+         int adjYN = getBlockAdjX(config, bIndex, -1);
+         markBlockActive(config, blocks, common, adjYN);
+         int adjZP = getBlockAdjX(config, bIndex, 1);
+         markBlockActive(config, blocks, common, adjZP);
+         int adjZN = getBlockAdjX(config, bIndex, -1);
+         markBlockActive(config, blocks, common, adjZN);
+         /*adjXP = getBlockAdjX(config, adjXP, 1);
+         markBlockActive(config, blocks, common, adjXP);
+         adjXN = getBlockAdjX(config, adjXN, -1);
+         markBlockActive(config, blocks, common, adjXN);
+         adjYP = getBlockAdjX(config, adjYP, 1);
+         markBlockActive(config, blocks, common, adjYP);
+         adjYN = getBlockAdjX(config, adjYN, -1);
+         markBlockActive(config, blocks, common, adjYN);
+         adjZP = getBlockAdjX(config, adjZP, 1);
+         markBlockActive(config, blocks, common, adjZP);
+         adjZN = getBlockAdjX(config, adjZN, -1);
+         markBlockActive(config, blocks, common, adjZN);*/
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjXP, 1));
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjXN, -1));
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjYP, 1));
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjYN, -1));
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjZP, 1));
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjZN, -1));
+         /*markBlockActive(config, blocks, common, getBlockAdjX(config, adjZP, 1));
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjZP, -1));
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjZN, 1));
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjZN, -1));
+         markBlockActive(config, blocks, common, getBlockAdjY(config, adjZP, 1));
+         markBlockActive(config, blocks, common, getBlockAdjY(config, adjZP, -1));
+         markBlockActive(config, blocks, common, getBlockAdjY(config, adjZN, 1));
+         markBlockActive(config, blocks, common, getBlockAdjY(config, adjZN, -1));
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjYP, 1));
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjYP, -1));
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjYN, 1));
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjYN, -1));*/
+
       }
    }
 }
@@ -224,9 +274,9 @@ __kernel void addRequiredBlocks(constant oclGraphSlam3DConfig *config,
 
    int index = get_global_id(0);
 
-   if (index == 0) {
-   common->numPoints = 0;
-   }
+   //if (index == 0) {
+   //common->numPoints = 0;
+   //}
 
    if (index < common->numActiveBlocks && index < MAX_NUM_ACTIVE_BLOCKS) {
       int bIndex = common->activeBlocks[index];
@@ -305,14 +355,17 @@ __kernel void addFrame(constant oclGraphSlam3DConfig *config, global int *blocks
             continue;
          }
          float distCell = fast_distance(cellCentre, localMapPose);
+         if (distCell > config->MaxDistance) {
+            continue;
+         }
          float distPoint = fast_length(point);
 
          float tsdfVal = distPoint - distCell;
-         float weightVal = 1.0f / distPoint;
+         float weightVal = 1.0f/* / distPoint*/;
 
          if ((tsdfVal >= 0 /*&& tsdfVal < config->TruncPos*/) ||
                (tsdfVal < 0 && tsdfVal * -1.0f < config->TruncNeg)) {
-            if (tsdfVal >= 0 && tsdfVal >= config->TruncPos) {
+            if (tsdfVal >= config->TruncPos) {
                tsdfVal = config->TruncPos;
             }
          //atomic_inc(&(common->numPoints));
@@ -356,7 +409,7 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
       cellVal = localMapCells[bIndex].distance[i];
       if (count + 1 < config->NumCellsWidth) {
          cellNextVal = localMapCells[bIndex].distance[nextI];
-      } else if (bNextIndex < 0) {
+      } else if (bNextIndex < 0 || bNextIndex > config->NumBlocksAllocated) {
          continue;
       } else {
       //if (incYV > 0.5) { continue; }
@@ -366,7 +419,7 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
       if (isnan(cellVal) || isnan(cellNextVal)) {
          continue;
       }
-      if (sign(cellVal) != sign(cellNextVal) || cellVal == 0) {
+      if ((sign(cellVal) != sign(cellNextVal) || cellVal == 0) && localMapCells[bIndex].weight[i] > 18.9f) {
          //There is a crossing!
          float3 p = getCellCentre(config, i, localMapCells[bIndex].blockIndex);
          float inc = fabs(cellVal / (cellNextVal - cellVal)) * config->CellSize;
@@ -392,51 +445,34 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
             y[blockOffset + retI] = (y[blockOffset + retI] + p.y + incY) / 2.0f;
             z[blockOffset + retI] = (z[blockOffset + retI] + p.z + incZ) / 2.0f;
 
-            r[blockOffset + retI] = (unsigned char)((int)r[blockOffset + retI] + 
-                  (int)localMapCells[bIndex].r[colI]) / 2;
-            g[blockOffset + retI] = (unsigned char)((int)g[blockOffset + retI] + 
-                  (int)localMapCells[bIndex].g[colI]) / 2;
-            b[blockOffset + retI] = (unsigned char)((int)b[blockOffset + retI] + 
-                  (int)localMapCells[bIndex].b[colI]) / 2;
+            r[blockOffset + retI] = (unsigned char)(((int)r[blockOffset + retI] + 
+                  (int)localMapCells[bIndex].r[colI]) / 2);
+            g[blockOffset + retI] = (unsigned char)(((int)g[blockOffset + retI] + 
+                  (int)localMapCells[bIndex].g[colI]) / 2);
+            b[blockOffset + retI] = (unsigned char)(((int)b[blockOffset + retI] + 
+                  (int)localMapCells[bIndex].b[colI]) / 2);
          } else {
-            /*int retI = atomic_inc(&(blockCount[bLocalIndex]));
-            if (retI >= MAX_POINTS_GROUP / BLOCKS_PER_GROUP) {
-               continue;
-            }*/
-            /*x[blockOffset + retI] = p.x + incX;
-            y[blockOffset + retI] = p.y + incY;
-            z[blockOffset + retI] = p.z + incZ;*/
-            if (inc < config->CellSize / 2.0f) {
-            /*int retI = atomic_inc(&(blockCount[bLocalIndex]));
+            int retI = atomic_inc(&(blockCount[bLocalIndex]));
             if (retI >= MAX_POINTS_GROUP / BLOCKS_PER_GROUP) {
                continue;
             }
+            x[blockOffset + retI] = p.x + incX;
+            y[blockOffset + retI] = p.y + incY;
+            z[blockOffset + retI] = p.z + incZ;
+            if (inc < config->CellSize / 2.0f) {
                r[blockOffset + retI] = localMapCells[bIndex].r[i];
                g[blockOffset + retI] = localMapCells[bIndex].g[i];
                b[blockOffset + retI] = localMapCells[bIndex].b[i];
                localMapCells[bIndex].pI[i] = (unsigned char)retI;
-            x[blockOffset + retI] = p.x + incX;
-            y[blockOffset + retI] = p.y + incY;
-            z[blockOffset + retI] = p.z + incZ;*/
             } else if (count + 1 < config->NumCellsWidth) {
-            /*int retI = atomic_inc(&(blockCount[bLocalIndex]));
-            if (retI >= MAX_POINTS_GROUP / BLOCKS_PER_GROUP) {
-               continue;
-            }
                r[blockOffset + retI] = localMapCells[bIndex].r[nextI];
                g[blockOffset + retI] = localMapCells[bIndex].g[nextI];
                b[blockOffset + retI] = localMapCells[bIndex].b[nextI];
                localMapCells[bIndex].pI[nextI] = (unsigned char)retI;
-            x[blockOffset + retI] = p.x + incX;
-            y[blockOffset + retI] = p.y + incY;
-            z[blockOffset + retI] = p.z + incZ;*/
             } else {
-            /*x[blockOffset + retI] = p.x + incX;
-            y[blockOffset + retI] = p.y + incY;
-            z[blockOffset + retI] = p.z + incZ;
                r[blockOffset + retI] = localMapCells[bNextIndex].r[startI];
                g[blockOffset + retI] = localMapCells[bNextIndex].g[startI];
-               b[blockOffset + retI] = localMapCells[bNextIndex].b[startI];*/
+               b[blockOffset + retI] = localMapCells[bNextIndex].b[startI];
             }
          }
       }
@@ -546,8 +582,8 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
          bNextIndex = blocks[bNextIndex];
       }
       increment = 1;
-      //checkDirection(config, localMapCells, x, y, z, r, g, b, blockCount, bIndex,
-      //      bLocalIndex, blockOffset, startI, increment, bNextIndex, 1, 0, 0);
+      checkDirection(config, localMapCells, x, y, z, r, g, b, blockCount, bIndex,
+            bLocalIndex, blockOffset, startI, increment, bNextIndex, 1, 0, 0);
    }
    barrier(CLK_LOCAL_MEM_FENCE);
    if (bLocalIndex < BLOCKS_PER_GROUP && bIndex < common->numBlocks) {
@@ -559,8 +595,8 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
          bNextIndex = blocks[bNextIndex];
       }
       increment = config->NumCellsWidth;
-      //checkDirection(config, localMapCells, x, y, z, r, g, b, blockCount, bIndex,
-      //      bLocalIndex, blockOffset, startI, increment, bNextIndex, 0, 1, 0);
+      checkDirection(config, localMapCells, x, y, z, r, g, b, blockCount, bIndex,
+            bLocalIndex, blockOffset, startI, increment, bNextIndex, 0, 1, 0);
    }
    barrier(CLK_LOCAL_MEM_FENCE);
    if (lIndex == 0) {

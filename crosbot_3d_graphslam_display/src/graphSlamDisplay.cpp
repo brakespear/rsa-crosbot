@@ -96,11 +96,11 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       pcl::PolygonMesh *triangles = new pcl::PolygonMesh();
 
       // Set the maximum distance between connected points (maximum edge length)
-      gp3.setSearchRadius (2); //0.025 in example code
+      gp3.setSearchRadius (0.1); //0.025 in example code //was 2
 
       // Set typical values for the parameters
       //maximum acceptabole distance to search for neighbours relative to closest neighbour
-      gp3.setMu (3);  //2.5 in example code
+      gp3.setMu (2);  //2.5 in example code  //was 2.5
       //How many neighbours are searched for
       gp3.setMaximumNearestNeighbors (100); 
       //Min and max allowable angle in each triangle
@@ -108,7 +108,7 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       gp3.setMaximumAngle(2*M_PI/3); // 120 degrees
       //Deals with sharp edges or corners. Points are not connected if normals deviate by more than
       //the max surface angle. normal consistency to false means this ignores normal direction
-      gp3.setMaximumSurfaceAngle(M_PI/4); // 45 degrees
+      gp3.setMaximumSurfaceAngle(M_PI/4); // 45 degrees. was pi/4
       gp3.setNormalConsistency(false);
 
       // Get result

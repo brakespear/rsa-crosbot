@@ -62,19 +62,21 @@ void GraphSlam3DGPU::initialise(ros::NodeHandle &nh) {
    GraphSlam3D::initialise(nh);
    ros::NodeHandle paramNH("~");
    paramNH.param<int>("LocalSize", LocalSize, 256);
-   paramNH.param<int>("NumBlocksAllocated", NumBlocksAllocated, 2000);
-   paramNH.param<int>("MaxNumActiveBlocks", MaxNumActiveBlocks, 1000);
+   paramNH.param<int>("NumBlocksAllocated", NumBlocksAllocated, 7000);
+   paramNH.param<int>("MaxNumActiveBlocks", MaxNumActiveBlocks, 1500);
 
    //Params that can probably move to general code
    paramNH.param<double>("BlockSize", BlockSize, 0.2);
-   paramNH.param<double>("TruncNeg", TruncNeg, 0.2);
-   paramNH.param<double>("TrunkPos", TruncPos, 0.2);
+   paramNH.param<double>("TruncNeg", TruncNeg, 0.3);
+   paramNH.param<double>("TrunkPos", TruncPos, 0.7);
+   paramNH.param<double>("MaxDistance", MaxDistance, 3.0);
 
-   NumBlocksWidth = (LocalMapWidth + 0.01) / BlockSize;
-   NumBlocksHeight = (LocalMapHeight + 0.01) / BlockSize;
+   NumBlocksWidth = (LocalMapWidth + 0.00001) / BlockSize;
+   NumBlocksHeight = (LocalMapHeight + 0.00001) / BlockSize;
    NumBlocksTotal = NumBlocksWidth * NumBlocksWidth * NumBlocksHeight;
-   NumCellsWidth = (BlockSize + 0.01) / CellSize;
+   NumCellsWidth = (BlockSize + 0.00001) / CellSize;
    NumCellsTotal = NumCellsWidth * NumCellsWidth * NumCellsWidth;
+   cout << "NumCell widths: " << NumCellsWidth << " " << BlockSize << " " << CellSize << endl;
 
 }
 
@@ -109,6 +111,7 @@ void GraphSlam3DGPU::initialiseGraphSlam(DepthPointsPtr depthPoints) {
    graphSlam3DConfig.cy = cy;
    graphSlam3DConfig.tx = tx;
    graphSlam3DConfig.ty = ty;
+   graphSlam3DConfig.MaxDistance = MaxDistance;
 
    clGraphSlam3DConfig = opencl_manager->deviceAlloc(sizeof(oclGraphSlam3DConfig),
          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &graphSlam3DConfig);
@@ -184,6 +187,10 @@ void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
       ros::WallTime t2 = ros::WallTime::now();
       ros::WallDuration totalTime = t2 - t1;
       cout << "Time of check blocks: " << totalTime.toSec() * 1000.0f << endl;
+      /*int temp; 
+      readBuffer(clLocalMapCommon, CL_TRUE, 8, 
+         sizeof(int), &temp, 0, 0, 0, "Reading num squares set");
+      cout << "Squares set are: " << temp << endl;*/
 
       readBuffer(clLocalMapCommon, CL_TRUE, numActiveBlocksOffset, 
          sizeof(int), &numActiveBlocks, 0, 0, 0, "Reading num active blocks");
@@ -226,12 +233,8 @@ void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
       totalTime = t2 - t1;
       cout << "Time of add frame: " << totalTime.toSec() * 1000.0f << endl;
      
-      int temp; 
-      readBuffer(clLocalMapCommon, CL_TRUE, 8, 
-         sizeof(int), &temp, 0, 0, 0, "Reading num squares set");
-      cout << "Squares set are: " << temp << endl;
 
-      done = true;
+      //done = true;
 
       }}
    } else if (!hasInitialised && receivedCameraParams) {
@@ -257,10 +260,17 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
             CL_MEM_READ_WRITE, NULL);
       cl_mem clColours = opencl_manager->deviceAlloc(sizeof(unsigned char) * maxPoints * 3,
             CL_MEM_READ_WRITE, NULL);
+      if (clPointCloud == NULL || clColours == NULL) {
+         cout << "Error allocated point storage" << endl;
+      }
 
+      ros::WallTime t1 = ros::WallTime::now();
       extractPoints(numBlocks, clPointCloud, clColours);
       if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) 
-         cout << "error extract points" << endl;
+         cout << "error extract points " << maxPoints << endl;
+      ros::WallTime t2 = ros::WallTime::now();
+      ros::WallDuration totalTime = t2 - t1;
+      cout << "Time of extracting points: " << totalTime.toSec() * 1000.0f << endl;
       
       int numPoints;
       readBuffer(clLocalMapCommon, CL_TRUE, numPointsOffset, 
@@ -340,7 +350,7 @@ void GraphSlam3DGPU::initialiseLocalMap() {
    clLocalMapCells = opencl_manager->deviceAlloc(localBlockSize * NumBlocksAllocated, 
          CL_MEM_READ_WRITE, NULL);
 
-   size_t commonSize = sizeof(int) * (3 + MaxNumActiveBlocks);
+   size_t commonSize = sizeof(ocl_int) * (3 + MaxNumActiveBlocks);
    clLocalMapCommon = opencl_manager->deviceAlloc(commonSize,
          CL_MEM_READ_WRITE, NULL);
 
@@ -453,7 +463,6 @@ void GraphSlam3DGPU::addFrame(tf::Transform trans) {
          globalSize += LocalSize;
       }
    }
-   cout << globalSize << " " << globalSize / LocalSize << " " << NumCellsTotal << endl;
    
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 }

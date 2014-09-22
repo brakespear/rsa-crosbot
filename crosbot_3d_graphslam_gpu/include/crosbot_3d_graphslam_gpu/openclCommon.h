@@ -72,6 +72,8 @@ typedef struct {
    ocl_float cy;
    ocl_float tx;
    ocl_float ty;
+   //Max distance of a cell to the camera that will be used in the tsdf
+   ocl_float MaxDistance;
 
 } oclGraphSlam3DConfig;
 
