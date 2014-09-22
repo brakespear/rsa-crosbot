@@ -67,8 +67,8 @@ void GraphSlam3DGPU::initialise(ros::NodeHandle &nh) {
 
    //Params that can probably move to general code
    paramNH.param<double>("BlockSize", BlockSize, 0.2);
-   paramNH.param<double>("TruncNeg", TruncNeg, 0.1);
-   paramNH.param<double>("TrunkPos", TruncPos, 0.1);
+   paramNH.param<double>("TruncNeg", TruncNeg, 0.2);
+   paramNH.param<double>("TrunkPos", TruncPos, 0.2);
 
    NumBlocksWidth = (LocalMapWidth + 0.01) / BlockSize;
    NumBlocksHeight = (LocalMapHeight + 0.01) / BlockSize;
@@ -137,6 +137,10 @@ void GraphSlam3DGPU::initialiseGraphSlam(DepthPointsPtr depthPoints) {
 void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose slamPose) {
 
    if (finishedSetup && hasInitialised) {
+
+      if (done) {
+         return;
+      }
       //Calculate offset of robot inside current local map
       tf::Transform robotPose =  (maps[currentMap]->getPose().toTF().inverse()) * slamPose.toTF();
       //Transform points from kinect frame of reference to be relative to local map
@@ -151,6 +155,8 @@ void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
          points->r[i] = depthPoints->colours[i].r;
          points->g[i] = depthPoints->colours[i].g;
          points->b[i] = depthPoints->colours[i].b;
+         //cout << points->pointX[i] << "  " << points->pointY[i] << " " << points->pointZ[i] << endl;
+
       }
       writeBuffer(clPoints, CL_TRUE, 0, pointsSize, points->pointX, 0, 0, 0,
             "Copying depth points to GPU");
@@ -158,18 +164,35 @@ void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
             "Copying point colours to GPU");
 
       {{ Lock lock(masterLock);
+      ros::WallTime t1 = ros::WallTime::now();
 
       //Check that the required blocks in the local map exist
       checkBlocksExist(numDepthPoints, offset);
       if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) 
          cout << "error check blocks exist" << endl;
 
+      /*int tempA[NumBlocksTotal];
+      readBuffer(clLocalMapBlocks, CL_TRUE, 0, 
+         sizeof(int) * NumBlocksTotal, tempA, 0, 0, 0, "Reading blocks");
+      for (int i = 0; i < NumBlocksTotal; i++) {
+         if (tempA[i] != -1) {
+            cout << tempA[i] << " ";
+         }
+      }
+      cout << endl;*/
+      
+      ros::WallTime t2 = ros::WallTime::now();
+      ros::WallDuration totalTime = t2 - t1;
+      cout << "Time of check blocks: " << totalTime.toSec() * 1000.0f << endl;
+
       readBuffer(clLocalMapCommon, CL_TRUE, numActiveBlocksOffset, 
          sizeof(int), &numActiveBlocks, 0, 0, 0, "Reading num active blocks");
       if (numActiveBlocks > MaxNumActiveBlocks) {
          numActiveBlocks = MaxNumActiveBlocks;
       }
-      //cout << "Num active blocks: " << numActiveBlocks << endl;
+      cout << "Num active blocks: " << numActiveBlocks << endl;
+      
+      t1 = ros::WallTime::now();
       addRequiredBlocks();
 
       /*int temp[NumBlocksTotal];
@@ -190,15 +213,31 @@ void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
 
       if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) 
          cout << "error required blocks" << endl;
+      t2 = ros::WallTime::now();
+      totalTime = t2 - t1;
+      cout << "Time of add blocks: " << totalTime.toSec() * 1000.0f << endl;
+      t1 = ros::WallTime::now();
 
       addFrame(offset);
       
       if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) 
          cout << "error add frame" << endl;
+      t2 = ros::WallTime::now();
+      totalTime = t2 - t1;
+      cout << "Time of add frame: " << totalTime.toSec() * 1000.0f << endl;
+     
+      int temp; 
+      readBuffer(clLocalMapCommon, CL_TRUE, 8, 
+         sizeof(int), &temp, 0, 0, 0, "Reading num squares set");
+      cout << "Squares set are: " << temp << endl;
+
+      done = true;
 
       }}
    } else if (!hasInitialised && receivedCameraParams) {
       initialiseGraphSlam(depthPoints);
+
+      done = false;
    }
 }
 
@@ -207,7 +246,7 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
    {{ Lock lock(masterLock);
 
    if (finishedSetup) {
-      
+      done = false;
       int numBlocks;
       readBuffer(clLocalMapCommon, CL_TRUE, 0, 
          sizeof(int), &numBlocks, 0, 0, 0, "Reading total number of blocks");
@@ -220,6 +259,8 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
             CL_MEM_READ_WRITE, NULL);
 
       extractPoints(numBlocks, clPointCloud, clColours);
+      if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) 
+         cout << "error extract points" << endl;
       
       int numPoints;
       readBuffer(clLocalMapCommon, CL_TRUE, numPointsOffset, 
@@ -295,7 +336,7 @@ void GraphSlam3DGPU::initialiseLocalMap() {
    oclLocalBlock localBlock;
    size_t localBlockSize = (sizeof(*(localBlock.distance)) +
       sizeof(*(localBlock.weight)) + sizeof(*(localBlock.pI)) +
-      sizeof(*(localBlock.r)) * 3) * NumCellsTotal + sizeof(localBlock.blockIndex);
+      sizeof(*(localBlock.r)) * 3 + 4) * NumCellsTotal + sizeof(localBlock.blockIndex);
    clLocalMapCells = opencl_manager->deviceAlloc(localBlockSize * NumBlocksAllocated, 
          CL_MEM_READ_WRITE, NULL);
 
@@ -412,6 +453,7 @@ void GraphSlam3DGPU::addFrame(tf::Transform trans) {
          globalSize += LocalSize;
       }
    }
+   cout << globalSize << " " << globalSize / LocalSize << " " << NumCellsTotal << endl;
    
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 }

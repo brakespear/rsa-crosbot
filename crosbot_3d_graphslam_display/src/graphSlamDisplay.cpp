@@ -35,7 +35,7 @@ void GraphSlamDisplay::stop() {
 void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
    points.timestamp = localMapPoints->timestamp;
    points.frameID = localMapPoints->cloud->frameID;
-   
+
    int startIndex = points.cloud.size();
    if (PublishPointCloud) {
       points.cloud.resize(startIndex + localMapPoints->cloud->cloud.size());
@@ -49,7 +49,9 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
    for (int i = 0; i < localMapPoints->cloud->cloud.size(); i++) {
       Point point = mapPose * localMapPoints->cloud->cloud[i].toTF();
       if (PublishPointCloud) {
+         point.z -= 1.0;
          points.cloud[startIndex + i] = point;
+
          points.colours[startIndex + i] = localMapPoints->cloud->colours[i];
       }
 

@@ -12,6 +12,7 @@ using namespace std;
 using namespace crosbot;
 
 GraphSlam3DCPU::GraphSlam3DCPU() : GraphSlam3D() {
+   done = false;
 }
 
 GraphSlam3DCPU::~GraphSlam3DCPU() {
@@ -33,6 +34,9 @@ void GraphSlam3DCPU::stop() {
 void GraphSlam3DCPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose slamPose) {
 
    if (finishedSetup) {
+      if (done) {
+         return;
+      }
 
       //TODO: do I want to have a distance filter?
       //depthPoints->filterDistance(minDist, maxDist);
@@ -45,6 +49,7 @@ void GraphSlam3DCPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
       {{ Lock lock(masterLock);
 
       localMap->addScan(depthPoints);
+      done = true;
 
       }}
    }
@@ -55,6 +60,7 @@ void GraphSlam3DCPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
    {{ Lock lock(masterLock);
 
    if (finishedSetup) {
+      done = false;
       PointCloudPtr cloud = localMap->extractPoints(ObsThresh);
       LocalMapInfoPtr oldLocalMap = new LocalMapInfo(maps[currentMap]->getPose(), currentMap,
             cloud);

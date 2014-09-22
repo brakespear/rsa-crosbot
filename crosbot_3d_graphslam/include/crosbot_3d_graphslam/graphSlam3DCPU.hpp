@@ -38,6 +38,7 @@ private:
    vector<Local3DMap *> maps;
    int currentMap;
 
+   bool done;
 
 };
 

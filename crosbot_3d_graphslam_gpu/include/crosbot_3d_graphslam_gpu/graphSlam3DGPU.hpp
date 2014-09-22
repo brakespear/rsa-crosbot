@@ -96,6 +96,7 @@ private:
 
    bool hasInitialised;
 
+   bool done;
    /*
     * GPU structure methods
     */
