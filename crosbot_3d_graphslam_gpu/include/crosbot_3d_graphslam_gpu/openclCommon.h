@@ -32,10 +32,16 @@ typedef struct {
    ocl_float pointX[NUM_DEPTH_POINTS];
    ocl_float pointY[NUM_DEPTH_POINTS];
    ocl_float pointZ[NUM_DEPTH_POINTS];
+   unsigned char r[NUM_DEPTH_POINTS];
+   unsigned char g[NUM_DEPTH_POINTS];
+   unsigned char b[NUM_DEPTH_POINTS];
 #else
    ocl_float *pointX;
    ocl_float *pointY;
    ocl_float *pointZ;
+   unsigned char *r;
+   unsigned char *g;
+   unsigned char *b;
 #endif
 } oclDepthPoints;
 
@@ -56,6 +62,9 @@ typedef struct {
    ocl_int NumCellsTotal;
    ocl_int NumCellsWidth;
    ocl_int NumBlocksAllocated;
+   //Truncation values for tsdf
+   ocl_float TruncNeg;
+   ocl_float TruncPos;
    //camera params
    ocl_float fx;
    ocl_float fy;
@@ -64,28 +73,31 @@ typedef struct {
    ocl_float tx;
    ocl_float ty;
 
-
 } oclGraphSlam3DConfig;
 
 typedef struct {
+   int blockIndex;
 #ifdef CL_RUNTIME
    ocl_float distance[NUM_CELLS];
-   ocl_int weight[NUM_CELLS];
+   ocl_float weight[NUM_CELLS];
    unsigned char r[NUM_CELLS];
    unsigned char g[NUM_CELLS];
    unsigned char b[NUM_CELLS];
+   unsigned char pI[NUM_CELLS];
 #else
    ocl_float *distance;
-   ocl_short *weight;
+   ocl_float *weight;
    unsigned char *r;
    unsigned char *g;
    unsigned char *b;
+   unsigned char *pI;
 #endif
 }  oclLocalBlock;
 
 typedef struct {
    ocl_int numBlocks;
    ocl_int numActiveBlocks;
+   ocl_int numPoints;
 #ifdef CL_RUNTIME
    ocl_int activeBlocks[MAX_NUM_ACTIVE_BLOCKS];
 #else

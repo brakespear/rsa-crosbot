@@ -37,10 +37,13 @@ private:
     */
    int LocalSize;
    int NumBlocksAllocated;
+   int MaxNumActiveBlocks;
 
    //Params that can probably move to general code
    //Size of a block - should be a multiple of CellSize
    double BlockSize;
+   double TruncNeg;
+   double TruncPos;
 
    //Derived params
    int NumBlocksTotal;
@@ -67,6 +70,7 @@ private:
     */
    //The number of depth points each frame
    int numDepthPoints;
+   int numActiveBlocks;
 
    /*
     * GPU data structures
@@ -76,6 +80,7 @@ private:
    oclDepthPoints *points;
    cl_mem clPoints;
    size_t pointsSize;
+   size_t coloursSize;
    //config attributes
    oclGraphSlam3DConfig graphSlam3DConfig;
    cl_mem clGraphSlam3DConfig;
@@ -83,6 +88,8 @@ private:
    cl_mem clLocalMapBlocks;
    cl_mem clLocalMapCells;
    cl_mem clLocalMapCommon;
+   size_t numActiveBlocksOffset;
+   size_t numPointsOffset;
 
    vector<Local3DMap *> maps;
    int currentMap;
@@ -101,7 +108,9 @@ private:
    void clearLocalMap(int numBlocks);
    void checkBlocksExist(int numPoints, tf::Transform trans);
    void addRequiredBlocks();
-   void addFrame(int numPoints, tf::Transform trans);
+   void addFrame(tf::Transform trans);
+   void extractPoints(int numBlocks, cl_mem &clPointCloud, cl_mem &clColours);
+   PointCloudPtr copyPoints(int numPoints, cl_mem &clPointCloud, cl_mem &clColours);
 
 
    /*
