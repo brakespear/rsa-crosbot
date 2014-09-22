@@ -147,7 +147,7 @@ void markBlockActive(constant oclGraphSlam3DConfig *config, global int *blocks,
       global oclLocalMapCommon *common, int bIndex) {
    if (bIndex >= 0) {
       //Deal with the block
-      if (blocks[bIndex] < 0) {
+      if (blocks[bIndex] == -1) {
          //The block doesn't exist
          int oldVal = atomic_dec(&blocks[bIndex]);
          if (oldVal == -1) {
@@ -157,7 +157,7 @@ void markBlockActive(constant oclGraphSlam3DConfig *config, global int *blocks,
                common->activeBlocks[aIndex] = bIndex;
             } 
          }
-      } else {
+      } else if (blocks[bIndex] >= 0 && blocks[bIndex] < config->NumBlocksAllocated) {
          //The block already exists
          int oldVal = atomic_add(&(blocks[bIndex]), config->NumBlocksAllocated);
          if (oldVal < config->NumBlocksAllocated) {
@@ -377,7 +377,8 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
          float incY = inc * incYV;
          float incZ = inc * incZV;
          if ((inc < config->CellSize/2.0f && localMapCells[bIndex].pI[i] < 255) ||
-               (count + 1 < config->NumCellsWidth && localMapCells[bIndex].pI[nextI] < 255)) {
+               (inc >= config->CellSize/2.0f && count + 1 < config->NumCellsWidth && 
+                localMapCells[bIndex].pI[nextI] < 255)) {
             //Merge with existing
             int retI, colI;
             if (inc < config->CellSize/2.0f) {
