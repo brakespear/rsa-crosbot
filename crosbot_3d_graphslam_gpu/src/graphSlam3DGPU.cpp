@@ -67,16 +67,15 @@ void GraphSlam3DGPU::initialise(ros::NodeHandle &nh) {
 
    //Params that can probably move to general code
    paramNH.param<double>("BlockSize", BlockSize, 0.2);
-   paramNH.param<double>("TruncNeg", TruncNeg, 0.3);
-   paramNH.param<double>("TrunkPos", TruncPos, 0.7);
-   paramNH.param<double>("MaxDistance", MaxDistance, 3.0);
+   paramNH.param<double>("TruncNeg", TruncNeg, 0.4);
+   paramNH.param<double>("TrunkPos", TruncPos, 0.8);
+   paramNH.param<double>("MaxDistance", MaxDistance, 5.0);
 
    NumBlocksWidth = (LocalMapWidth + 0.00001) / BlockSize;
    NumBlocksHeight = (LocalMapHeight + 0.00001) / BlockSize;
    NumBlocksTotal = NumBlocksWidth * NumBlocksWidth * NumBlocksHeight;
    NumCellsWidth = (BlockSize + 0.00001) / CellSize;
    NumCellsTotal = NumCellsWidth * NumCellsWidth * NumCellsWidth;
-   cout << "NumCell widths: " << NumCellsWidth << " " << BlockSize << " " << CellSize << endl;
 
 }
 

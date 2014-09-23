@@ -233,7 +233,7 @@ __kernel void checkBlocksExist(constant oclGraphSlam3DConfig *config,
          markBlockActive(config, blocks, common, adjZP);
          int adjZN = getBlockAdjX(config, bIndex, -1);
          markBlockActive(config, blocks, common, adjZN);
-         /*adjXP = getBlockAdjX(config, adjXP, 1);
+         adjXP = getBlockAdjX(config, adjXP, 1);
          markBlockActive(config, blocks, common, adjXP);
          adjXN = getBlockAdjX(config, adjXN, -1);
          markBlockActive(config, blocks, common, adjXN);
@@ -244,7 +244,7 @@ __kernel void checkBlocksExist(constant oclGraphSlam3DConfig *config,
          adjZP = getBlockAdjX(config, adjZP, 1);
          markBlockActive(config, blocks, common, adjZP);
          adjZN = getBlockAdjX(config, adjZN, -1);
-         markBlockActive(config, blocks, common, adjZN);*/
+         markBlockActive(config, blocks, common, adjZN);
          markBlockActive(config, blocks, common, getBlockAdjX(config, adjXP, 1));
          markBlockActive(config, blocks, common, getBlockAdjX(config, adjXN, -1));
          markBlockActive(config, blocks, common, getBlockAdjX(config, adjYP, 1));
@@ -379,7 +379,7 @@ __kernel void addFrame(constant oclGraphSlam3DConfig *config, global int *blocks
                float weightPrev = localMapCells[blockI].weight[cIndex];
                localMapCells[blockI].distance[cIndex] = (localMapCells[blockI].distance[cIndex] * weightPrev +
                      tsdfVal * weightVal) / (weightPrev + weightVal);
-               localMapCells[blockI].r[cIndex] = (unsigned char)((weightPrev * 
+               /*localMapCells[blockI].r[cIndex] = (unsigned char)((weightPrev * 
                         (float)localMapCells[blockI].r[cIndex] +
                      weightVal * (float)points->r[pointI]) / (weightVal + weightPrev));
                localMapCells[blockI].g[cIndex] = (unsigned char)((weightPrev * 
@@ -387,7 +387,11 @@ __kernel void addFrame(constant oclGraphSlam3DConfig *config, global int *blocks
                      weightVal * (float)points->g[pointI]) / (weightVal + weightPrev));
                localMapCells[blockI].b[cIndex] = (unsigned char)((weightPrev * 
                         (float)localMapCells[blockI].b[cIndex] +
-                     weightVal * (float)points->b[pointI]) / (weightVal + weightPrev));
+                     weightVal * (float)points->b[pointI]) / (weightVal + weightPrev));*/
+               localMapCells[blockI].r[cIndex] = points->r[pointI];
+               localMapCells[blockI].g[cIndex] = points->g[pointI];
+               localMapCells[blockI].b[cIndex] = points->b[pointI];
+
                localMapCells[blockI].weight[cIndex] += weightVal;
             } 
          }
@@ -419,7 +423,7 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
       if (isnan(cellVal) || isnan(cellNextVal)) {
          continue;
       }
-      if ((sign(cellVal) != sign(cellNextVal) || cellVal == 0) && localMapCells[bIndex].weight[i] > 18.9f) {
+      if ((sign(cellVal) != sign(cellNextVal) || cellVal == 0) && localMapCells[bIndex].weight[i] > 15.9f) {
          //There is a crossing!
          float3 p = getCellCentre(config, i, localMapCells[bIndex].blockIndex);
          float inc = fabs(cellVal / (cellNextVal - cellVal)) * config->CellSize;
