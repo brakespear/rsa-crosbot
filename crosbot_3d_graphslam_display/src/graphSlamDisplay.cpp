@@ -21,8 +21,10 @@ void GraphSlamDisplay::initialise(ros::NodeHandle &nh) {
    
    paramNH.param<bool>("PublishPointCloud", PublishPointCloud, false);
    paramNH.param<bool>("CreateMesh", CreateMesh, true);
+   paramNH.param<bool>("WarpMaps", WarpMaps, true);
 
    viewerUpdate = false;
+   viewerUpdateOptimise = false;
    //Only strat the pcl viewer if want to reconstruct the surface
    if (CreateMesh) {
       start(); //starts the visualiser thread
@@ -131,9 +133,12 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       gp3.setSearchMethod (tree2);
       gp3.reconstruct (*triangles);
 
-      meshes.push_back(triangles);
-
       viewerLock.lock();
+      LocalMap newMap;
+      newMap.pose = localMapPoints->pose;
+      newMap.mesh = triangles;
+      maps.push_back(newMap);
+
       viewerUpdate = true;
       currentMesh = triangles;
       currentMeshIndex = localMapPoints->index;
@@ -146,7 +151,108 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
 }
 
 void GraphSlamDisplay::correctMap(vector<LocalMapInfoPtr> newMapPositions) {
-   //TODO: move the map positions and do warping
+
+   bool poseChanged = false;
+   vector<bool> hasChanged;
+   int i;
+   for(i = 1; i < newMapPositions.size() && i < maps.size(); i++) {
+      Pose newPose = newMapPositions[i]->pose;
+      Pose oldPose = maps[i].pose;
+      poseChanged  = hasPositionChanged(oldPose, newPose);
+      if (poseChanged) {
+         warpMap(i - 1, newMapPositions[i-1]->pose, newPose);
+         hasChanged.push_back(true);
+      } else {
+         hasChanged.push_back(false);
+      }
+   }
+   hasChanged.push_back(poseChanged);
+   
+   viewerLock.lock();
+   for(i = 0; i < hasChanged.size(); i++) {
+      maps[i].pose = newMapPositions[i]->pose;
+      mapsChanged.push_back(i);
+   }
+   viewerUpdateOptimise = true;
+   viewerLock.unlock();
+}
+
+bool GraphSlamDisplay::hasPositionChanged(Pose oldPose, Pose newPose) {
+   double yo, po, ro;
+   oldPose.getYPR(yo, po, ro);
+   double yn, pn, rn;
+   newPose.getYPR(yn, pn, rn);
+   double distThresh = 0.01;
+   double rotThresh = 0.01;
+
+   if (fabs(newPose.position.x - oldPose.position.x) > distThresh ||
+      fabs(newPose.position.y - oldPose.position.y) > distThresh ||
+      fabs(newPose.position.z - oldPose.position.z) > distThresh ||
+      fabs(yn - yo) > rotThresh ||
+      fabs(pn - po) > rotThresh ||
+      fabs(rn - ro) > rotThresh) {
+
+      return true;
+   } else {
+      return true;
+   }
+}
+
+void GraphSlamDisplay::warpMap(int index, Pose newStart, Pose newEnd) {
+   tf::Matrix3x3 rotM;
+   tf::Vector3 transM;
+   tf::Vector3 gM;
+   if (!WarpMaps) {
+      //Just transform the points according to the pose at the start of the map
+      tf::Transform newTrans = newStart.toTF();
+      gM = newTrans.getOrigin();
+      //set transM and rotM
+   }
+   pcl::PolygonMesh *mesh = maps[index].mesh;
+   int sizeCloud = mesh->cloud.width * mesh->cloud.height;
+   for (int i = 0; i < sizeCloud; i++) {
+      const uint8_t *p = &(mesh->cloud.data[i * mesh->cloud.point_step]);
+      float x,y,z;
+      x = *(float*)(p);
+      y = *(float*)(p + 4);
+      z = *(float*)(p + 8);
+      tf::Vector3 point;
+      point[0] = x;
+      point[1] = y;
+      point[2] = z;
+
+      if (WarpMap) {
+         //set rotM, transM, gM here
+      }
+
+      //Convert the point to the new position
+      tf::Vector3 newPoint = (rotM * (point - gM)) + gM + transM;
+
+      x = newPoint[0];
+      y = newPoint[1];
+      z = newPoint[2];
+      *(float*)(p) = x;
+      *(float*)(p+4) = y;
+      *(float*)(p+8) = z;
+   }
+
+   /*int sizeCloud = triangles->cloud.width * triangles->cloud.height;
+   for (int j = 0; j < triangles->cloud.fields.size(); j++) {
+      cout << "PCL fields: " << triangles->cloud.fields[j].offset << " " << 
+      (triangles->cloud.fields[j].datatype == 7)
+         << " " << triangles->cloud.fields[j].name << " " << triangles->cloud.fields[j].count << endl;
+   }*/
+   /*
+    * PointCloud2 fields are all float32 and are:
+    * x, off 0
+    * y, off 4
+    * z, off 8
+    * rgb, off 32
+    * normal x, off 16
+    * normal y, off 20
+    * normal z, off 24
+    * curvature, off 36
+    */
 }
 
 PointCloud &GraphSlamDisplay::getPointCloud() {
@@ -160,10 +266,21 @@ void GraphSlamDisplay::run() {
    while(!viewer->wasStopped()) {
       viewer->spinOnce(1000);
       viewerLock.lock();
+      if (viewerUpdateOptimise) {
+         for (int i = 0; i < mapsChanged.size(); i++) {
+            ostringstream ss;
+            ss << mapsChanged[i];
+            //viewer->updatePolygonMesh(*(maps[mapsChanged[i]].mesh), ss.str());
+            viewer->removePolygonMesh(ss.str());
+            viewer->addPolygonMesh(*(maps[mapsChanged[i]].mesh), ss.str());
+         }
+         mapsChanged.resize(0);
+         viewerUpdateOptimise = false;
+      }
       if (viewerUpdate) {
-         viewer->removePolygonMesh();
+         /*viewer->removePolygonMesh();
 
-         /*for (int i = 0; i < meshes.size() - 1; i++) {
+         for (int i = 0; i < meshes.size() - 1; i++) {
             ostringstream ss;
             ss << i;
             viewer->removePolygonMesh(ss.str());
