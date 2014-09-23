@@ -21,6 +21,8 @@
 #include <pcl/surface/gp3.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/io/vtk_io.h>
+//#include <pcl/surface/mls.h>
+//#include <pcl/surface/impl/mls.hpp>
 
 using namespace std;
 using namespace crosbot;

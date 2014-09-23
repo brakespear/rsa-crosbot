@@ -68,8 +68,22 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
    if (CreateMesh) {
 
       //TODO: if store normals in existing code, consider passing these in the message to avoid having to calculate them
-      //again (as well as more efifcient, will also probably be more accurate)
+      //again (as well as more efficient, will also probably be more accurate)
+      
+      /*pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGB>);
+      //pcl::PointCloud<pcl::PointXYZRGBNormal> cloud_with_normals;
+      pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_with_normals (new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+      pcl::MovingLeastSquares<pcl::PointXYZRGB, pcl::PointXYZRGBNormal> mls;
+      mls.setComputeNormals (true);
+      // Set parameters
+      mls.setInputCloud (cloud);
+      mls.setPolynomialFit (false);
+      mls.setSearchMethod (tree);
+      mls.setSearchRadius (0.3);
+      // Reconstruct
+      mls.process (*cloud_with_normals);*/
 
+      
       //Test stuff.....
       //Normal estimation
       pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> n;
@@ -80,12 +94,13 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       n.setSearchMethod (tree);
       n.setKSearch (20);
       n.compute (*normals);
-      //* normals should not contain the point normals + surface curvatures
+      // normals should not contain the point normals + surface curvatures
 
       // Concatenate the XYZ and normal fields*
       pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_with_normals (new pcl::PointCloud<pcl::PointXYZRGBNormal>);
       pcl::concatenateFields (*cloud, *normals, *cloud_with_normals);
-      //* cloud_with_normals = cloud + normals
+      // cloud_with_normals = cloud + normals
+      
 
       // Create search tree*
       pcl::search::KdTree<pcl::PointXYZRGBNormal>::Ptr tree2 (new pcl::search::KdTree<pcl::PointXYZRGBNormal>);
@@ -146,6 +161,19 @@ void GraphSlamDisplay::run() {
       viewer->spinOnce(1000);
       viewerLock.lock();
       if (viewerUpdate) {
+         viewer->removePolygonMesh();
+
+         /*for (int i = 0; i < meshes.size() - 1; i++) {
+            ostringstream ss;
+            ss << i;
+            viewer->removePolygonMesh(ss.str());
+         }
+         for (int i = meshes.size() - 1; i >= 0; i--) {
+            ostringstream ss;
+            ss << i;
+            viewer->addPolygonMesh(*meshes[i], ss.str());
+         }*/
+
          ostringstream ss;
          ss << currentMeshIndex;
          viewer->addPolygonMesh(*currentMesh, ss.str());
