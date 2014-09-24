@@ -221,7 +221,7 @@ void GraphSlamDisplay::warpMap(int index, Pose newStart, Pose newEnd) {
       point[1] = y;
       point[2] = z;
 
-      if (WarpMap) {
+      if (WarpMaps) {
          //set rotM, transM, gM here
       }
 
