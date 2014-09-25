@@ -147,9 +147,10 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       viewerLock.unlock();
 
       //testing
-      if(maps.size() == 2) {
+      /*if(maps.size() == 2) {
          cout << "Dummy move now" << endl;
          Pose newPose2 = maps[1].pose;
+         //newPose2.position.z += 1.0;
          double y,p,r;
          newPose2.getYPR(y,p,r);
          newPose2.setYPR(y + M_PI/4.0, p, r);
@@ -157,7 +158,7 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
          vector<LocalMapInfoPtr> newMapPos;
          newMapPos.push_back(new LocalMapInfo(newPose2, 1));
          correctMap(newMapPos);
-      }
+      }*/
 
       //TODO: implement saving the entire mesh to file if selected by a parameter
       //Can view files made by the following command by using pcd_viewer
@@ -167,7 +168,7 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
 
 void GraphSlamDisplay::correctMap(vector<LocalMapInfoPtr> newMapPositions) {
 
-   cout << "Correcting map" << endl;
+   //cout << "Correcting map" << endl;
 
    int i;
    int maxI = -1;
@@ -222,7 +223,7 @@ void GraphSlamDisplay::correctMap(vector<LocalMapInfoPtr> newMapPositions) {
                newEnd = maps[i+1].pose;
             }
             Pose newEndNext;
-            if (i < newPose.size() - 2) {
+            if (i < newPos.size() - 2) {
                if (newPos[i+2]) {
                   newEndNext = newMapPositions[newMapPosIndex[i+2]]->pose;
                } else {
@@ -293,7 +294,7 @@ void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, Pose
    tf::Vector3 gM;
 
    tf::Vector3 newStartRot, newEndRot, newEndNextRot, oldStartRot, oldEndRot, oldEndNextRot;
-   tf::Vector3 newStartPos, newEndPos, newEndNextPos, oldStartPos, oldEndPos, newEndNextPos;
+   tf::Vector3 newStartPos, newEndPos, newEndNextPos, oldStartPos, oldEndPos, oldEndNextPos;
    rotPoseToVector(newStart, newStartRot);
    newStartPos = newStart.position.toTF();
    rotPoseToVector(newEnd, newEndRot);
@@ -310,19 +311,23 @@ void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, Pose
       rotPoseToVector(maps[index + 2].pose, oldEndNextRot);
       oldEndNextPos = maps[index + 2].pose.position.toTF();
    }
-   cout << "new start " << newStartRot[0] << " " << newStartRot[1] << " " << newStartRot[2] << endl;
-   cout << "new end " << newEndRot[0] << " " << newEndRot[1] << " " << newEndRot[2] << endl;
-   cout << "old start " << oldStartRot[0] << " " << oldStartRot[1] << " " << oldStartRot[2] << endl;
-   cout << "old end " << oldEndRot[0] << " " << oldEndRot[1] << " " << oldEndRot[2] << endl;
+   //cout << "new start " << newStartRot[0] << " " << newStartRot[1] << " " << newStartRot[2] << endl;
+   //cout << "new end " << newEndRot[0] << " " << newEndRot[1] << " " << newEndRot[2] << endl;
+   //cout << "old start " << oldStartRot[0] << " " << oldStartRot[1] << " " << oldStartRot[2] << endl;
+   //cout << "old end " << oldEndRot[0] << " " << oldEndRot[1] << " " << oldEndRot[2] << endl;
 
    if (!warpMap) {
       //Just transform the points according to the pose at the start of the map
-      tf::Transform newTrans = newStart.toTF();
+      gM = oldStartPos;
+      transM = newStartPos - oldStartPos;
+      tf::Vector3 rot = newStartRot - oldStartRot;
+      rotM.setRPY(rot[2], rot[1], rot[0]);
+      /*tf::Transform newTrans = newStart.toTF();
       tf::Transform oldTrans = maps[index].pose.toTF();
       gM = oldTrans.getOrigin();
       tf::Transform diff = oldTrans.inverseTimes(newTrans);
       transM = diff.getOrigin();
-      rotM = diff.getBasis();
+      rotM = diff.getBasis();*/
    }
    pcl::PolygonMesh *mesh = maps[index].mesh;
    int sizeCloud = mesh->cloud.width * mesh->cloud.height;
@@ -372,7 +377,6 @@ void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, Pose
                   (oldStartRot + frac * (oldEndRot - oldStartRot));
          }
          transM = posNew - gM;
-         //cout << rot[2] << " " << rot[1] << " " << rot[0] << endl;
          rotM.setRPY(rot[2], rot[1], rot[0]);
       }
 

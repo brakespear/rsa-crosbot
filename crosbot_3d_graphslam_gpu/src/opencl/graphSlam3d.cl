@@ -391,7 +391,6 @@ __kernel void addFrame(constant oclGraphSlam3DConfig *config, global int *blocks
                localMapCells[blockI].r[cIndex] = points->r[pointI];
                localMapCells[blockI].g[cIndex] = points->g[pointI];
                localMapCells[blockI].b[cIndex] = points->b[pointI];
-
                localMapCells[blockI].weight[cIndex] += weightVal;
             } 
          }
@@ -427,6 +426,7 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
          //There is a crossing!
          float3 p = getCellCentre(config, i, localMapCells[bIndex].blockIndex);
          float inc = fabs(cellVal / (cellNextVal - cellVal)) * config->CellSize;
+         
          if (inc >= config->CellSize) {
             inc = config->CellSize;
          }
