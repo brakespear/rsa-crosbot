@@ -25,7 +25,7 @@ void GraphSlamDisplay::initialise(ros::NodeHandle &nh) {
 
    viewerUpdate = false;
    viewerUpdateOptimise = false;
-   //Only strat the pcl viewer if want to reconstruct the surface
+   //Only start the pcl viewer if want to reconstruct the surface
    if (CreateMesh) {
       start(); //starts the visualiser thread
    }
@@ -160,13 +160,16 @@ void GraphSlamDisplay::correctMap(vector<LocalMapInfoPtr> newMapPositions) {
       Pose oldPose = maps[i].pose;
       poseChanged  = hasPositionChanged(oldPose, newPose);
       if (poseChanged) {
-         warpMap(i - 1, newMapPositions[i-1]->pose, newPose);
+         repositionMap(i - 1, newMapPositions[i-1]->pose, newPose, WarpMaps);
          hasChanged.push_back(true);
       } else {
          hasChanged.push_back(false);
       }
    }
    hasChanged.push_back(poseChanged);
+   if (poseChanged) {
+      repositionMap(i - 1, newMapPositions[i-1]->pose, newMapPositions[i=1]->pose, false);
+   } 
    
    viewerLock.lock();
    for(i = 0; i < hasChanged.size(); i++) {
@@ -198,15 +201,18 @@ bool GraphSlamDisplay::hasPositionChanged(Pose oldPose, Pose newPose) {
    }
 }
 
-void GraphSlamDisplay::warpMap(int index, Pose newStart, Pose newEnd) {
+void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, bool warpMap) {
    tf::Matrix3x3 rotM;
    tf::Vector3 transM;
    tf::Vector3 gM;
-   if (!WarpMaps) {
+   if (!warpMap) {
       //Just transform the points according to the pose at the start of the map
       tf::Transform newTrans = newStart.toTF();
-      gM = newTrans.getOrigin();
-      //set transM and rotM
+      tf::Transform oldTrans = maps[index].pose.toTF();
+      gM = oldTrans.getOrigin();
+      tf::Transfrom diff = oldTrans.inverseTimes(newTrans);
+      transM = diff.getOrigin();
+      rotM = diff.getBasis();
    }
    pcl::PolygonMesh *mesh = maps[index].mesh;
    int sizeCloud = mesh->cloud.width * mesh->cloud.height;
@@ -221,7 +227,7 @@ void GraphSlamDisplay::warpMap(int index, Pose newStart, Pose newEnd) {
       point[1] = y;
       point[2] = z;
 
-      if (WarpMaps) {
+      if (warpMap) {
          //set rotM, transM, gM here
       }
 

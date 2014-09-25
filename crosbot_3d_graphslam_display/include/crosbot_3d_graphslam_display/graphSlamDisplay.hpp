@@ -102,9 +102,10 @@ private:
    void run();
 
    /*
-    * Warps a local map
+    * Repositions a map and warps it if needed. Only looks at new end 
+    * if warping
     */
-   void warpMap(int index, Pose newStart, Pose newEnd);
+   void repositionMap(int index, Pose newStart, Pose newEnd, bool warpMap);
 
    /*
     * Has the positon of a local map changed by a level worth caring about
