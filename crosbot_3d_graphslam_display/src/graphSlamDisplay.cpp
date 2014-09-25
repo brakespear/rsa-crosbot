@@ -9,6 +9,8 @@
 #include <crosbot/utils.hpp>
 #include <sstream>
 
+#define ANGNORM(X) while (X < -M_PI) X += 2.0*M_PI;while (X > M_PI) X -= 2.0*M_PI
+
 using namespace std;
 using namespace crosbot;
 
@@ -144,6 +146,19 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       currentMeshIndex = localMapPoints->index;
       viewerLock.unlock();
 
+      //testing
+      if(maps.size() == 2) {
+         cout << "Dummy move now" << endl;
+         Pose newPose2 = maps[1].pose;
+         double y,p,r;
+         newPose2.getYPR(y,p,r);
+         newPose2.setYPR(y + M_PI/4.0, p, r);
+         //newPose2.position.x += 0.5;
+         vector<LocalMapInfoPtr> newMapPos;
+         newMapPos.push_back(new LocalMapInfo(newPose2, 1));
+         correctMap(newMapPos);
+      }
+
       //TODO: implement saving the entire mesh to file if selected by a parameter
       //Can view files made by the following command by using pcd_viewer
       //pcl::io::saveVTKFile ("/home/adrianrobolab/groovy_workspace/crosbot/src/crosbot_3d_graphslam_display/mesh.vtk", triangles);
@@ -152,29 +167,75 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
 
 void GraphSlamDisplay::correctMap(vector<LocalMapInfoPtr> newMapPositions) {
 
-   bool poseChanged = false;
-   vector<bool> hasChanged;
+   cout << "Correcting map" << endl;
+
    int i;
-   for(i = 1; i < newMapPositions.size() && i < maps.size(); i++) {
-      Pose newPose = newMapPositions[i]->pose;
-      Pose oldPose = maps[i].pose;
-      poseChanged  = hasPositionChanged(oldPose, newPose);
-      if (poseChanged) {
-         repositionMap(i - 1, newMapPositions[i-1]->pose, newPose, WarpMaps);
-         hasChanged.push_back(true);
+   int maxI = -1;
+   vector<bool> newPos;
+   vector<int> newMapPosIndex;
+   vector<bool> poseChanged;
+   newPos.resize(maps.size());
+   newMapPosIndex.resize(maps.size());
+   poseChanged.resize(maps.size());
+   for (int i = 0; i < newPos.size(); i++) {
+      newPos[i] = false;
+      newMapPosIndex[i] = -1;
+      poseChanged[i] = false;
+   }
+   for (int i = 0; i < newMapPositions.size(); i++) {
+      if (newMapPositions[i]->index < newPos.size()) {
+         newPos[newMapPositions[i]->index] = true;
+         newMapPosIndex[newMapPositions[i]->index] = i;
+         poseChanged[newMapPositions[i]->index] = hasPositionChanged(
+               maps[newMapPositions[i]->index].pose, newMapPositions[i]->pose);
+         if (newMapPositions[i]->index > maxI) {
+            maxI = newMapPositions[i]->index;
+         }
       } else {
-         hasChanged.push_back(false);
+         cout << "Map in optimise list hasn't been received yet" << endl;
       }
    }
-   hasChanged.push_back(poseChanged);
-   if (poseChanged) {
-      repositionMap(i - 1, newMapPositions[i-1]->pose, newMapPositions[i=1]->pose, false);
+   vector<bool> hasChanged;
+   hasChanged.resize(maps.size());
+   for (int i = 0; i < newPos.size(); i++) {
+      hasChanged[i] = false;
+      if ((i == newPos.size() - 1 || i == maxI) && poseChanged[i]) {
+         Pose newStart = newMapPositions[newMapPosIndex[i]]->pose;
+         repositionMap(i, newStart, newStart, false);
+         hasChanged[i] = true;
+      } else if (i < newPos.size() - 1) {
+         if (!WarpMaps && poseChanged[i]) {
+            Pose newStart = newMapPositions[newMapPosIndex[i]]->pose;
+            repositionMap(i, newStart, newStart, false);
+            hasChanged[i] = true;
+         } else if (WarpMaps && (poseChanged[i] || poseChanged[i+1])) {
+            Pose newStart;
+            if (newPos[i]) {
+               newStart = newMapPositions[newMapPosIndex[i]]->pose;
+            } else {
+               newStart = maps[i].pose;
+            }
+            Pose newEnd;
+            if (newPos[i+1]) {
+               newEnd = newMapPositions[newMapPosIndex[i+1]]->pose;
+            } else {
+               newEnd = maps[i+1].pose;
+            }
+            repositionMap(i, newStart, newEnd, true);
+            hasChanged[i] = true;
+         }
+      }
    } 
    
    viewerLock.lock();
    for(i = 0; i < hasChanged.size(); i++) {
-      maps[i].pose = newMapPositions[i]->pose;
-      mapsChanged.push_back(i);
+      if (hasChanged[i]) {
+         cout << "Map: " << i << " has changed" << endl;
+         if (newPos[i]) {
+            maps[i].pose = newMapPositions[newMapPosIndex[i]]->pose;
+         }
+         mapsChanged.push_back(i);
+      }
    }
    viewerUpdateOptimise = true;
    viewerLock.unlock();
@@ -188,12 +249,19 @@ bool GraphSlamDisplay::hasPositionChanged(Pose oldPose, Pose newPose) {
    double distThresh = 0.01;
    double rotThresh = 0.01;
 
+   double yc = fabs(yn - yo);
+   double pc = fabs(pn - po);
+   double rc = fabs(rn - ro);
+   ANGNORM(yc);
+   ANGNORM(pc);
+   ANGNORM(rc);
+
    if (fabs(newPose.position.x - oldPose.position.x) > distThresh ||
       fabs(newPose.position.y - oldPose.position.y) > distThresh ||
       fabs(newPose.position.z - oldPose.position.z) > distThresh ||
-      fabs(yn - yo) > rotThresh ||
-      fabs(pn - po) > rotThresh ||
-      fabs(rn - ro) > rotThresh) {
+      yc > rotThresh ||
+      pc > rotThresh ||
+      rc > rotThresh) {
 
       return true;
    } else {
@@ -201,16 +269,42 @@ bool GraphSlamDisplay::hasPositionChanged(Pose oldPose, Pose newPose) {
    }
 }
 
+inline void GraphSlamDisplay::rotPoseToVector(Pose &pose, tf::Vector3 &vec) {
+   double y,p,r;
+   pose.getYPR(y,p,r);
+   vec[0] = y;
+   vec[1] = p;
+   vec[2] = r;
+}
+
 void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, bool warpMap) {
    tf::Matrix3x3 rotM;
    tf::Vector3 transM;
    tf::Vector3 gM;
+
+   tf::Vector3 newStartRot, newEndRot, oldStartRot, oldEndRot;
+   tf::Vector3 newStartPos, newEndPos, oldStartPos, oldEndPos;
+   rotPoseToVector(newStart, newStartRot);
+   newStartPos = newStart.position.toTF();
+   rotPoseToVector(newEnd, newEndRot);
+   newEndPos = newEnd.position.toTF();
+   rotPoseToVector(maps[index].pose, oldStartRot);
+   oldStartPos = maps[index].pose.position.toTF();
+   if (index + 1 < maps.size()) {
+      rotPoseToVector(maps[index + 1].pose, oldEndRot);
+      oldEndPos = maps[index + 1].pose.position.toTF();
+   }
+   cout << "new start " << newStartRot[0] << " " << newStartRot[1] << " " << newStartRot[2] << endl;
+   cout << "new end " << newEndRot[0] << " " << newEndRot[1] << " " << newEndRot[2] << endl;
+   cout << "old start " << oldStartRot[0] << " " << oldStartRot[1] << " " << oldStartRot[2] << endl;
+   cout << "old end " << oldEndRot[0] << " " << oldEndRot[1] << " " << oldEndRot[2] << endl;
+
    if (!warpMap) {
       //Just transform the points according to the pose at the start of the map
       tf::Transform newTrans = newStart.toTF();
       tf::Transform oldTrans = maps[index].pose.toTF();
       gM = oldTrans.getOrigin();
-      tf::Transfrom diff = oldTrans.inverseTimes(newTrans);
+      tf::Transform diff = oldTrans.inverseTimes(newTrans);
       transM = diff.getOrigin();
       rotM = diff.getBasis();
    }
@@ -228,7 +322,22 @@ void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, bool
       point[2] = z;
 
       if (warpMap) {
-         //set rotM, transM, gM here
+         tf::Vector3 a = point - oldStartPos;
+         tf::Vector3 u = oldEndPos - oldStartPos;
+         double l = u.length2();
+         //fraction along the line
+         double frac = a.dot(u) / l;
+         /*if (frac < 0.0) frac = 0.0;
+         if (frac > 1.0) frac = 1.0;*/
+
+         gM = oldStartPos + frac * u;
+
+         tf::Vector3 posNew = newStartPos + frac * (newEndPos - newStartPos);
+         tf::Vector3 rot = newStartRot + frac * (newEndRot - newStartRot) - 
+                           (oldStartRot + frac * (oldEndRot - oldStartRot));
+         transM = posNew - gM;
+         //cout << rot[2] << " " << rot[1] << " " << rot[0] << endl;
+         rotM.setRPY(rot[2], rot[1], rot[0]);
       }
 
       //Convert the point to the new position
@@ -282,6 +391,7 @@ void GraphSlamDisplay::run() {
          }
          mapsChanged.resize(0);
          viewerUpdateOptimise = false;
+         viewerUpdate = false;
       }
       if (viewerUpdate) {
          /*viewer->removePolygonMesh();
@@ -299,6 +409,7 @@ void GraphSlamDisplay::run() {
 
          ostringstream ss;
          ss << currentMeshIndex;
+         cout << "Adding the mesh " << ss.str() << endl;
          viewer->addPolygonMesh(*currentMesh, ss.str());
          viewerUpdate = false;
       }

@@ -111,6 +111,8 @@ private:
     * Has the positon of a local map changed by a level worth caring about
     */
    bool hasPositionChanged(Pose oldPose, Pose newPose);
+
+   inline void rotPoseToVector(Pose &pose, tf::Vector3 &vec);
 };
    
 

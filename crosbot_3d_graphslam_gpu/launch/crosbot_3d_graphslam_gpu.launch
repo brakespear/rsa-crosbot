@@ -26,7 +26,7 @@
       <param name="icp_frame" value="icp_test" />
 	</node>
 
-	<node pkg="crosbot_3d_graphslam_gpu" type="crosbot_3d_graphslam_gpu" name="crosbot_3d_graphslam_gpu" output="screen">
+	<node pkg="crosbot_3d_graphslam_gpu" type="crosbot_3d_graphslam_gpu" name="crosbot_3d_graphslam_gpu">
       <param name="CellSize" value="0.025" />
 	</node>
 
