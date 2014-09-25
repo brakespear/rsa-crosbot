@@ -37,6 +37,9 @@ void PositionTrack3D::initialise(ros::NodeHandle &nh) {
    ros::NodeHandle paramNH("~");
 
    paramNH.param<int>("LocalSize", LocalSize, 256);
+   paramNH.param<double>("MapWidth", MapWidth, 8.0);
+   paramNH.param<double>("MapHeight", MapWidth, 4.0);
+   paramNH.param<double>("CellSize", CellSize, 0.05);
 }
 
 void PositionTrack3D::start() {

@@ -10,15 +10,7 @@ __kernel void transform3D(global oclDepthPoints *points, const int numPoints, fl
       float3 rotation[3]) {
    int index = get_global_id(0);
 
-   //http://docs.ros.org/hydro/api/tf/html/c++/classtf_1_1Transform.html#a9eecdf07a46b63e55b58bbd19492299a
-   //tf stores position as a vector (m_origin)
-   //and stores orientation as a 3x3 matrix (m_basis)
-
-   //multiplying a 3d point by the transformation
-   //in my code do: trans * point.toTF()
-   //point.toTF() is a vector.
-
-   if (index < numPoints) {
+   if (index < numPoints && !isnan(points->pointX[index])) {
       float3 point = (float3)(points->pointX[index], points->pointY[index], points->pointZ[index]);
       float3 temp = point * rotation[0];
       points->pointX[index] = temp.x + temp.y + temp.z + origin.x;

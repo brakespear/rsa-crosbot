@@ -59,6 +59,11 @@ private:
    //GPU configs
    int LocalSize;
 
+   //Map dimensions
+   double MapWidth;
+   double MapHeight;
+   double CellSize;
+
    //GPU fields
    OpenCLManager *opencl_manager;
    OpenCLTask *opencl_task;
