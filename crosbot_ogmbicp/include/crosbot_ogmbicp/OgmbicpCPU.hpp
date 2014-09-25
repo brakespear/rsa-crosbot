@@ -51,6 +51,7 @@ private:
    ros::WallDuration totalTime;
    int numIterations;
    int avNumIts;
+   //int tt; //debugging
 
    //Get the offset from an iteration of ogmbicp
    bool getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth);

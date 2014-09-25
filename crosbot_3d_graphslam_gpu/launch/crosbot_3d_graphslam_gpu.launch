@@ -32,6 +32,6 @@
 
    <node pkg="crosbot_3d_graphslam_display" type="crosbot_3d_graphslam_display" name="crosbot_3d_graphslam_display" output="screen" />
 
-	<include file="$(find crosbot_graphslam)/launch/createPointCloud.launch" />
+	<include file="$(find crosbot_3d_graphslam_gpu)/launch/createPointCloud.launch" />
 	
 </launch>	

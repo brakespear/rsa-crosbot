@@ -151,8 +151,8 @@ void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan)
    }
 }
 
-void OgmbicpNode::callbackOrientation(const geometry_msgs::Quaternion& quat) {
-   pos_tracker.processImuOrientation(quat);
+void OgmbicpNode::callbackOrientation(const geometry_msgs::QuaternionStamped& quat) {
+   pos_tracker.processImuOrientation(quat.quaternion);
 }
 
 geometry_msgs::TransformStamped OgmbicpNode::getTransform(const Pose& pose, std::string childFrame, 

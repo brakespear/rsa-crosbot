@@ -104,7 +104,7 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    gz = pz;
    gth = pth;
 
-
+   //cout << "Point init: " << cloud->cloud.size() << " final: " << scan->points.size() << endl;
    //TODO: put the initial transform stuff here
    
    scan->transformPoints(dx, dy, dz, dth, laserOffset);
@@ -226,14 +226,23 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
    a11 = a12 = a13 = a14 = a22 = a23 = a24 = a33 = a34 = a44 = 0.0;
    b1 = b2 = b3 = b4 = 0;
 
+   //int tempH = 0;
+   //int tempNan = 0;
+   //int tempMax = 0;
+   //int tempInf = 0;
+   //int tempCol = 0;
+   //int tempCount = 0;
+   //tt = 0;
 
    for (i = 0; i < scan->points.size(); i += LaserSkip) {
       //TODO: deal with z values properly
       if (scan->points[i].point.z < MinAddHeight || scan->points[i].point.z > MaxAddHeight) {
+         //tempH++;
          //cout << "points have the wrong height" << endl;
          continue;
       }
       if (scan->points[i].pointNxt.hasNAN()) {
+         //tempNan++;
          //cout << "points have nan" << endl;
          continue;
       }
@@ -241,6 +250,7 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
 
       double d = sqrt(SQ(scanPoint.x) + SQ(scanPoint.y));
       if (LaserMaxAlign > 0 && d > LaserMaxAlign) {
+         //tempMax++;
          //cout << "laser max align failing" << endl;
          continue;
       }
@@ -253,6 +263,7 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
       }
       double h = findMatchingPoint(scanPoint, mPoint, lValue2);
       if (h == INFINITY) {
+         //tempInf++;
          //cout << "no matching point found" << endl;
          continue;
       }
@@ -261,10 +272,12 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
 
       Cell3DColumn *colCell = localMap->columnAtXY(mPointMap.x, mPointMap.y);
       if (colCell == NULL) {
+         //tempCol++;
          continue;
       }
       if (colCell->obsCount < MinCellCount) {
          //cout << "min cell count failed" << endl;
+         //tempCount++;
          continue;
       }
       double fac = 1;
@@ -334,6 +347,8 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
       }
       count++;
    }
+   //cout << "count: " << count << " " << tempH << " " << tempNan << " " <<
+   //   tempMax << " " << tempInf << " " << tempCol << " " << tempCount << " " << tt << endl;
    if (count < MinGoodCount) {
       dx = dy = dz = dth = 0.0;
       return false;

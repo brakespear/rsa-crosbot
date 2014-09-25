@@ -82,7 +82,8 @@ private:
    /*
     * Callback for the orientation from the IMU
     */
-   void callbackOrientation(const geometry_msgs::Quaternion& quat);
+   //void callbackOrientation(const geometry_msgs::Quaternion& quat);
+   void callbackOrientation(const geometry_msgs::QuaternionStamped& quat);
 
    /*
     * Gets a transform from a pose
