@@ -105,7 +105,7 @@ private:
     * Repositions a map and warps it if needed. Only looks at new end 
     * if warping
     */
-   void repositionMap(int index, Pose newStart, Pose newEnd, bool warpMap);
+   void repositionMap(int index, Pose newStart, Pose newEnd, Pose newEndNext, bool warpMap);
 
    /*
     * Has the positon of a local map changed by a level worth caring about

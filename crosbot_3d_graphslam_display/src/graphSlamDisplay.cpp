@@ -201,12 +201,12 @@ void GraphSlamDisplay::correctMap(vector<LocalMapInfoPtr> newMapPositions) {
       hasChanged[i] = false;
       if ((i == newPos.size() - 1 || i == maxI) && poseChanged[i]) {
          Pose newStart = newMapPositions[newMapPosIndex[i]]->pose;
-         repositionMap(i, newStart, newStart, false);
+         repositionMap(i, newStart, newStart, newStart, false);
          hasChanged[i] = true;
       } else if (i < newPos.size() - 1) {
          if (!WarpMaps && poseChanged[i]) {
             Pose newStart = newMapPositions[newMapPosIndex[i]]->pose;
-            repositionMap(i, newStart, newStart, false);
+            repositionMap(i, newStart, newStart, newStart, false);
             hasChanged[i] = true;
          } else if (WarpMaps && (poseChanged[i] || poseChanged[i+1])) {
             Pose newStart;
@@ -221,7 +221,17 @@ void GraphSlamDisplay::correctMap(vector<LocalMapInfoPtr> newMapPositions) {
             } else {
                newEnd = maps[i+1].pose;
             }
-            repositionMap(i, newStart, newEnd, true);
+            Pose newEndNext;
+            if (i < newPose.size() - 2) {
+               if (newPos[i+2]) {
+                  newEndNext = newMapPositions[newMapPosIndex[i+2]]->pose;
+               } else {
+                  newEndNext = maps[i+2].pose;
+               }
+            } else {
+               newEndNext = newEnd;
+            }
+            repositionMap(i, newStart, newEnd, newEndNext, true);
             hasChanged[i] = true;
          }
       }
@@ -277,22 +287,28 @@ inline void GraphSlamDisplay::rotPoseToVector(Pose &pose, tf::Vector3 &vec) {
    vec[2] = r;
 }
 
-void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, bool warpMap) {
+void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, Pose newEndNext, bool warpMap) {
    tf::Matrix3x3 rotM;
    tf::Vector3 transM;
    tf::Vector3 gM;
 
-   tf::Vector3 newStartRot, newEndRot, oldStartRot, oldEndRot;
-   tf::Vector3 newStartPos, newEndPos, oldStartPos, oldEndPos;
+   tf::Vector3 newStartRot, newEndRot, newEndNextRot, oldStartRot, oldEndRot, oldEndNextRot;
+   tf::Vector3 newStartPos, newEndPos, newEndNextPos, oldStartPos, oldEndPos, newEndNextPos;
    rotPoseToVector(newStart, newStartRot);
    newStartPos = newStart.position.toTF();
    rotPoseToVector(newEnd, newEndRot);
    newEndPos = newEnd.position.toTF();
+   rotPoseToVector(newEndNext, newEndNextRot);
+   newEndNextPos =  newEndNext.position.toTF();
    rotPoseToVector(maps[index].pose, oldStartRot);
    oldStartPos = maps[index].pose.position.toTF();
    if (index + 1 < maps.size()) {
       rotPoseToVector(maps[index + 1].pose, oldEndRot);
       oldEndPos = maps[index + 1].pose.position.toTF();
+   }
+   if (index + 2 < maps.size()) {
+      rotPoseToVector(maps[index + 2].pose, oldEndNextRot);
+      oldEndNextPos = maps[index + 2].pose.position.toTF();
    }
    cout << "new start " << newStartRot[0] << " " << newStartRot[1] << " " << newStartRot[2] << endl;
    cout << "new end " << newEndRot[0] << " " << newEndRot[1] << " " << newEndRot[2] << endl;
@@ -327,14 +343,34 @@ void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, bool
          double l = u.length2();
          //fraction along the line
          double frac = a.dot(u) / l;
-         /*if (frac < 0.0) frac = 0.0;
-         if (frac > 1.0) frac = 1.0;*/
 
-         gM = oldStartPos + frac * u;
+         if (frac < 0.0) {
+            frac = 0.0;
+         } else if (frac > 1.0 && index + 2 >= maps.size()) {
+            frac = 1.0;
+         } 
+         
+         tf::Vector3 posNew;
+         tf::Vector3 rot;
+         if (frac > 1.0) {
+            a = point - oldEndPos;
+            u = oldEndNextPos - oldEndPos;
+            l = u.length2();
+            frac = a.dot(u) / l;
+            if (frac > 1.0) {
+               frac = 1.0;
+            }
+            gM = oldEndPos + frac * u;
+            posNew = newEndPos + frac * (newEndNextPos - newEndPos);
+            rot = newEndRot + frac * (newEndNextRot - newEndRot) - 
+                           (oldEndRot + frac * (oldEndNextRot - oldEndRot));
+         } else {
+            gM = oldStartPos + frac * u;
 
-         tf::Vector3 posNew = newStartPos + frac * (newEndPos - newStartPos);
-         tf::Vector3 rot = newStartRot + frac * (newEndRot - newStartRot) - 
-                           (oldStartRot + frac * (oldEndRot - oldStartRot));
+            posNew = newStartPos + frac * (newEndPos - newStartPos);
+            rot = newStartRot + frac * (newEndRot - newStartRot) - 
+                  (oldStartRot + frac * (oldEndRot - oldStartRot));
+         }
          transM = posNew - gM;
          //cout << rot[2] << " " << rot[1] << " " << rot[0] << endl;
          rotM.setRPY(rot[2], rot[1], rot[0]);
