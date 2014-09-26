@@ -422,7 +422,7 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
       if (isnan(cellVal) || isnan(cellNextVal)) {
          continue;
       }
-      if ((sign(cellVal) != sign(cellNextVal) || cellVal == 0) && localMapCells[bIndex].weight[i] > 15.9f) {
+      if ((sign(cellVal) != sign(cellNextVal) || cellVal == 0) && localMapCells[bIndex].weight[i] > 5.0f/*15.9f*/) {
          //There is a crossing!
          float3 p = getCellCentre(config, i, localMapCells[bIndex].blockIndex);
          float inc = fabs(cellVal / (cellNextVal - cellVal)) * config->CellSize;

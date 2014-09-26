@@ -39,7 +39,7 @@ void GraphSlamDisplay::stop() {
 void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
    points.timestamp = localMapPoints->timestamp;
    points.frameID = localMapPoints->cloud->frameID;
-
+   //viewerLock.lock();
    int startIndex = points.cloud.size();
    if (PublishPointCloud) {
       points.cloud.resize(startIndex + localMapPoints->cloud->cloud.size());
@@ -47,6 +47,8 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
    }
 
    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
+
+   cloud->resize(localMapPoints->cloud->cloud.size());
 
    tf::Transform mapPose = localMapPoints->pose.toTF();
 
@@ -65,11 +67,13 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
          p.y = point.y;
          p.z = point.z;
 
-         cloud->push_back(p);
+         //cloud->push_back(p);
+         (*cloud)[i] = p;
       }
    }
 
-   if (CreateMesh) {
+   if (CreateMesh && cloud->size() > 0) {
+      ros::WallTime t1 = ros::WallTime::now();
 
       //TODO: if store normals in existing code, consider passing these in the message to avoid having to calculate them
       //again (as well as more efficient, will also probably be more accurate)
@@ -135,6 +139,16 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       gp3.setSearchMethod (tree2);
       gp3.reconstruct (*triangles);
 
+      /*delete *normals;
+      delete *tree;
+      delete *cloud_with_normals;
+      delete *tree2;
+      delete *cloud;*/
+
+      if (localMapPoints->index != maps.size()) {
+         cout << "We have a problem. Missing a map" << endl;
+      }
+
       viewerLock.lock();
       LocalMap newMap;
       newMap.pose = localMapPoints->pose;
@@ -145,6 +159,10 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       currentMesh = triangles;
       currentMeshIndex = localMapPoints->index;
       viewerLock.unlock();
+      
+      ros::WallTime t2 = ros::WallTime::now();
+      ros::WallDuration totalTime = t2 - t1;
+      cout << "Time to create mesh: " << totalTime.toSec() * 1000.0f << endl;
 
       //testing
       /*if(maps.size() == 2) {
@@ -163,12 +181,19 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       //TODO: implement saving the entire mesh to file if selected by a parameter
       //Can view files made by the following command by using pcd_viewer
       //pcl::io::saveVTKFile ("/home/adrianrobolab/groovy_workspace/crosbot/src/crosbot_3d_graphslam_display/mesh.vtk", triangles);
+   } else if (CreateMesh) {
+      cout << "ERROR: Creating an empty mesh" << endl;
+      LocalMap newMap;
+      newMap.pose = localMapPoints->pose;
+      newMap.mesh = new pcl::PolygonMesh();
+      maps.push_back(newMap);
    }
 }
 
 void GraphSlamDisplay::correctMap(vector<LocalMapInfoPtr> newMapPositions) {
 
-   //cout << "Correcting map" << endl;
+   cout << "Correcting map" << endl;
+   //viewerLock.lock();
 
    int i;
    int maxI = -1;
@@ -241,7 +266,7 @@ void GraphSlamDisplay::correctMap(vector<LocalMapInfoPtr> newMapPositions) {
    viewerLock.lock();
    for(i = 0; i < hasChanged.size(); i++) {
       if (hasChanged[i]) {
-         cout << "Map: " << i << " has changed" << endl;
+         //cout << "Map: " << i << " has changed" << endl;
          if (newPos[i]) {
             maps[i].pose = newMapPositions[newMapPosIndex[i]]->pose;
          }
@@ -257,8 +282,8 @@ bool GraphSlamDisplay::hasPositionChanged(Pose oldPose, Pose newPose) {
    oldPose.getYPR(yo, po, ro);
    double yn, pn, rn;
    newPose.getYPR(yn, pn, rn);
-   double distThresh = 0.01;
-   double rotThresh = 0.01;
+   double distThresh = 0.03;
+   double rotThresh = 0.03;
 
    double yc = fabs(yn - yo);
    double pc = fabs(pn - po);
@@ -375,8 +400,15 @@ void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, Pose
             ANGNORM(rotDifOld[0]);
             ANGNORM(rotDifOld[1]);
             ANGNORM(rotDifOld[2]);
-            rot = newEndRot + frac * rotDifNew - 
-                           (oldEndRot + frac * rotDifOld);
+            rotDifNew = newEndRot + frac * rotDifNew;
+            //ANGNORM(rotDifNew[0]);
+            //ANGNORM(rotDifNew[1]);
+            //ANGNORM(rotDifNew[2]);
+            rotDifOld = oldEndRot + frac * rotDifOld;
+            //ANGNORM(rotDifOld[0]);
+            //ANGNORM(rotDifOld[1]);
+            //ANGNORM(rotDifOld[2]);
+            rot = rotDifNew - rotDifOld;
          } else {
             gM = oldStartPos + frac * u;
 
@@ -389,9 +421,15 @@ void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, Pose
             ANGNORM(rotDifOld[0]);
             ANGNORM(rotDifOld[1]);
             ANGNORM(rotDifOld[2]);
-
-            rot = newStartRot + frac * (newEndRot - newStartRot) - 
-                  (oldStartRot + frac * (oldEndRot - oldStartRot));
+            rotDifNew = newStartRot + frac * rotDifNew;
+            //ANGNORM(rotDifNew[0]);
+            //ANGNORM(rotDifNew[1]);
+            //ANGNORM(rotDifNew[2]);
+            rotDifOld = oldStartRot + frac * rotDifOld;
+            //ANGNORM(rotDifOld[0]);
+            //ANGNORM(rotDifOld[1]);
+            //ANGNORM(rotDifOld[2]);
+            rot = rotDifNew - rotDifOld;
          }
          transM = posNew - gM;
          rotM.setRPY(rot[2], rot[1], rot[0]);

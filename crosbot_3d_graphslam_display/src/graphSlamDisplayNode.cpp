@@ -26,11 +26,11 @@ void GraphSlamDisplayNode::initialise(ros::NodeHandle& nh) {
 
    graph_slam_display.initialise(nh);
 
-   localMapSub = nh.subscribe(local_map_sub, 10, &GraphSlamDisplayNode::callbackLocalMap, this);
-   optimiseMapSub = nh.subscribe(optimise_map_sub, 10, &GraphSlamDisplayNode::callbackOptimiseMap, this);
+   localMapSub = nh.subscribe(local_map_sub, 20, &GraphSlamDisplayNode::callbackLocalMap, this);
+   optimiseMapSub = nh.subscribe(optimise_map_sub, 20, &GraphSlamDisplayNode::callbackOptimiseMap, this);
 
    if (graph_slam_display.PublishPointCloud) {
-      pointCloudPub = nh.advertise<sensor_msgs::PointCloud>(point_cloud_pub, 10);
+      pointCloudPub = nh.advertise<sensor_msgs::PointCloud>(point_cloud_pub, 3);
    }
 }
 

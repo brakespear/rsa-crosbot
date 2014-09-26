@@ -15,17 +15,17 @@
 		<remap from="image" to="/camera/rgb/image_color" />
    </node-->
 	
-	<node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp" output="screen">
+	<node pkg="crosbot_ogmbicp_gpu" type="crosbot_ogmbicp_gpu" name="crosbot_ogmbicp_gpu" output="screen">
 		<!--param name="odom_frame" value="" /-->
 		<param name="base_frame" value="camera_stablized" />
       <param name="icp_frame" value="icp_test" />
       <param name="MinAddHeight" value="0.3" />
       <param name="FloorHeight" value="0.0" />
-      <param name="LaserSkip" value="2" />
+      <!--param name="LaserSkip" value="2" /-->
       <param name="CellSize" value="0.05" />
       <param name="LaserMinDist" value="0.1" />
       <param name="MaxAlignDistance" value="0.6" />
-      <param name="CellSearchDistance" value="5" />
+      <!--param name="CellSearchDistance" value="5" /-->
 	</node>
 
 	<node pkg="crosbot_graphslam" type="crosbot_graphslam" name="crosbot_graphslam">

@@ -27,7 +27,7 @@
 	</node>
 
 	<node pkg="crosbot_3d_graphslam_gpu" type="crosbot_3d_graphslam_gpu" name="crosbot_3d_graphslam_gpu">
-      <param name="CellSize" value="0.025" />
+      <param name="CellSize" value="0.05" />
 	</node>
 
    <node pkg="crosbot_3d_graphslam_display" type="crosbot_3d_graphslam_display" name="crosbot_3d_graphslam_display" output="screen" />

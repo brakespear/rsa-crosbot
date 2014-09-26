@@ -493,6 +493,9 @@ PointCloudPtr GraphSlam3DGPU::copyPoints(int numPoints, cl_mem &clPointCloud, cl
    size_t coloursSize = sizeof(unsigned char) * numPoints * 3;
    float *ps = (float *) malloc(pointsSize);
    unsigned char *cols = (unsigned char *) malloc(coloursSize);
+   if (ps == NULL || cols == NULL) {
+      cout << "ERROR: malloc call for extracting point failed" << endl << endl;
+   }
    readBuffer(clPointCloud, CL_TRUE, 0, 
          pointsSize, ps, 0, 0, 0, "Reading points");
    readBuffer(clColours, CL_TRUE, 0, 
