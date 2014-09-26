@@ -367,12 +367,29 @@ void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, Pose
             }
             gM = oldEndPos + frac * u;
             posNew = newEndPos + frac * (newEndNextPos - newEndPos);
-            rot = newEndRot + frac * (newEndNextRot - newEndRot) - 
-                           (oldEndRot + frac * (oldEndNextRot - oldEndRot));
+            tf::Vector3 rotDifNew = newEndNextRot - newEndRot;
+            ANGNORM(rotDifNew[0]);
+            ANGNORM(rotDifNew[1]);
+            ANGNORM(rotDifNew[2]);
+            tf::Vector3 rotDifOld = oldEndNextRot - oldEndRot;
+            ANGNORM(rotDifOld[0]);
+            ANGNORM(rotDifOld[1]);
+            ANGNORM(rotDifOld[2]);
+            rot = newEndRot + frac * rotDifNew - 
+                           (oldEndRot + frac * rotDifOld);
          } else {
             gM = oldStartPos + frac * u;
 
             posNew = newStartPos + frac * (newEndPos - newStartPos);
+            tf::Vector3 rotDifNew = newEndRot - newStartRot;
+            ANGNORM(rotDifNew[0]);
+            ANGNORM(rotDifNew[1]);
+            ANGNORM(rotDifNew[2]);
+            tf::Vector3 rotDifOld = oldEndRot - oldStartRot;
+            ANGNORM(rotDifOld[0]);
+            ANGNORM(rotDifOld[1]);
+            ANGNORM(rotDifOld[2]);
+
             rot = newStartRot + frac * (newEndRot - newStartRot) - 
                   (oldStartRot + frac * (oldEndRot - oldStartRot));
          }
