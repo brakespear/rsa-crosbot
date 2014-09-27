@@ -24,12 +24,20 @@ void PositionTrack3DNode::initialise(ros::NodeHandle& nh) {
    paramNH.param<std::string>("base_frame", base_frame, "/base_link");
    paramNH.param<std::string>("kinect_sub", kinect_sub, "/camera/depth_registered/points");
 
+   paramNH.param<std::string>("icp_frame_z", icp_frame_z, "/icp_z");
+   paramNH.param<std::string>("z_pub", z_pub, "z_values");
+
    paramNH.param<int>("SkipPoints", SkipPoints, 1);
+   paramNH.param<bool>("PublishTransform", PublishTransform, true);
+   paramNH.param<bool>("PublishMessage", PublishMessage, true);
 
    position_track_3d.initialise(nh);
    position_track_3d.start();
 
    kinectSub = nh.subscribe(kinect_sub, 1, &PositionTrack3DNode::callbackKinect, this);
+   if (PublishMessage) {
+      zPub = nh.advertiseService<geometry_msgs::Vector3>(z_pub, 1);
+   }
 
 }
 
@@ -61,10 +69,39 @@ void PositionTrack3DNode::callbackKinect(const sensor_msgs::PointCloud2ConstPtr&
 
    DepthPointsPtr depthPoints = new DepthPoints(ptCloud, SkipPoints, true);
    if (isInit) {
-   } else {
-      position_track_3d.processFrame(depthPoints, sensorPose, icpPose);
+      position_track_3d.initialiseFrame(depthPoints, sensorPose, icpPose);
       isInit = false;
+   } else {
+      Posse newIcpPose = position_track_3d.processFrame(depthPoints, sensorPose, icpPose);
+
+      if (PublishMessage) {
+         tf::Vector3 pose = icpPose.postion.toTF();
+         zPub.publish(pose);
+      }
+      if (PublishTransform) {
+         icpPose = newIcpPose.toTF() * icpPose.toTF().inverse();
+         geometry_msgs::TransformStamped icpTs = getTransform(icpPose, icp_frame, icp_frame_z,
+               ptCloud->header.stamp);
+         tfPub.sendTransform(icpTs);
+      }
    }
+}
+
+geometry_msgs::TransformStamped PositionTrack3DNode::getTransform(const Pose& pose, std::string childFrame, 
+                           std::string frameName, ros::Time stamp) {
+   geometry_msgs::TransformStamped ts;
+   ts.header.frame_id = frameName;
+   ts.header.stamp = stamp;
+   ts.child_frame_id = childFrame;
+   ts.transform.translation.x = pose.position.x;
+   ts.transform.translation.y = pose.position.y;
+   ts.transform.translation.z = pose.position.z;
+   ts.transform.rotation.x = pose.orientation.x;
+   ts.transform.rotation.y = pose.orientation.y;
+   ts.transform.rotation.z = pose.orientation.z;
+   ts.transform.rotation.w = pose.orientation.w;
+   return ts;
 
 }
+
 

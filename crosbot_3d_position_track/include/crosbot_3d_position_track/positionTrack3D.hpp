@@ -48,7 +48,7 @@ public:
    /*
     * Process a kinect frame
     */
-   void processFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose icpPose);
+   Pose processFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose icpPose);
 
 private:
    /*
@@ -63,6 +63,28 @@ private:
    double MapWidth;
    double MapHeight;
    double CellSize;
+   //Maximum number of ICP iterations
+   int MaxIterations;
+   //If move more than max move, a mistake has been made so don't move
+   double MaxMove;
+   //ICP stops when movement in in iteration is less than this threshold
+   double MoveThresh;
+   //Min number of pixels used in alignment
+   int MinCount;
+   //Number of times an alignment can fail before a scan is added anyway
+   int MaxFail;
+   //Number of scans to just add to the map before aligning
+   int BeginScans;
+   //The meaximum number of cells in the map to search in one direction
+   //before stopping
+   int MaxSearchCells;
+   //Initial height of robot
+   double InitZ
+
+   //derived configs
+   int NumCells;
+   int NumCellsWidth;
+   int NumCellsHeight;
 
    //GPU fields
    OpenCLManager *opencl_manager;
@@ -81,6 +103,15 @@ private:
     */
    //The number of depth points each frame
    int numDepthPoints;
+   int failCount;
+   int beginCount;
+
+   //Current height of the robot
+   double z;
+
+   int mapCentreX;
+   int mapCentreY;
+   int mapCentreZ;
 
    /*
     * GPU data structures
@@ -89,16 +120,28 @@ private:
    //depth points for a frame
    oclDepthPoints *points;
    cl_mem clPoints;
+   cl_mem clNormals;
    size_t pointsSize;
    //config attributes
    oclPositionTrackConfig positionTrackConfig;
    cl_mem clPositionTrackConfig;
+   //the local map
+   cl_mem clLocalMap;
+   //general information
+   cl_mem clCommon;
 
 
    /*
     * GPU structure methods
     */
    void initialiseDepthPoints();
+   void initialiseMap();
+
+   void transform3D(Pose sensorPose, Pose icpPose);
+   void calculateNormals();
+   bool alignZ(float *zChange);
+   void addScan(float zChange);
+   void clearCells(int newMapX, int newMapY, int newMapZ);
 
    /*
     * GPU helper methods
