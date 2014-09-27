@@ -29,6 +29,10 @@ public:
    double MapSize;
    //width and length of a 2D local map cell in metres
    double CellSize;
+   /*
+    * z value
+    */
+   double zOffset;
 protected:
    //height of a 3D map cell in metres
    double CellHeight;
@@ -142,10 +146,6 @@ protected:
     */
    bool discardScan;
 
-   /*
-    * z value
-    */
-   double zOffset;
 
    /*
     * Transforms the displacement to robot relative movement

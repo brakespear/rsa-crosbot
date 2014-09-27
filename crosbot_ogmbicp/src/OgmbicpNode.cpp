@@ -27,7 +27,7 @@ void OgmbicpNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("base_frame", base_frame, DEFAULT_BASEFRAME);
    paramNH.param<std::string>("odom_frame", odom_frame, DEFAULT_ODOMFRAME);
    paramNH.param<std::string>("scan_sub", scan_sub, "scan");
-   paramNH.patam<std::string>("z_sub", z_sub, "z_values");
+   paramNH.param<std::string>("z_sub", z_sub, "z_values");
    paramNH.param<std::string>("local_map_image_pub", local_map_image_pub, "localImage");
    paramNH.param<std::string>("local_map_pub", local_map_pub, "localGrid");
    paramNH.param<std::string>("recent_scans_srv", recent_scans_srv, "icpRecentScans");
@@ -159,7 +159,7 @@ void OgmbicpNode::callbackOrientation(const geometry_msgs::QuaternionStamped& qu
    pos_tracker.processImuOrientation(quat.quaternion);
 }
 
-void OgmbicpNode::callbackOrientation(const geometry_msgs::Vector3& vec) {
+void OgmbicpNode::callbackZ(const geometry_msgs::Vector3& vec) {
    pos_tracker.zOffset = vec.z;
 }
 

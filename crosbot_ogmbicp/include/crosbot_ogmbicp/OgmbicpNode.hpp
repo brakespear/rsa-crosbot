@@ -61,7 +61,7 @@ private:
     */
    ros::Subscriber scanSubscriber;
    ros::Subscriber orientationSubscriber;
-   ros::Subsrciber zSub;
+   ros::Subscriber zSub;
    tf::TransformListener tfListener;
    tf::TransformBroadcaster tfPub;
    ros::Publisher imagePub;
@@ -87,7 +87,7 @@ private:
     */
    //void callbackOrientation(const geometry_msgs::Quaternion& quat);
    void callbackOrientation(const geometry_msgs::QuaternionStamped& quat);
-   void calbackZ(const geometry_msgs::Vector3 vec);
+   void callbackZ(const geometry_msgs::Vector3& vec);
 
    /*
     * Gets a transform from a pose
