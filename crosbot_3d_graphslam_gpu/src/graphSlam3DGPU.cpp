@@ -63,7 +63,7 @@ void GraphSlam3DGPU::initialise(ros::NodeHandle &nh) {
    ros::NodeHandle paramNH("~");
    paramNH.param<int>("LocalSize", LocalSize, 256);
    paramNH.param<int>("NumBlocksAllocated", NumBlocksAllocated, 7000);
-   paramNH.param<int>("MaxNumActiveBlocks", MaxNumActiveBlocks, 1500);
+   paramNH.param<int>("MaxNumActiveBlocks", MaxNumActiveBlocks, 2500);
 
    //Params that can probably move to general code
    paramNH.param<double>("BlockSize", BlockSize, 0.2);

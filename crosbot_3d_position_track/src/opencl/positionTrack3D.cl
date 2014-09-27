@@ -139,7 +139,7 @@ __kernel void alignZ(global oclPositionTrackConfig *config, global oclDepthPoint
          }
          int cellI = getCellIndex(config, xyCell, zCell);
          float minDist = INFINITY;
-         if (map->count[cellI] > 0) {
+         if (map->count[cellI] >= config->MinObsCount) {
             float zCellVal = map->z[cellI] / (float)map->count[cellI];
             minDist = zCellVal - zVal;
             maxTravelNeg = 1;
@@ -149,7 +149,7 @@ __kernel void alignZ(global oclPositionTrackConfig *config, global oclDepthPoint
          for (travel = 1; travel <= maxTravelPos; travel++) {
             int z = (zCell + travel) % config->NumCellsHeight;
             int cell = getCellIndex(config, xyCell, z);
-            if (map->count[cell] > 0) {
+            if (map->count[cell] >= config->MinObsCount) {
                float zCellVal = map->z[cell] / (float)map->count[cell];
                if (zCellVal - zVal < fabs(minDist)) {
                   minDist = zCellVal - zVal;
@@ -164,7 +164,7 @@ __kernel void alignZ(global oclPositionTrackConfig *config, global oclDepthPoint
                z += config->NumCellsHeight;
             }
             int cell = getCellIndex(config, xyCell, z);
-            if (map->count[cell] > 0) {
+            if (map->count[cell] >= config->MinObsCount) {
                float zCellVal = map->z[cell] / (float) map->count[cell];
                if (zVal - zCellVal < fabs(minDist)) {
                   minDist = zCellVal - zVal;

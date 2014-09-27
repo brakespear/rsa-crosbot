@@ -80,6 +80,9 @@ private:
    int MaxSearchCells;
    //Initial height of robot
    double InitZ;
+   //Minimum number of observations of a cell required before being used
+   //in matching
+   int MinObsCount;
 
    //derived configs
    int NumCells;

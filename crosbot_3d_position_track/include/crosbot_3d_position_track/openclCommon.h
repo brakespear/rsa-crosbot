@@ -53,6 +53,7 @@ typedef struct {
    ocl_int NumCellsWidth;
    ocl_int NumCellsHeight;
    ocl_int MaxSearchCells;
+   ocl_int MinObsCount;
 } oclPositionTrackConfig;
 
 typedef struct {

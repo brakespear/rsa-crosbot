@@ -55,11 +55,12 @@ void PositionTrack3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("MaxIterations", MaxIterations, 10);
    paramNH.param<double>("MaxMove", MaxMove, 0.5);
    paramNH.param<double>("MoveThresh", MoveThresh, 0.01);
-   paramNH.param<int>("MinCount", MinCount, 100);
+   paramNH.param<int>("MinCount", MinCount, 1000);
    paramNH.param<int>("MaxFail", MaxFail, 100);
    paramNH.param<int>("BeginScans", BeginScans, 5);
    paramNH.param<int>("MaxSearchCells", MaxSearchCells, 5);
    paramNH.param<double>("InitZ", InitZ, 0.5);
+   paramNH.param<int>("MinObsCount", MinObsCount, 2);
 
    NumCellsWidth = (MapWidth+0.00001) / CellSize;
    NumCellsHeight = (MapHeight+0.00001) / CellSize;
@@ -97,6 +98,7 @@ void PositionTrack3D::initialiseFrame(DepthPointsPtr depthPoints, Pose sensorPos
    positionTrackConfig.NumCellsWidth = NumCellsWidth;
    positionTrackConfig.NumCellsHeight = NumCellsHeight;
    positionTrackConfig.MaxSearchCells = MaxSearchCells;
+   positionTrackConfig.MinObsCount = MinObsCount;
 
    clPositionTrackConfig = opencl_manager->deviceAlloc(sizeof(oclPositionTrackConfig),
          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &positionTrackConfig);
