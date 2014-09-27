@@ -79,7 +79,7 @@ private:
    //before stopping
    int MaxSearchCells;
    //Initial height of robot
-   double InitZ
+   double InitZ;
 
    //derived configs
    int NumCells;

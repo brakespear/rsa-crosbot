@@ -36,7 +36,7 @@ void PositionTrack3DNode::initialise(ros::NodeHandle& nh) {
 
    kinectSub = nh.subscribe(kinect_sub, 1, &PositionTrack3DNode::callbackKinect, this);
    if (PublishMessage) {
-      zPub = nh.advertiseService<geometry_msgs::Vector3>(z_pub, 1);
+      zPub = nh.advertise<geometry_msgs::Vector3>(z_pub, 1);
    }
 
 }
@@ -72,11 +72,13 @@ void PositionTrack3DNode::callbackKinect(const sensor_msgs::PointCloud2ConstPtr&
       position_track_3d.initialiseFrame(depthPoints, sensorPose, icpPose);
       isInit = false;
    } else {
-      Posse newIcpPose = position_track_3d.processFrame(depthPoints, sensorPose, icpPose);
+      Pose newIcpPose = position_track_3d.processFrame(depthPoints, sensorPose, icpPose);
 
       if (PublishMessage) {
-         tf::Vector3 pose = icpPose.postion.toTF();
-         zPub.publish(pose);
+         tf::Vector3 pose = icpPose.position.toTF();
+         geometry_msgs::Vector3 vecMsg;
+         tf::vector3TFToMsg(pose, vecMsg);
+         zPub.publish(vecMsg);
       }
       if (PublishTransform) {
          icpPose = newIcpPose.toTF() * icpPose.toTF().inverse();

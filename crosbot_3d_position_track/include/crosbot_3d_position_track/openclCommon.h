@@ -13,6 +13,7 @@
 #ifdef CL_RUNTIME
 typedef float2 ocl_float2;
 typedef int2 ocl_int2;
+typedef int3 ocl_int3;
 typedef float3 ocl_float3;
 typedef float4 ocl_float4;
 typedef float ocl_float;
@@ -21,6 +22,7 @@ typedef short ocl_short;
 #else
 typedef cl_float2 ocl_float2;
 typedef cl_int2 ocl_int2;
+typedef cl_int3 ocl_int3;
 typedef cl_float3 ocl_float3;
 typedef cl_float4 ocl_float4;
 typedef cl_float ocl_float;
@@ -59,15 +61,15 @@ typedef struct {
    ocl_float normX[NUM_CELLS];
    ocl_float normY[NUM_CELLS];
    ocl_float normZ[NUM_CELLS];
-   ocl_short count[NUM_CELLS];
+   ocl_int count[NUM_CELLS];
    ocl_int cellXY[NUM_DEPTH_POINTS];
 #else
    ocl_float *z;
    ocl_float *normX;
    ocl_float *normY;
    ocl_float *normZ;
-   ocl_short *count;
-   ocl_int cellXY[NUM_DEPTH_POINTS];
+   ocl_int *count;
+   ocl_int *cellXY;
 #endif
 } oclLocalMap;
 

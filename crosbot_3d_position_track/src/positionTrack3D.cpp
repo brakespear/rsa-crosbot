@@ -49,8 +49,8 @@ void PositionTrack3D::initialise(ros::NodeHandle &nh) {
    ros::NodeHandle paramNH("~");
 
    paramNH.param<int>("LocalSize", LocalSize, 256);
-   paramNH.param<double>("MapWidth", MapWidth, 8.0);
-   paramNH.param<double>("MapHeight", MapWidth, 4.0);
+   paramNH.param<double>("MapWidth", MapWidth, 10.0);
+   paramNH.param<double>("MapHeight", MapHeight, 4.0);
    paramNH.param<double>("CellSize", CellSize, 0.05);
    paramNH.param<int>("MaxIterations", MaxIterations, 10);
    paramNH.param<double>("MaxMove", MaxMove, 0.5);
@@ -61,15 +61,16 @@ void PositionTrack3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("MaxSearchCells", MaxSearchCells, 5);
    paramNH.param<double>("InitZ", InitZ, 0.5);
 
-   NumCellsWidth = MapWidth / CellSize;
-   NumCellsHeight = MapHeight / CellSize;
+   NumCellsWidth = (MapWidth+0.00001) / CellSize;
+   NumCellsHeight = (MapHeight+0.00001) / CellSize;
    NumCells = NumCellsWidth * NumCellsWidth * NumCellsHeight;
    beginCount = BeginScans;
 
    z = InitZ;
    mapCentreX = 0;
    mapCentreY = 0;
-   mapCentreZ = InitZ / CelSize;
+   mapCentreZ = (InitZ+0.000001) / CellSize;
+   cout << mapCentreZ << endl;
 
 }
 
@@ -90,12 +91,12 @@ void PositionTrack3D::initialiseFrame(DepthPointsPtr depthPoints, Pose sensorPos
    //Set config options
    positionTrackConfig.ScanWidth = depthPoints->width;
    positionTrackConfig.ScanHeight = depthPoints->height;
-   positionTrackCOnfig.MapWidth = MapWidth;
+   positionTrackConfig.MapWidth = MapWidth;
    positionTrackConfig.MapHeight = MapHeight;
    positionTrackConfig.CellSize = CellSize;
    positionTrackConfig.NumCellsWidth = NumCellsWidth;
    positionTrackConfig.NumCellsHeight = NumCellsHeight;
-   positionTrackCOnfig.MaxSearchCells = MaxSearchCells;
+   positionTrackConfig.MaxSearchCells = MaxSearchCells;
 
    clPositionTrackConfig = opencl_manager->deviceAlloc(sizeof(oclPositionTrackConfig),
          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &positionTrackConfig);
@@ -128,8 +129,8 @@ void PositionTrack3D::initialiseDepthPoints() {
 }
 
 void PositionTrack3D::initialiseMap() {
-   size_t sizeLocalMap = (sizeof(ocl_float * 4) + sizeof(ocl_short)) * NumCells +
-      sizeof(ocl_int) * ;
+   size_t sizeLocalMap = (sizeof(ocl_float) * 4 + sizeof(ocl_int)) * NumCells +
+      sizeof(ocl_int) * numDepthPoints;
    clLocalMap = opencl_manager->deviceAlloc(sizeLocalMap, CL_MEM_READ_WRITE, NULL);
    
    size_t sizeCommon = sizeof(ocl_int) + sizeof(ocl_float);
@@ -141,6 +142,9 @@ void PositionTrack3D::initialiseMap() {
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clCommon);
    int globalSize = LocalSize * 40;
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+   if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) {
+      cout << "Error initialising" << endl;
+   }
 }
 
 Pose PositionTrack3D::processFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose icpPose) {
@@ -153,22 +157,42 @@ Pose PositionTrack3D::processFrame(DepthPointsPtr depthPoints, Pose sensorPose, 
       points->pointZ[i] = depthPoints->cloud[i].z;
    }
 
+   //ros::WallTime t1 = ros::WallTime::now();
+
    writeBuffer(clPoints, CL_TRUE, 0, pointsSize, points->pointX, 0, 0, 0,
          "Copying depth points to GPU");
 
    transform3D(sensorPose, icpPose);
    calculateNormals();
+   if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) {
+      cout << "Error normals" << endl;
+   }
+   //ros::WallTime t2 = ros::WallTime::now();
+   //ros::WallDuration totalTime = t2 - t1;
+   //cout << "Time to transform and normalise: " << totalTime.toSec() * 1000.0f << endl;
    bool success = true;
    float zChange = 0;
    
-   if (beginCount >= 0) {
+   if (beginCount < 0) {
+      //t1 = ros::WallTime::now();
       bool success = alignZ(&zChange);
+      //t2 = ros::WallTime::now();
+      //totalTime = t2 - t1;
+      //cout << "Time to align: " << totalTime.toSec() * 1000.0f << endl;
    } else {
       beginCount--;
    }
+   if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) {
+      cout << "alignZ" << endl;
+   }
 
    if (success) {
+      //t1 = ros::WallTime::now();
       addScan(zChange);
+      bool success = alignZ(&zChange);
+      //t2 = ros::WallTime::now();
+      //totalTime = t2 - t1;
+      //cout << "Time to add scan: " << totalTime.toSec() * 1000.0f << endl;
       failCount = 0;
    } else {
       failCount++;
@@ -178,13 +202,27 @@ Pose PositionTrack3D::processFrame(DepthPointsPtr depthPoints, Pose sensorPose, 
          cout << "Many scans failed. Adding anyway" << endl;
       }
    }
+   if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) {
+      cout << "Error addScan" << endl;
+   }
 
-   icpPose.position.z += zChange;
+   z += zChange;
+   icpPose.position.z = z;
    int newMapCentreX = icpPose.position.x / CellSize;
    int newMapCentreY = icpPose.position.y / CellSize;
    int newMapCentreZ = icpPose.position.z / CellSize;
 
+   cout << zChange << " " << icpPose.position.z << endl;
+
+   //t1 = ros::WallTime::now();
    clearCells(newMapCentreX, newMapCentreY, newMapCentreZ);
+   if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) {
+      cout << "Error clear cells" << endl;
+   }
+   //t2 = ros::WallTime::now();
+   //totalTime = t2 - t1;
+   //cout << "Time to clear cells: " << totalTime.toSec() * 1000.0f << endl;
+
 
    mapCentreX = newMapCentreX;
    mapCentreY = newMapCentreY;
@@ -216,7 +254,7 @@ void PositionTrack3D::transform3D(Pose sensorPose, Pose icpPose) {
    opencl_task->setArg(4, kernelI, sizeof(ocl_float3), &clBasis[1]);
    opencl_task->setArg(5, kernelI, sizeof(ocl_float3), &clBasis[2]);
 
-   opencl_task->queueKernel(kernelI, globalSize, LocalSize, 0, NULL, NULL, false);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 }
 
 void PositionTrack3D::calculateNormals() {
@@ -229,10 +267,10 @@ void PositionTrack3D::calculateNormals() {
    opencl_task->setArg(4, kernelI, sizeof(int), &numDepthPoints);
    ocl_int2 mapCent;
    mapCent.x = mapCentreX;
-   mapCent.y = mapCentreY
+   mapCent.y = mapCentreY;
    opencl_task->setArg(5, kernelI, sizeof(ocl_int2), &mapCent);
 
-   opencl_task->queueKernel(kernelI, globalSize, LocalSize, 0, NULL, NULL, false);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 }
 
 bool PositionTrack3D::alignZ(float *zChange) {
@@ -260,12 +298,13 @@ bool PositionTrack3D::alignZ(float *zChange) {
             "Copying Zeroing of oclCommon struct");
 
       opencl_task->setArg(7, kernelI, sizeof(ocl_float), &zInc);
-      opencl_task->queueKernel(kernelI, globalSize, LocalSize, 0, NULL, NULL, false);
+      opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 
       readBuffer(clCommon, CL_TRUE, 0, sizeof(oclCommon), &commonInfo, 0, 0, 0,
             "Reading common info after alignment");
-
       double zAl = commonInfo.distance / (float) commonInfo.numMatch;
+      //cout << "Finished iteration " << commonInfo.numMatch << " " << commonInfo.distance 
+      //   << " " << zAl << endl;
       if (commonInfo.numMatch < MinCount) {
          zInc = 0;
          success = false;
@@ -276,12 +315,13 @@ bool PositionTrack3D::alignZ(float *zChange) {
          break;
       }
    }
-   if (success && zInc < MaxMove) {
+   if (success && fabs(zInc) < MaxMove) {
       *zChange = zInc;
    } else {
       success = false;
       *zChange = 0;
    }
+   //cout << "Finished alignment" << endl;
 }
 
 void PositionTrack3D::addScan(float zChange) {
@@ -295,7 +335,7 @@ void PositionTrack3D::addScan(float zChange) {
    opencl_task->setArg(5, kernelI, sizeof(ocl_float), &zChange);
    opencl_task->setArg(6, kernelI, sizeof(ocl_int), &mapCentreZ);
 
-   opencl_task->queueKernel(kernelI, globalSize, LocalSize, 0, NULL, NULL, false);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 }
 
 void PositionTrack3D::clearCells(int newMapX, int newMapY, int newMapZ) {
@@ -304,22 +344,22 @@ void PositionTrack3D::clearCells(int newMapX, int newMapY, int newMapZ) {
    newInd.x = newMapX;
    newInd.y = newMapY;
    newInd.z = newMapZ;
-   oldInd.x = MapCentreX;
-   oldInd.y = MapCentreY;
-   oldInd.z = MapCentreZ;
+   oldInd.x = mapCentreX;
+   oldInd.y = mapCentreY;
+   oldInd.z = mapCentreZ;
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMap);
    opencl_task->setArg(2, kernelI, sizeof(ocl_int3), &oldInd);
    opencl_task->setArg(3, kernelI, sizeof(ocl_int3), &newInd);
 
    int dimXY = NumCellsWidth * NumCellsHeight;
-   int dimZ = NumCellsWidth * NumCellWidth;
+   int dimZ = NumCellsWidth * NumCellsWidth;
    int dim = dimXY;
    if (dimZ > dim) {
       dim = dimZ;
    }
    int globalSize = getGlobalWorkSize(dim);
-   opencl_task->queueKernel(kernelI, globalSize, LocalSize, 0, NULL, NULL, false);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 
 }
 

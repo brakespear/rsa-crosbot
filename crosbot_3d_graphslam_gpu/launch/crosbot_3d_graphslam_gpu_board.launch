@@ -28,6 +28,12 @@
       <!--param name="CellSearchDistance" value="5" /-->
 	</node>
 
+	<node pkg="crosbot_3d_position_track" type="crosbot_3d_position_track" name="crosbot_3d_position_track" output="screen">
+      <param name="icp_frame" value="icp_test" />
+      <param name="base_frame" value="camera_stablized" />
+      <param name="PublishTransform" value="false" />
+	</node>
+
 	<node pkg="crosbot_graphslam" type="crosbot_graphslam" name="crosbot_graphslam">
 		<param name="base_frame" value="camera_stablized" />
       <param name="icp_frame" value="icp_test" />

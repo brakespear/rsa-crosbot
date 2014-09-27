@@ -12,8 +12,6 @@ __kernel void initialiseMap(global oclPositionTrackConfig *config, global oclLoc
    int globalSize = get_global_size(0);
 
    for(int i = index; i < NUM_CELLS; i+= globalSize) {
-      map->x[i] = 0;
-      map->y[i] = 0;
       map->z[i] = 0;
       map->normX[i] = 0;
       map->normY[i] = 0;
@@ -28,7 +26,9 @@ __kernel void initialiseMap(global oclPositionTrackConfig *config, global oclLoc
 }
 
 int calculateCellXY(global oclPositionTrackConfig *config, float2 point, int2 cent) {
-   int2 pointInd = (int2)(point / config->CellSize);
+   int2 pointInd;
+   pointInd.x = point.x / config->CellSize;
+   pointInd.y = point.y / config->CellSize;
    pointInd -= cent;
 
    if (abs(pointInd.x) < config->NumCellsWidth / 2 - 1 
@@ -38,14 +38,14 @@ int calculateCellXY(global oclPositionTrackConfig *config, float2 point, int2 ce
       if (pointInd.x < 0) {
          pointInd.x += config->NumCellsWidth;
       } else if (pointInd.x >= config->NumCellsWidth) {
-         pointInd.x -= config->numCellsWidth;
+         pointInd.x -= config->NumCellsWidth;
       }
       if (pointInd.y < 0) {
          pointInd.y += config->NumCellsWidth;
       } else if (pointInd.y >= config->NumCellsWidth) {
-         pointInd.y -= config->numCellsWidth;
+         pointInd.y -= config->NumCellsWidth;
       }
-      return y * config->NumCellsWidth + x;
+      return pointInd.y * config->NumCellsWidth + pointInd.x;
 
    } else {
       return -1;
@@ -57,7 +57,7 @@ int calculateCellZ(global oclPositionTrackConfig *config, float point, int cent,
    pointInd -= cent;
    *diffInd = pointInd;
 
-   if (abs(pointInd) < config->NumCellsHeight - 1) {
+   if (abs(pointInd) < config->NumCellsHeight / 2 - 1) {
       cent = cent % config->NumCellsHeight;
       pointInd += cent;
       if (pointInd < 0) {
@@ -92,7 +92,7 @@ __kernel void transform3D(global oclDepthPoints *points, const int numPoints, fl
       temp = point * rotation1;
       points->pointY[index] = temp.x + temp.y + temp.z + origin.y;
       temp = point * rotation2;
-      points->pointz[index] = temp.x + temp.y + temp.z + origin.z;
+      points->pointZ[index] = temp.x + temp.y + temp.z + origin.z;
 
    }
 }
@@ -103,7 +103,7 @@ __kernel void calculateNormals(global oclPositionTrackConfig *config, global ocl
 
    if (index < numPoints && !isnan(points->pointX[index])) {
 
-      float2 p = (float2)(points->pointX[index], points->pointY[index])
+      float2 p = (float2)(points->pointX[index], points->pointY[index]);
       map->cellXY[index] = calculateCellXY(config, p, cent);
    } else if (index < numPoints) {
       map->cellXY[index] = -1;
@@ -122,6 +122,8 @@ __kernel void alignZ(global oclPositionTrackConfig *config, global oclDepthPoint
 
    count[lIndex] = 0;
 
+   distance[lIndex] = 0;
+
    if (index < numPoints && !isnan(points->pointX[index])) {
       int diffZ;
       float zVal = points->pointZ[index] + zInc;
@@ -137,7 +139,7 @@ __kernel void alignZ(global oclPositionTrackConfig *config, global oclDepthPoint
          }
          int cellI = getCellIndex(config, xyCell, zCell);
          float minDist = INFINITY;
-         if (maps->count[cellI] > 0) {
+         if (map->count[cellI] > 0) {
             float zCellVal = map->z[cellI] / (float)map->count[cellI];
             minDist = zCellVal - zVal;
             maxTravelNeg = 1;
@@ -164,14 +166,16 @@ __kernel void alignZ(global oclPositionTrackConfig *config, global oclDepthPoint
             int cell = getCellIndex(config, xyCell, z);
             if (map->count[cell] > 0) {
                float zCellVal = map->z[cell] / (float) map->count[cell];
-               if (zCellVal - zVal < fabs(minDist)) {
+               if (zVal - zCellVal < fabs(minDist)) {
                   minDist = zCellVal - zVal;
                }
             }
+            break;
          }
          if (minDist < INFINITY) {
             count[lIndex] = 1;
             distance[lIndex] = minDist;
+            //atomic_inc(&(common->numMatch));
          }
       }
    }
@@ -184,35 +188,35 @@ __kernel void alignZ(global oclPositionTrackConfig *config, global oclDepthPoint
    barrier(CLK_LOCAL_MEM_FENCE);
    if (lIndex < 64) {
       count[lIndex] += count[lIndex + 64];
-      distance[lIndex] += count[lIndex + 64];
+      distance[lIndex] += distance[lIndex + 64];
    }
    barrier(CLK_LOCAL_MEM_FENCE);
    if (lIndex < 32) {
       count[lIndex] += count[lIndex + 32];
-      distance[lIndex] += count[lIndex + 32];
+      distance[lIndex] += distance[lIndex + 32];
    }
    barrier(CLK_LOCAL_MEM_FENCE);
    if (lIndex < 16) {
       count[lIndex] += count[lIndex + 16];
-      distance[lIndex] += count[lIndex + 16];
+      distance[lIndex] += distance[lIndex + 16];
    }
    if (lIndex < 8) {
       count[lIndex] += count[lIndex + 8];
-      distance[lIndex] += count[lIndex + 8];
+      distance[lIndex] += distance[lIndex + 8];
    }
    if (lIndex < 4) {
       count[lIndex] += count[lIndex + 4];
-      distance[lIndex] += count[lIndex + 4];
+      distance[lIndex] += distance[lIndex + 4];
    }
    if (lIndex < 2) {
       count[lIndex] += count[lIndex + 2];
-      distance[lIndex] += count[lIndex + 2];
+      distance[lIndex] += distance[lIndex + 2];
    }
    if (lIndex == 0) {
       count[lIndex] += count[lIndex + 1];
-      distance[lIndex] += count[lIndex + 1];
-      atomic_add(&(common->numMatch), count);
-      atomicFloatAdd(&(common->distance), distance);
+      distance[lIndex] += distance[lIndex + 1];
+      atomic_add(&(common->numMatch), count[0]);
+      atomicFloatAdd(&(common->distance), distance[0]);
    }
 }
 
@@ -222,6 +226,7 @@ __kernel void addScan(global oclPositionTrackConfig *config, global oclDepthPoin
    int index = get_global_id(0);
 
    if (index < numPoints && !isnan(points->pointX[index])) {
+      int diffZ;
       int zCell = calculateCellZ(config, points->pointZ[index] + zChange, zCent, &diffZ);
       int xyCell = map->cellXY[index];
       if (zCell >= 0 && xyCell >= 0) {
@@ -230,7 +235,7 @@ __kernel void addScan(global oclPositionTrackConfig *config, global oclDepthPoin
          //Todo: should this be the average? (would have to watch out for speed slowdown)
          
          //if (retVal == 0) {
-            atomicFloatAdd(&(map->z[cellI]));
+            atomicFloatAdd(&(map->z[cellI]), points->pointZ[index] + zChange);
          //}
       }
    }
@@ -254,9 +259,9 @@ __kernel void clearCells(global oclPositionTrackConfig *config, global oclLocalM
          start = oldPos.x + config->NumCellsWidth + 1;
       }
       int z = index / config->NumCellsWidth;
-      int x = index % config->NumCellsWidth;
+      int y = index % config->NumCellsWidth;
       int cellI = z * config->NumCellsWidth * config->NumCellsWidth + y * config->NumCellsWidth;
-      for (int = 0; i < diff; i++, start += increment) {
+      for (int i = 0; i < diff; i++, start += increment) {
          if (start >= config->NumCellsWidth) {
             start -= config->NumCellsWidth;
          } else if (start < 0) {
@@ -299,7 +304,7 @@ __kernel void clearCells(global oclPositionTrackConfig *config, global oclLocalM
          map->normZ[c] = 0;
       }
    }
-   if (index < config->NumCellsWidth * config->NumCellWidth) {
+   if (index < config->NumCellsWidth * config->NumCellsWidth) {
       int diff = newPos.z - oldPos.z;
       int increment = 0;
       int start = 0;
@@ -307,7 +312,7 @@ __kernel void clearCells(global oclPositionTrackConfig *config, global oclLocalM
          increment = -1;
          start = oldPos.z - config->NumCellsHeight;
          diff *= -1;
-      } else if (dif > 0) {
+      } else if (diff > 0) {
          increment = 1;
          start = oldPos.z + config->NumCellsHeight + 1;
       }
@@ -316,7 +321,7 @@ __kernel void clearCells(global oclPositionTrackConfig *config, global oclLocalM
       int cellI = y * config->NumCellsWidth + x;
       for (int i = 0; i < diff; i++, start += increment) {
          if (start >= config->NumCellsHeight) {
-            start -= config-NumCellsHeight;
+            start -= config->NumCellsHeight;
          } else if (start < 0) {
             start += config->NumCellsHeight;
          }
