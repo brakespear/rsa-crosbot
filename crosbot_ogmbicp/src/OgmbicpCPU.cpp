@@ -48,7 +48,7 @@ void OgmbicpCPU::stop() {
 }
 
 void OgmbicpCPU::initialiseTrack(Pose sensorPose, PointCloudPtr cloud) {
-   curPose.position.z = InitHeight;
+   curPose.position.z = zOffset;
    px = py = pz = pth = 0;
 }
 
@@ -149,6 +149,9 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
       }
    }
    failCount = 0;
+   if (!alignedScan && iterCount < MaxIterations) {
+      gx = gy = gth = gz = 0;
+   }
 
    transformToRobot(gx, gy, gz, gth);
    ANGNORM(gth);
@@ -169,7 +172,7 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
 
    curPose.position.x += gx;
    curPose.position.y += gy;
-   curPose.position.z = InitHeight + gz;
+   curPose.position.z = zOffset + gz;
 
    double roll, pitch, yaw;
    curPose.getYPR(yaw, pitch, roll);

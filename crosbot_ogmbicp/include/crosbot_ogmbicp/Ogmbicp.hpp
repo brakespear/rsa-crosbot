@@ -143,6 +143,11 @@ protected:
    bool discardScan;
 
    /*
+    * z value
+    */
+   double zOffset;
+
+   /*
     * Transforms the displacement to robot relative movement
     */
    void transformToRobot(double &dx, double &dy, double &dz, double &dth);
