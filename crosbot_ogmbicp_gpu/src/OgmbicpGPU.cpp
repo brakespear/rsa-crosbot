@@ -127,7 +127,7 @@ void OgmbicpGPU::stop() {
 }
 
 void OgmbicpGPU::initialiseTrack(Pose sensorPose, PointCloudPtr cloud) {
-   curPose.position.z = InitHeight;
+   curPose.position.z = zOffset;
 
    cout << "Starting compile" << endl;
 
@@ -390,7 +390,7 @@ void OgmbicpGPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
 
    curPose.position.x += gx; 
    curPose.position.y += gy;
-   curPose.position.z = InitHeight + gz;
+   curPose.position.z = zOffset + gz;
    
    double roll, pitch, yaw;
    curPose.getYPR(yaw, pitch, roll);

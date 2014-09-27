@@ -61,6 +61,8 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<bool>("DiscardScansOrientation", DiscardScansOrientation, true);
    paramNH.param<double>("DiscardThreshold", DiscardThreshold, 0.6);
 
+   zOffset = InitHeight;
+
 }
 
 typedef enum RotationOrder {

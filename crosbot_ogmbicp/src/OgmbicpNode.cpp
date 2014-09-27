@@ -27,10 +27,12 @@ void OgmbicpNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("base_frame", base_frame, DEFAULT_BASEFRAME);
    paramNH.param<std::string>("odom_frame", odom_frame, DEFAULT_ODOMFRAME);
    paramNH.param<std::string>("scan_sub", scan_sub, "scan");
+   paramNH.patam<std::string>("z_sub", z_sub, "z_values");
    paramNH.param<std::string>("local_map_image_pub", local_map_image_pub, "localImage");
    paramNH.param<std::string>("local_map_pub", local_map_pub, "localGrid");
    paramNH.param<std::string>("recent_scans_srv", recent_scans_srv, "icpRecentScans");
    paramNH.param<std::string>("orientation_sub", orientation_sub, "orientation");
+   paramNH.param<bool>("UseExternalZ", UseExternalZ, false);
 
    pos_tracker.initialise(nh);
    pos_tracker.start();
@@ -40,7 +42,9 @@ void OgmbicpNode::initialise(ros::NodeHandle &nh) {
    imagePub = nh.advertise<sensor_msgs::Image>(local_map_image_pub, 1);
    localMapPub = nh.advertise<nav_msgs::OccupancyGrid>(local_map_pub, 1);
    recentScansServer = nh.advertiseService(recent_scans_srv, &OgmbicpNode::getRecentScans, this);
-
+   if (UseExternalZ) {
+      zSub = nh.subscribe(z_sub, 1, &OgmbicpNode::callbackZ, this);
+   }
 }
 
 void OgmbicpNode::shutdown() {
@@ -153,6 +157,10 @@ void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan)
 
 void OgmbicpNode::callbackOrientation(const geometry_msgs::QuaternionStamped& quat) {
    pos_tracker.processImuOrientation(quat.quaternion);
+}
+
+void OgmbicpNode::callbackOrientation(const geometry_msgs::Vector3& vec) {
+   pos_tracker.zOffset = vec.z;
 }
 
 geometry_msgs::TransformStamped OgmbicpNode::getTransform(const Pose& pose, std::string childFrame, 
