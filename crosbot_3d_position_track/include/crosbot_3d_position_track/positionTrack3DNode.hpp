@@ -12,6 +12,8 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/Vector3.h>
 
 #include <crosbot/data.hpp>
 #include <crosbot/utils.hpp>
@@ -40,20 +42,27 @@ private:
    /*
     * ROS config params
     */
-   string icp_frame, base_frame;
+   string icp_frame, base_frame, icp_frame_z;
    string kinect_sub;
+   string z_pub;
 
    /*
     * Other config params
     */
    //Number of kinect points to skip
    int SkipPoints;
+   //Should the result be published as a transform on top of icp_frame
+   //or as a message? (or both)
+   bool PublishTransform;
+   bool PublishMessage;
 
    /*
     * ROS connections
     */
    ros::Subscriber kinectSub;
+   ros::Publisher zPub;
    tf::TransformListener tfListener;
+   tf::TransformBroadcaster tfPub;
 
 
    PositionTrack3D& position_track_3d;
@@ -64,6 +73,10 @@ private:
     * Callback for receiving a new frame from a 3d camera
     */
    void callbackKinect(const sensor_msgs::PointCloud2ConstPtr& ptCloud);
+
+   //Gets the transform message of a pose
+   geometry_msgs::TransformStamped getTransform(const Pose& pose, 
+         std::string childFrame, std::string frameName, ros::Time stamp);
 
 };
 
