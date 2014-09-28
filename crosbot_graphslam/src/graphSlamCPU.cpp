@@ -652,7 +652,15 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
                changes.push_back(new LocalMapInfo(localMaps[k].globalPose, k));
             }
          }
-         graphSlamNode->publishOptimiseLocalMapInfo(changes);
+         vector<int> iNodes;
+         vector<int jNodes;
+         iNodes.resize(common->numLoopConstraints);
+         jNodes.resize(common->numLoopConstraints);
+         for (int k = 0; k < common->numLoopConstraints; k++) {
+            iNodes[k] = common->loopConstraintI[k];
+            jNodes[k] = common->LoopConstraintJ[k];
+         }
+         graphSlamNode->publishOptimiseLocalMapInfo(changes, iNodes, jNodes, loopClosed);
 
          t1 = ros::WallTime::now();
          updateGlobalMap();

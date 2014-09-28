@@ -22,7 +22,7 @@ __kernel void clearLocalMap(constant oclGraphSlam3DConfig *config,
       localMapCells[blockIndex].r[cellIndex] = 0;
       localMapCells[blockIndex].g[cellIndex] = 0;
       localMapCells[blockIndex].b[cellIndex] = 0;
-      localMapCells[blockIndex].pI[cellIndex] = 255;
+      localMapCells[blockIndex].pI[cellIndex] = -1;
    }
 
    if (index == 0) {
@@ -144,6 +144,15 @@ float3 getCellCentre(constant oclGraphSlam3DConfig *config, int cIndex, int bInd
    p.y += y * config->CellSize + (config->CellSize / 2.0f);
    p.z += z * config->CellSize + (config->CellSize / 2.0f);
    return p;
+}
+
+int getCellIndex(constant oclGraphSlam3DConfig *config, float3 point, int bIndex) {
+   float3 b = getBlockPosition(config, bIndex);
+   float3 diff = point - b;
+   int x = diff.x / config->CellSize;
+   int y = diff.y / config->CellSize;
+   int z = diff.z / config->CellSize;
+   return z * config->NumCellsWidth * config->NumCellsWidth + y * NumCellsWidth + x;
 }
 
 void markBlockActive(constant oclGraphSlam3DConfig *config, global int *blocks,
@@ -400,7 +409,7 @@ __kernel void addFrame(constant oclGraphSlam3DConfig *config, global int *blocks
 
 void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock *localMapCells,
       local float *x, local float *y, local float *z, local unsigned char *r, 
-      local unsigned char *g, local unsigned char *b,
+      local unsigned char *g, local unsigned char *b, local short *fullIndex,
       local int *blockCount, int bIndex, int bLocalIndex, int blockOffset,
       int startI, int increment, int bNextIndex, float incXV, float incYV, float incZV) {
 
@@ -433,9 +442,9 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
          float incX = inc * incXV;
          float incY = inc * incYV;
          float incZ = inc * incZV;
-         if ((inc < config->CellSize/2.0f && localMapCells[bIndex].pI[i] < 255) ||
+         if ((inc < config->CellSize/2.0f && localMapCells[bIndex].pI[i] >= 0) ||
                (inc >= config->CellSize/2.0f && count + 1 < config->NumCellsWidth && 
-                localMapCells[bIndex].pI[nextI] < 255)) {
+                localMapCells[bIndex].pI[nextI] >= 0)) {
             //Merge with existing
             int retI, colI;
             if (inc < config->CellSize/2.0f) {
@@ -468,11 +477,13 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
                g[blockOffset + retI] = localMapCells[bIndex].g[i];
                b[blockOffset + retI] = localMapCells[bIndex].b[i];
                localMapCells[bIndex].pI[i] = (unsigned char)retI;
+               fullIndex[blockOffset + retI] = i;
             } else if (count + 1 < config->NumCellsWidth) {
                r[blockOffset + retI] = localMapCells[bIndex].r[nextI];
                g[blockOffset + retI] = localMapCells[bIndex].g[nextI];
                b[blockOffset + retI] = localMapCells[bIndex].b[nextI];
                localMapCells[bIndex].pI[nextI] = (unsigned char)retI;
+               fullIndex[blockOffset + retI] = i;
             } else {
                r[blockOffset + retI] = localMapCells[bNextIndex].r[startI];
                g[blockOffset + retI] = localMapCells[bNextIndex].g[startI];
@@ -498,6 +509,7 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
    local unsigned char r[MAX_POINTS_GROUP];
    local unsigned char g[MAX_POINTS_GROUP];
    local unsigned char b[MAX_POINTS_GROUP];
+   local short fullIndex[MAX_POINTS_GROUP];
    local int blockCount[BLOCKS_PER_GROUP];
    local int blockOffsetComp[BLOCKS_PER_GROUP];
    local int startGIndex;
@@ -520,6 +532,9 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
          blockCount[bLocalIndex] = 0;
       }
    }
+   for (int i = lIndex; i < MAX_POINTS_GROUP; i++) {
+      fullIndex[i] = -1;
+   }
    barrier(CLK_LOCAL_MEM_FENCE);
 
    int startI, bNextIndex, increment;
@@ -534,7 +549,7 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
          bNextIndex = blocks[bNextIndex];
       }
       increment = config->NumCellsWidth * config->NumCellsWidth;
-      checkDirection(config, localMapCells, x, y, z, r, g, b, blockCount, bIndex,
+      checkDirection(config, localMapCells, x, y, z, r, g, b, fullIndex, blockCount, bIndex,
             bLocalIndex, blockOffset, startI, increment, bNextIndex, 0, 0, 1);
       
       /*for (int i = startI; i < config->NumCellsTotal; i += increment) {
@@ -586,7 +601,7 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
          bNextIndex = blocks[bNextIndex];
       }
       increment = 1;
-      checkDirection(config, localMapCells, x, y, z, r, g, b, blockCount, bIndex,
+      checkDirection(config, localMapCells, x, y, z, r, g, b, fullIndex, blockCount, bIndex,
             bLocalIndex, blockOffset, startI, increment, bNextIndex, 1, 0, 0);
    }
    barrier(CLK_LOCAL_MEM_FENCE);
@@ -599,7 +614,7 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
          bNextIndex = blocks[bNextIndex];
       }
       increment = config->NumCellsWidth;
-      checkDirection(config, localMapCells, x, y, z, r, g, b, blockCount, bIndex,
+      checkDirection(config, localMapCells, x, y, z, r, g, b, fullIndex, blockCount, bIndex,
             bLocalIndex, blockOffset, startI, increment, bNextIndex, 0, 1, 0);
    }
    barrier(CLK_LOCAL_MEM_FENCE);
@@ -622,20 +637,149 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
        cols[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3] = r[blockOffset + i];
        cols[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 1] = g[blockOffset + i];
        cols[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 2] = b[blockOffset + i];
+       if (fullIndex[blockOffset + i] >= 0) {
+          localMapCells[bIndex].pI[fullIndex[blockOffset + i]] = (startGIndex +
+             blockOffsetcomp[bLocalIndex] + i) * 3;
+       }
    }
 
 }
 
-//Each float3 of rotation is a row of the rotation matrix
-/*__kernel void transform3D(global oclDepthPoints *points, const int numPoints, const float3 origin, const float3 rotation0, const float3 rotation1, const float3 rotation2) {
+__kernel void transform3D(global float *points, const int numPoints, float3 origin,
+      float3 rotation0, float3 rotation1, float3 rotation2) {
    int index = get_global_id(0);
 
    if (index < numPoints) {
-      float3 point = (float3)(points->pointX[index], points->pointY[index], points->pointZ[index]);
-      float3 transP = transformPoint(point, origin, rotation0, rotation1, rotation2);
-      points->pointX[index] = transP.x;
-      points->pointY[index] = transP.y;
-      points->pointZ[index] = transP.z;
+      float3 point = (float3)(points[index * 3], points[index * 3 + 1], points[index * 3 + 2]);
+      float3 temp = point * rotation0;
+      points[index * 3] = temp.x + temp.y + temp.z + origin.x;
+      temp = point * rotation1;
+      points[index * 3 + 1] = temp.x + temp.y + temp.z + origin.y;
+      temp = point * rotation2;
+      points[index * 3 + 2] = temp.x + temp.y + temp.z + origin.z;
 
    }
-}*/
+}
+
+__kernel void alignZ(global oclGraphSlam3DConfig *config, global int *blocks,
+      global oclLocalBlock *localMapCells, global oclLocalMapCommon *common,
+      global float *ptsCurMap, global float *ptsPrevMap, const int numPrevPts, 
+      const int zInc) {
+   
+   int index = get_global_id(0);
+   int lIndex = get_local_id(0);
+
+   local int count[LOCAL_SIZE];
+   local float distance[LOCAL_SIZE];
+
+   count[lIndex] = 0;
+   distance[lIndex] = 0;
+
+   if (index < numPoints) {
+      float3 p;
+      p.x = ptsPrevMap[index * 3];
+      p.y = ptsPrevMap[index * 3 + 1];
+      p.z = ptsPrevMap[index * 3 + 2] + zInc;
+
+      int incrememt = config->NumCellsWidth * config->NumCellsWidth;
+      int blockI = getBlockIndex(config, p);
+      int cellI = getCellIndex(config, p, blockI);
+      int cellXY = cellI % increment;
+
+      if (blockI >= 0) {
+         float minDist = INFINITY;
+         int bInd = blocks[blockI];
+         int maxTravel = config->MaxSearchCells;
+         if (bInd >= 0 && localMapCells[bInd].pI[cellI] >= 0) {
+            minDist = ptsCurMap[localMapCells[bInd].pI[cellI] + 2] - p.z;
+            maxTravel = 1;
+         }
+         int travel;
+         int bCur = bInd;
+         int cellCur = cellI;
+         int blocksCur = blockI;
+         for (travel = 0; travel < maxTravel; travel++) {
+            cellCur += increment;
+            if (cellCur >= config->NumCellsTotal) {
+               cellCur = cellXY;
+               blocksCur = getBlockAdjZ(config, blocksCur, 1);
+               if (blocksCur < 0) {
+                  break;
+               }
+               bCur = blocks[blocksCur];
+            }
+            if (bCur >= 0 && localMapCells[bCur].pI[cellCur] >= 0) {
+               if (ptrCurMap[localMapCells[bCur].pI[cellCur] + 2] - p.z < fabs(minDist)) {
+                  minDist = ptsCurMap[localMapCells[bCur].pI[cellCur] + 2] - p.z;
+               }
+               break;
+            }
+         }
+         bCur = bInd;
+         cellCur = cellI;
+         blocksCur = blockI;
+         for (travel = 0; travel < maxTravel; travel++) {
+            cellCur -= increment;
+            if (cellCur < 0) {
+               cellCur += config->NumCellsTotal;
+               blocksCur = getBlockAdjZ(config, blocksCur, -1);
+               if (blocksCur < 0) {
+                  break;
+               }
+               bCur = blocks[blocksCur];
+            }
+            if (bCur >= 0 && localMapCells[bcur].pI[cellCur] >= 0) {
+               if (ptsCurMap[localMapCells[bCur].pI[cellCur] + 2] - p.z < fabs(minDist)) {
+                  minDist = ptsCurMap[localMapCells[bCur].pI[cellCur] + 2] - p.z;
+               }
+               break;
+            }
+         }
+         if (minDist < INFINITY) {
+            count[lIndex] = 1;
+            distance[lIndex] = minDist;
+            //atomic_inc(&(common->numMatch));
+         }
+      }
+   }
+
+   barrier(CLK_LOCAL_MEM_FENCE);
+   if (lIndex < 128 && LOCAL_SIZE >= 256) {
+      count[lIndex] += count[lIndex + 128];
+      distance[lIndex] += distance[lIndex + 128];
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+   if (lIndex < 64) {
+      count[lIndex] += count[lIndex + 64];
+      distance[lIndex] += distance[lIndex + 64];
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+   if (lIndex < 32) {
+      count[lIndex] += count[lIndex + 32];
+      distance[lIndex] += distance[lIndex + 32];
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+   if (lIndex < 16) {
+      count[lIndex] += count[lIndex + 16];
+      distance[lIndex] += distance[lIndex + 16];
+   }
+   if (lIndex < 8) {
+      count[lIndex] += count[lIndex + 8];
+      distance[lIndex] += distance[lIndex + 8];
+   }
+   if (lIndex < 4) {
+      count[lIndex] += count[lIndex + 4];
+      distance[lIndex] += distance[lIndex + 4];
+   }
+   if (lIndex < 2) {
+      count[lIndex] += count[lIndex + 2];
+      distance[lIndex] += distance[lIndex + 2];
+   }
+   if (lIndex == 0) {
+      count[lIndex] += count[lIndex + 1];
+      distance[lIndex] += distance[lIndex + 1];
+      atomic_add(&(common->numMatch), count[0]);
+      atomicFloatAdd(&(common->distance), distance[0]);
+   }
+}
+

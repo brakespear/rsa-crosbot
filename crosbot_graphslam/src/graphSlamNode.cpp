@@ -34,7 +34,7 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("slam_history_pub", slam_history_pub, "slamHistory");
    paramNH.param<std::string>("global_grid_pub", global_grid_pub, "slamGrid");
    paramNH.param<std::string>("local_map_pub", local_map_pub, "localMapInfo");
-   paramNH.param<std::string>("optimise_map_pub", optimise_map_pub, "optimiseMapInfo");
+   paramNH.param<std::string>("optimise_map_srv", optimise_map_srv, "optimiseMapInfo");
    paramNH.param<std::string>("snap_list_srv", snap_list_srv, "snaps_list");
    paramNH.param<std::string>("snap_update_srv", snap_update_srv, "snap_update");
    paramNH.param<std::string>("snap_get_srv", snap_get_srv, "snap_get");
@@ -70,7 +70,8 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
 
    if (PublishLocalMapInfo) {
       localMapInfoPub = nh.advertise<crosbot_graphslam::LocalMapMsg>(local_map_pub, 1);
-      optimiseMapPub = nh.advertise<crosbot_graphslam::LocalMapMsgList>(optimise_map_pub, 1);
+      //optimiseMapPub = nh.advertise<crosbot_graphslam::LocalMapMsgList>(optimise_map_pub, 1);
+      optimiseMapService = nh.serviceClient<corsbot_graphslam::LoopClose>(optimise_map_srv);
    }
 
    //Kinect subscriber
@@ -219,14 +220,30 @@ void GraphSlamNode::publishLocalMapInfo(LocalMapInfo& info) {
    }
 }
 
-void GraphSlamNode::publishOptimiseLocalMapInfo(vector<LocalMapInfoPtr>& localMapInfo) {
+void GraphSlamNode::publishOptimiseLocalMapInfo(vector<LocalMapInfoPtr>& localMapInfo, vector<int> iCon, vector<int> jCon, bool wasFullLoop) {
    if (PublishLocalMapInfo) {
-      crosbot_graphslam::LocalMapMsgList list;
+      /*crosbot_graphslam::LocalMapMsgList list;
       list.localMaps.resize(localMapInfo.size());
       for (int i = 0; i < localMapInfo.size(); i++) {
          list.localMaps[i] = *(localMapInfo[i]->toROSsmall());
       }
-      optimiseMapPub.publish(list);
+      optimiseMapPub.publish(list);*/
+      crosbot_graphslam::LoopClose optInfo;
+      optInfo.request.wasFullLoop = wasFullLoop;
+      optInfo.request.i.resize(iCon.size());
+      optInfo.request.j.resize(jCon.size());
+      for (int i = 0; i < iCon.size(); i++) {
+         optInfo.request.i[i] = iCon[i];
+         optInfo.request.j[i] = jCon[i];
+      }
+      optInfo.request.localMaps.resize(localMapInfo.size());
+      for (int i = 0; i < localMapInfo.size(); i++) {
+         optInfo.request.localMaps[i] = *(localMapInfo[i]->toROSsmall());
+      }
+      if (!optimiseMapService.call(optInfo)) {
+         cout << "ERROR: service call to 3d graph slam didn't work" << endl;
+      }
+      //Do any response needed
    }
 }
 

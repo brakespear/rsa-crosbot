@@ -80,7 +80,8 @@ void GraphSlam3DCPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
    finishedSetup = true;
 }
 
-void GraphSlam3DCPU::haveOptimised(vector<LocalMapInfoPtr> newMapPositions) {
+void GraphSlam3DCPU::haveOptimised(vector<LocalMapInfoPtr> newMapPositions, vector<int> inodes, 
+      vector<int> jNodes, bool wasFullLoop) {
    if (finishedSetup) {
 
       {{ Lock lock(masterLock); 

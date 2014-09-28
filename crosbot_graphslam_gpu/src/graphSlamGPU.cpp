@@ -1089,7 +1089,10 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
                changes.push_back(new LocalMapInfo(localMaps[k].globalPose, k));
             }
          }
-         graphSlamNode->publishOptimiseLocalMapInfo(changes);
+         vector<int> iNodes;
+         vector<int> jNodes;
+         //TODO: fill out the iNodes and jNodes arrays
+         graphSlamNode->publishOptimiseLocalMapInfo(changes, iNodes, jNodes, loopClosed);
          free(oldMapPositions);
         
          

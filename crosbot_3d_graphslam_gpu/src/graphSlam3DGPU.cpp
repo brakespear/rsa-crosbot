@@ -21,7 +21,9 @@ const string GraphSlam3DGPU::kernel_names[] = {
    "checkBlocksExist",
    "addRequiredBlocks",
    "addFrame",
-   "extractPoints"
+   "extractPoints",
+   "transform3D",
+   "alignZ"
 };
 const int GraphSlam3DGPU::num_kernels = sizeof(kernel_names) / sizeof(kernel_names[0]);
 #define CLEAR_LOCAL_MAP 0
@@ -29,6 +31,8 @@ const int GraphSlam3DGPU::num_kernels = sizeof(kernel_names) / sizeof(kernel_nam
 #define ADD_REQUIRED_BLOCKS 2
 #define ADD_FRAME 3
 #define EXTRACT_POINTS 4
+#define TRANSFORM_3D 5
+#define ALIGN_Z 6
 
 //The maximum number of points extracted from a block can be SLICE_MULT*the number of 
 //cells in a slice of a block
@@ -45,6 +49,8 @@ GraphSlam3DGPU::GraphSlam3DGPU() : GraphSlam3D() {
    rootDir = buffer;
 
    hasInitialised = false;
+   receviedoptimisationRequest = false;
+   previousINode = 0;
 
 }
 
@@ -70,6 +76,10 @@ void GraphSlam3DGPU::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("TruncNeg", TruncNeg, 0.4);
    paramNH.param<double>("TrunkPos", TruncPos, 0.8);
    paramNH.param<double>("MaxDistance", MaxDistance, 5.0);
+   paramNH.param<int>("MaxSearchDistance", MaxSearchDistance, 0.5);
+   paramNH.param<int>("MaxIterations", MaxIterations, 10);
+   paramNH.param<int>("MinCount", MinCount, 1000);
+   paramNH.param<double>("MoveThresh", MoveThresh, 0.1);
 
    NumBlocksWidth = (LocalMapWidth + 0.00001) / BlockSize;
    NumBlocksHeight = (LocalMapHeight + 0.00001) / BlockSize;
@@ -111,6 +121,7 @@ void GraphSlam3DGPU::initialiseGraphSlam(DepthPointsPtr depthPoints) {
    graphSlam3DConfig.tx = tx;
    graphSlam3DConfig.ty = ty;
    graphSlam3DConfig.MaxDistance = MaxDistance;
+   graphSlam3DConfig.MaxSearchCells = MaxSearchDistance / CellSize;
 
    clGraphSlam3DConfig = opencl_manager->deviceAlloc(sizeof(oclGraphSlam3DConfig),
          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &graphSlam3DConfig);
@@ -270,6 +281,12 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       ros::WallTime t2 = ros::WallTime::now();
       ros::WallDuration totalTime = t2 - t1;
       cout << "Time of extracting points: " << totalTime.toSec() * 1000.0f << endl;
+
+      if (receivedOptimisationRequest) {
+         vector<LocalMapInfoPtr> changes = optimiseChanges(clPointCloud);
+         graphSlam3DNode->publishOptimisedMapPositions(changes);
+         receivedOptimisedRequest = false;
+      }
       
       int numPoints;
       readBuffer(clLocalMapCommon, CL_TRUE, numPointsOffset, 
@@ -288,6 +305,7 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       LocalMapInfoPtr oldLocalMap = new LocalMapInfo(maps[currentMap]->getPose(), currentMap,
             cloud);
       graphSlam3DNode->publishLocalMap(oldLocalMap);
+      maps[currentMap]->cloud = cloud;
    }
    currentMap = localMapInfo->index;
    if (maps.size() == currentMap) {
@@ -302,23 +320,27 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
    finishedSetup = true;
 }
 
-void GraphSlam3DGPU::haveOptimised(vector<LocalMapInfoPtr> newMapPositions) {
+void GraphSlam3DGPU::haveOptimised(vector<LocalMapInfoPtr> newMapPositions, 
+      vector<int> iNodes, vector<int> jNodes, bool wasFullLoop) {
    if (finishedSetup) {
 
-      {{ Lock lock(masterLock); 
+      {{ Lock lock(masterLock);
+         receivedOptimisationRequest = true;
+         optimiseChanges.clear(); 
+         optimiseChanges = newMapPositions;
+         iCon = iNodes;
+         jCan = jNodes;
+         fullLoop = wasFullLoop;
 
-          //Changes to local maps to be sent to viewer
-          vector<LocalMapInfoPtr> changes;
-
-          int i;
-          for (i = 0; i < newMapPositions.size(); i++) {
-             int index = newMapPositions[i]->index;
-             maps[index]->updatePose(newMapPositions[i]->pose);
-             changes.push_back(new LocalMapInfo(maps[index]->getPose(), index));
-          }
-          //TODO: Do 3D loop closing here
+         /*int i;
+         for (i = 0; i < iNodes.size(); i++) {
+            int index = newMapPositions[i]->index;
+            maps[index]->updatePose(newMapPositions[i]->pose);
+            changes.push_back(new LocalMapInfo(maps[index]->getPose(), index));
+         }
           
          graphSlam3DNode->publishOptimisedMapPositions(changes);
+         */
 
       }}
 
@@ -345,7 +367,7 @@ void GraphSlam3DGPU::initialiseLocalMap() {
    oclLocalBlock localBlock;
    size_t localBlockSize = (sizeof(*(localBlock.distance)) +
       sizeof(*(localBlock.weight)) + sizeof(*(localBlock.pI)) +
-      sizeof(*(localBlock.r)) * 3 + 4) * NumCellsTotal + sizeof(localBlock.blockIndex);
+      sizeof(*(localBlock.r)) * 3 + 1) * NumCellsTotal + sizeof(localBlock.blockIndex);
    clLocalMapCells = opencl_manager->deviceAlloc(localBlockSize * NumBlocksAllocated, 
          CL_MEM_READ_WRITE, NULL);
 
@@ -356,6 +378,7 @@ void GraphSlam3DGPU::initialiseLocalMap() {
    oclLocalMapCommon com;
    numActiveBlocksOffset = (unsigned char *)&(com.numActiveBlocks) - (unsigned char *)&(com);
    numPointsOffset = (unsigned char *)&(com.numPoints) - (unsigned char *)&(com);
+   numMatchOffset = (unsigned char *)&(com.numMatch) - (unsigned char *)&(com);
    
 }
 
@@ -531,6 +554,164 @@ PointCloudPtr GraphSlam3DGPU::copyPoints(int numPoints, cl_mem &clPointCloud, cl
    free(cols);
    return cloud;
 }
+
+vector<LocalMapInfoPtr> GraphSlam3DGPU::optimiseChanges(cl_mem &clPointCloud) {
+
+   int i;
+   for (i = 0; i < maps.size(); i++) {
+      maps[i]->poseChanged = false;
+   }
+
+   for (i = 0; i < optimiseChanges.size(); i++) {
+      int index = optimiseChanges[i]->index;
+      maps[index]->updatePose(optimiseChanges[i]->pose);
+      maps[index]->poseChanged = true;
+   }
+   int numExisting = constraints.size();
+
+   for (i = numExisting; i < iCon.size(); i++) {
+      Constraint c;
+      c.i = iCon[i];
+      c.j = jCon[i];
+      if (i == numExisting && fullLoop) {
+         c.fullLoop = true;
+         previousINode = currentMap;
+      } else {
+         c.fullLoop = false;
+      }
+      if (c.j == currentMap) {
+         double zChange;
+         c.valid = alignMap(&zChange, c.i, maps[c.j]->getPose(), maps[c.i]->getPose());
+         c.z = zChange;
+      } else {
+         c.valid = false;
+         c.z = 0;
+      }
+      constraints.push_back(c);
+   }
+   optimiseMap(fullLoop, numExisting);
+
+   vector<LocalMapInfoPtr> newMapPositions;
+   for (i = 0; i < maps.size(); i++) {
+      if (maps[i].poseChanged) {
+         newMapPositions.push_back(new LocalMapInfo(maps[i]->getPose(), index));
+      }
+   }
+}
+
+bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Pose prevNewPose,
+      cl_mem &clPointCloud) {
+   size_t prevPointsSize = sizeof(float) * maps[prevMapI]->cloud.size() * 3;
+   float *prevPoints = malloc(prevPointsSize);
+   cl_mem clPrevPoints = opencl_manager->deviceAlloc(prevPointsSize, CL_MEM_READ_WRITE, NULL);
+   for (int i = 0; i < maps[prevMapI]->cloud.size(); i++) {
+      prevPoints[i * 3] = maps[prevMapI]->cloud[i].x;
+      prevPoints[i * 3 + 1] = maps[prevMapI]->cloud[i].y;
+      prevPoints[i * 3 + 2] = maps[prevMapI]->cloud[i].z;
+   }
+   writeBuffer(clPrevPoints, CL_FALSE, 0, prevPointsSize, prevPoints, 0, 0, 0,
+         "Copying prev points to GPU");
+
+   tf::Transform prevPose = prevNewPose.toTF();
+   tf::Transform curPose = curNewPose.toTF();
+   tf::Transform diffPose = curPose * prevPose.inverse();
+   tf::Matrix3x3 basis = diffPose.getBasis();
+   tf::Vector3 origin = diffPose.getOrigin();
+
+   ocl_float3 clBasis[3];
+   ocl_float3 clOrigin;
+   for (int j = 0; j < 3; j++) {
+      clBasis[j].x = basis[j][0];
+      clBasis[j].y = basis[j][1];
+      clBasis[j].z = basis[j][2];
+   }
+   clOrigin.x = origin[0];
+   clOrigin.y = origin[1];
+   clOrigin.z = origin[2];
+
+   int kernelI = TRANSFORM_3D;
+   int numPoints = maps[prevI]->cloud.size();
+   int globalSize = getGlobalWorkSize(numPoints);
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPrevPoints);
+   opencl_task->setArg(1, kernelI, sizeof(int), &numPoints);
+   opencl_task->setArg(2, kernelI, sizeof(ocl_float3), &clOrigin);
+   opencl_task->setArg(3, kernelI, sizeof(ocl_float3), &clBasis[0]);
+   opencl_task->setArg(4, kernelI, sizeof(ocl_float3), &clBasis[1]);
+   opencl_task->setArg(5, kernelI, sizeof(ocl_float3), &clBasis[2]);
+
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+
+   kernelI = ALIGN_Z;
+   float zInc = 0;
+
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clGraphSlam3DConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCells);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCommon);
+   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clPointCloud);
+   opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clPrevPoints);
+   opencl_task->setArg(6, kernelI, sizeof(ocl_int), &numPoints);
+
+   bool success = true;
+   CommonICP commonInfo;
+
+   int numIts;
+   for(numIts = 0; numIts < MaxIterations; numIts++) {
+      commonInfo.numMatch = 0;
+      commonInfo.distance = 0;
+      writeBuffer(clLocalMapCommon, CL_FALSE, numMatchOffset, sizeof(CommonICP), &commonInfo, 0, 0, 0,
+            "Copying Zeroing of CommonICP struct");
+      opencl_task->setArg(7, kernelI, sizeof(ocl_float), &zInc);
+      opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+
+      readBuffer(clLocalMapCommon, CL_TRUE, numMatchOffset, sizeof(CommonICP), &commonInfo, 0, 0, 0,
+            "Reading commonICP after alignment");
+      double zAl = commonInfo.distance / (float) commonInfo.numMatch;
+      if (commonInfo.numMatch < MinCount) {
+         zInc = 0;
+         success = false;
+         break;
+      }
+      zInc += zAl;
+      if (fabs(zAl) < MoveThresh) {
+         break;
+      }
+   }
+   if (success) {
+      *zChange = zInc;
+   } else {
+      *zChange = 0;
+   }
+
+   opencl_manager->deviceRelease(clPrevPoints);
+   free(prevPoints);
+
+   return success;
+
+}
+
+void GraphSlam3DGPU::optimiseMap(bool fullL, int start) {
+   for (int i = start; i < constraints.size(); i++) {
+      if (constraints[i].valid) {
+         int startOpt = constraints[i].i + 1;
+         if (!fullL && previousINode > startOpt) {
+            startOp = previousINode + 1;
+         } 
+         int numMaps = constraints[i].j - startOpt + 1;
+         Pose pI = maps[constraints[i].i]->getPose();
+         Pose pJ = maps[constraints[i].j]->getPose();
+         double change = (pJ.position.z - pI.position.z) - constraints[i].z;
+         for (int count = 0; startOpt <= constraints[i].j; count++, startOpt++) {
+            Pose p = maps[startOpt]->getPose();
+            p.position.z += (double)count * (change/(double)numMaps);
+            maps[startOpt]->updatePose(p);
+            maps[startOpt]->poseChanged = true;
+               
+         }
+      }
+   }
+}
+
 
 inline int GraphSlam3DGPU::getGlobalWorkSize(int numThreads) {
    return numThreads % LocalSize == 0 ? numThreads :

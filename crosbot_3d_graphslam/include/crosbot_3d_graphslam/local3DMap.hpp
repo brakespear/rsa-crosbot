@@ -103,10 +103,13 @@ public:
 
    void updatePose(Pose pose);
 
+   bool poseChanged;
+
 private:
 
    Pose globalPose;
-
+   
+   PointCloudPtr cloud;
    //Tree information here
    //List of points
 

@@ -21,7 +21,7 @@ public:
    void stop();
    void addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose slamPose);
    void newLocalMap(LocalMapInfoPtr localMapInfo);
-   void haveOptimised(vector<LocalMapInfoPtr> newMapPositions);
+   void haveOptimised(vector<LocalMapInfoPtr> newMapPositions, vector<int> iNodes, vector<int> jNodes, bool wasFullLoop);
 
    GraphSlam3DCPU();
    ~GraphSlam3DCPU();
