@@ -26,12 +26,20 @@ public:
    void stop();
    void addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose slamPose);
    void newLocalMap(LocalMapInfoPtr localMapInfo);
-   void haveOptimised(vector<LocalMapInfoPtr> newMapPositions);
+   void haveOptimised(vector<LocalMapInfoPtr> newMapPositions, vector<int> iNodes, 
+         vector<int> jNodes, bool wasFullLoop);
 
    GraphSlam3DGPU();
    ~GraphSlam3DGPU();
 
 private:
+   typedef struct {
+      int i;
+      int j;
+      bool fullLoop;
+      bool valid;
+      float z;
+   } Constraints;
    /*
     * GPU config params
     */
@@ -46,6 +54,14 @@ private:
    double TruncPos;
    //Max distance of a cell that will be added to tsdf
    double MaxDistance;
+   //Maximum distance to search
+   int MaxSearchDistance;
+   //Maximum number of icp iterations during optimiser
+   int MaxIterations;
+   //Minimum number of matchng points needed
+   int MinCount;
+   //WHen movement is below this level, icp stops
+   double MoveThresh;
 
    //Derived params
    int NumBlocksTotal;
@@ -92,13 +108,26 @@ private:
    cl_mem clLocalMapCommon;
    size_t numActiveBlocksOffset;
    size_t numPointsOffset;
+   size_t numMatchOffset;
 
    vector<Local3DMap *> maps;
+   vector<Constraints> constraints;
    int currentMap;
 
    bool hasInitialised;
+   bool receivedOptimisationRequest;
+   vector<LocalMapInfoPtr> optimiseChanges;
+   vector<int> iCon;
+   vector<int> jCon;
+   bool fullLoop;
+   int previousINode;
 
    bool done;
+
+   typedef struct {
+      int numMatch;
+      float distance;
+   } CommonICP;
    /*
     * GPU structure methods
     */
@@ -114,6 +143,10 @@ private:
    void addFrame(tf::Transform trans);
    void extractPoints(int numBlocks, cl_mem &clPointCloud, cl_mem &clColours);
    PointCloudPtr copyPoints(int numPoints, cl_mem &clPointCloud, cl_mem &clColours);
+
+   vector<LocalMapInfoPtr> optimiseChanges(cl_mem &clPointCloud);
+   bool alignMap(double *zChange, int prevMapI, Pose curNewPose, Pose prevNewPose, cl_mem &clPointCloud);
+   void optimiseMap(bool fullL, int start);
 
 
    /*

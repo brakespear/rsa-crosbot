@@ -18,7 +18,7 @@
 #include <crosbot/utils.hpp>
 #include <crosbot_graphslam/localMap.hpp>
 #include <crosbot_graphslam/LocalMapMsg.h>
-#include <crosbot_graphslam/LocalMapMsgList.h>
+#include <crosbot_graphslam/LoopClose.h>
 
 #include <crosbot_3d_graphslam/graphSlam3D.hpp>
 
@@ -56,15 +56,16 @@ private:
     * ROS config params
     */
    string slam_frame, base_frame;
-   string local_map_sub, optimise_map_sub, kinect_sub, camera_info_sub;
+   string local_map_sub, kinect_sub, camera_info_sub;
    string local_map_pub, optimised_local_maps_pub;
+   string optimise_map_srv;
 
    /*
     * ROS connections
     */
    ros::Subscriber kinectSub;
    ros::Subscriber localMapSub;
-   ros::Subscriber optimiseMapSub;
+   ros::ServiceServer optimiseMapSrv;
    ros::Subscriber cameraInfoSub;
    ros::Publisher localMapPub;
    ros::Publisher optimisedLocalMapsPub;
@@ -91,7 +92,8 @@ private:
    /*
     * Callback for receiving information about local maps after they have been optimised
     */
-   void callbackOptimiseMap(const crosbot_graphslam::LocalMapMsgListConstPtr& localMapMsgList);
+   bool callbackOptimiseMap(crosbot_graphslam::LoopClose::Request& req,
+         crosbot_graphslam::LoopClose::Response& res);
 
    /*
     * Callback for receiving camera info information

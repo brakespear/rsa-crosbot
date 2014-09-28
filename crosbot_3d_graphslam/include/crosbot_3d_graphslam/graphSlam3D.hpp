@@ -53,7 +53,8 @@ public:
    /*
     * A list of new positions of local maps
     */
-   virtual void haveOptimised(vector<LocalMapInfoPtr> newMapPositions) = 0;
+   virtual void haveOptimised(vector<LocalMapInfoPtr> newMapPositions, vector<int> iNodes, vector<int> jNodes,
+         bool wasFullLoop) = 0;
 
    /*
     * Set the parameters of the registered depth camera

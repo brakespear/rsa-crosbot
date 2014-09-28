@@ -27,7 +27,7 @@
 
 #include <crosbot_graphslam/localMap.hpp>
 #include <crosbot_graphslam/LocalMapMsg.h>
-#include <crosbot_graphslam/LocalMapMsgList.h>
+#include <crosbot_graphslam/LoopClose.h>
 #include <crosbot_graphslam/graphSlam.hpp>
 
 #define DEFAULT_ICPFRAME "/icp"
@@ -60,7 +60,8 @@ public:
    /*
     * Publishes info about local maps that have changed position
     */
-   void publishOptimiseLocalMapInfo(vector<LocalMapInfoPtr>& localMapInfo);
+   void publishOptimiseLocalMapInfo(vector<LocalMapInfoPtr>& localMapInfo, vector<int> iCon, 
+         vector<int> jCon, bool wasFullLoop);
 
 private:
   

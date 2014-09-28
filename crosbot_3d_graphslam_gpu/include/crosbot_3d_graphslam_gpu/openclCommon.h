@@ -74,6 +74,8 @@ typedef struct {
    ocl_float ty;
    //Max distance of a cell to the camera that will be used in the tsdf
    ocl_float MaxDistance;
+   //Max distance to search during map alignment
+   ocl_int MaxSearchCells;
 
 } oclGraphSlam3DConfig;
 
@@ -82,17 +84,17 @@ typedef struct {
 #ifdef CL_RUNTIME
    ocl_float distance[NUM_CELLS];
    ocl_float weight[NUM_CELLS];
+   ocl_int pI[NUM_CELLS];
    unsigned char r[NUM_CELLS];
    unsigned char g[NUM_CELLS];
    unsigned char b[NUM_CELLS];
-   unsigned char pI[NUM_CELLS];
 #else
    ocl_float *distance;
    ocl_float *weight;
+   ocl_int *pI;
    unsigned char *r;
    unsigned char *g;
    unsigned char *b;
-   unsigned char *pI;
 #endif
 }  oclLocalBlock;
 
@@ -100,12 +102,13 @@ typedef struct {
    ocl_int numBlocks;
    ocl_int numActiveBlocks;
    ocl_int numPoints;
+   ocl_int numMatch;
+   ocl_float distance;
 #ifdef CL_RUNTIME
    ocl_int activeBlocks[MAX_NUM_ACTIVE_BLOCKS];
 #else
    ocl_int *activeBlocks;
 #endif
 } oclLocalMapCommon;
-
 
 #endif

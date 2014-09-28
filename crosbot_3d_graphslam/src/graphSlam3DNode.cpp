@@ -26,7 +26,7 @@ void GraphSlam3DNode::initialise(ros::NodeHandle& nh) {
    paramNH.param<std::string>("slam_frame", slam_frame, "/slam");
    paramNH.param<std::string>("base_frame", base_frame, "/base_link");
    paramNH.param<std::string>("local_map_sub", local_map_sub, "localMapInfo");
-   paramNH.param<std::string>("optimise_map_sub", optimise_map_sub, "optimiseMapInfo");
+   paramNH.param<std::string>("optimise_map_srv", optimise_map_srv, "optimiseMapInfo");
    paramNH.param<std::string>("kinect_sub", kinect_sub, "/camera/depth_registered/points");
    paramNH.param<std::string>("camera_info_sub", camera_info_sub, "/camera/rgb/camera_info");
    paramNH.param<std::string>("local_map_pub", local_map_pub, "localMapPoints");
@@ -40,7 +40,8 @@ void GraphSlam3DNode::initialise(ros::NodeHandle& nh) {
    kinectSub = nh.subscribe(kinect_sub, 1, &GraphSlam3DNode::callbackKinect, this);
    cameraInfoSub = nh.subscribe(camera_info_sub, 1, &GraphSlam3DNode::callbackCameraInfo, this);
    localMapSub = nh.subscribe(local_map_sub, 10, &GraphSlam3DNode::callbackLocalMap, this);
-   optimiseMapSub = nh.subscribe(optimise_map_sub, 10, &GraphSlam3DNode::callbackOptimiseMap, this);
+   //optimiseMapSub = nh.subscribe(optimise_map_sub, 10, &GraphSlam3DNode::callbackOptimiseMap, this);
+   optimiseMapSrv = nh.advertiseService(optimise_map_srv, &GraphSlam3DNode::callbackOptimiseMap, this);
    localMapPub = nh.advertise<crosbot_graphslam::LocalMapMsg>(local_map_pub, 10);
    optimisedLocalMapsPub = nh.advertise<crosbot_graphslam::LocalMapMsgList>(optimised_local_maps_pub, 10);
 
@@ -84,12 +85,26 @@ void GraphSlam3DNode::callbackLocalMap(const crosbot_graphslam::LocalMapMsgConst
    graph_slam_3d.newLocalMap(localM);
 }
 
-void GraphSlam3DNode::callbackOptimiseMap(const crosbot_graphslam::LocalMapMsgListConstPtr& localMapMsgList) {
+//void GraphSlam3DNode::callbackOptimiseMap(const crosbot_graphslam::LocalMapMsgListConstPtr& localMapMsgList) {
+bool GraphSlam3DNode::callbackOptimiseMap(crosbot_graphslam::LoopClose::Request& req,
+      crosbot_graphslam::LoopClose::Response& res) {
+
+   bool wasFullLoop = req.wasFullLoop;
+
    vector<LocalMapInfoPtr> newPos;
-   for (int i = 0; i < localMapMsgList->localMaps.size(); i++) {
-      newPos.push_back(new LocalMapInfo(localMapMsgList->localMaps[i]));
+   for (int i = 0; i < req.localMaps.size(); i++) {
+      newPos.push_back(new LocalMapInfo(req.localMaps[i]));
    }
-   graph_slam_3d.haveOptimised(newPos);
+   vector<int> iNodes;
+   vector<int> jNodes;
+   iNodes.resize(req.i.size());
+   jNodes.resize(req.j.size());
+   for (int i = 0; i < req.i.size(); i++) {
+      iNodes[i] = req.i[i];
+      jNodes[i] = req.j[i];
+   }
+   graph_slam_3d.haveOptimised(newPos, iNodes, jNodes, wasFullLoop);
+   return true;
 }
 
 void GraphSlam3DNode::publishLocalMap(LocalMapInfoPtr localMap) {
