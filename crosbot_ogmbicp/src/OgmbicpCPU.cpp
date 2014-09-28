@@ -53,6 +53,7 @@ void OgmbicpCPU::initialiseTrack(Pose sensorPose, PointCloudPtr cloud) {
 }
 
 void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
+   curPose.position.z = zOffset;
 
    if (discardScan) {
       //cout << "Ignoring scan" << endl;
@@ -76,7 +77,8 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    laserPose = sensorPose;
 
    LaserPoints scan = new _LaserPoints(worldPoints, MaxSegLen, IgnoreZValues,
-         FloorHeight, MinAddHeight, MaxAddHeight);
+         FloorHeight, MinAddHeight, MaxAddHeight, floorHeight);
+   //cout << " " << zOffset << endl;
 
    if (InitialScans > 0) {
       localMap->addScan(scan, MaxObservations, LifeRatio, true);
@@ -111,8 +113,9 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
 
    int iterCount = 0;
    bool alignedScan = false;
+   int lastCount = 0;
    //int count = 0;
-   while (iterCount < MaxIterations && getOffset(scan, dx, dy, dz, dth)) {
+   while (iterCount < MaxIterations && getOffset(scan, dx, dy, dz, dth, lastCount)) {
       scan->transformPoints(dx, dy, dz, dth, laserOffset);
       //count = (int) dz;
       dz = 0; //TODO: fix this
@@ -150,6 +153,7 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    }
    failCount = 0;
    if (!alignedScan && iterCount < MaxIterations) {
+      cout << "Scan alignment failed " << lastCount << endl;
       gx = gy = gth = gz = 0;
    }
 
@@ -211,7 +215,7 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    }
 }
 
-bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth) {
+bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth, int &lastCount) {
 
    Point scanPoint;
    Point mPoint;
@@ -239,7 +243,7 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
 
    for (i = 0; i < scan->points.size(); i += LaserSkip) {
       //TODO: deal with z values properly
-      if (scan->points[i].point.z < MinAddHeight || scan->points[i].point.z > MaxAddHeight) {
+      if (scan->points[i].point.z < MinAddHeight || scan->points[i].point.z > MaxAddHeight || (!isnan(floorHeight) && scan->points[i].point.z < floorHeight)) {
          //tempH++;
          //cout << "points have the wrong height" << endl;
          continue;

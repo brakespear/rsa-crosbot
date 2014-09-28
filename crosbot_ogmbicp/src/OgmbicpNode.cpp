@@ -33,6 +33,7 @@ void OgmbicpNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("recent_scans_srv", recent_scans_srv, "icpRecentScans");
    paramNH.param<std::string>("orientation_sub", orientation_sub, "orientation");
    paramNH.param<bool>("UseExternalZ", UseExternalZ, false);
+   paramNH.param<bool>("UseFloorHeight", UseFloorHeight, true);
 
    pos_tracker.initialise(nh);
    pos_tracker.start();
@@ -161,6 +162,11 @@ void OgmbicpNode::callbackOrientation(const geometry_msgs::QuaternionStamped& qu
 
 void OgmbicpNode::callbackZ(const geometry_msgs::Vector3& vec) {
    pos_tracker.zOffset = vec.z;
+   if (UseFloorHeight) {
+      pos_tracker.floorHeight = vec.x;
+   } else {
+      pos_tracker.floorHeight = NAN;
+   }
 }
 
 geometry_msgs::TransformStamped OgmbicpNode::getTransform(const Pose& pose, std::string childFrame, 

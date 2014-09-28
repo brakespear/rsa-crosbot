@@ -22,7 +22,8 @@ const string PositionTrack3D::kernel_names[] = {
    "calculateNormals",
    "alignZ",
    "addScan",
-   "clearCells"
+   "clearCells",
+   "calculateFloorHeight"
 };
 const int PositionTrack3D::num_kernels = sizeof(kernel_names) / sizeof(kernel_names[0]);
 #define INITIALISE_MAP 0
@@ -31,6 +32,7 @@ const int PositionTrack3D::num_kernels = sizeof(kernel_names) / sizeof(kernel_na
 #define ALIGN_Z 3
 #define ADD_SCAN 4
 #define CLEAR_CELLS 5
+#define CALCULATE_FLOOR_HEIGHT 6
 
 PositionTrack3D::PositionTrack3D() {
    opencl_manager = new OpenCLManager();
@@ -61,6 +63,7 @@ void PositionTrack3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("MaxSearchCells", MaxSearchCells, 5);
    paramNH.param<double>("InitZ", InitZ, 0.5);
    paramNH.param<int>("MinObsCount", MinObsCount, 2);
+   paramNH.param<bool>("CalculateFloorHeight", CalculateFloorHeight, true);
 
    NumCellsWidth = (MapWidth+0.00001) / CellSize;
    NumCellsHeight = (MapHeight+0.00001) / CellSize;
@@ -68,6 +71,7 @@ void PositionTrack3D::initialise(ros::NodeHandle &nh) {
    beginCount = BeginScans;
 
    z = InitZ;
+   prevFloorHeight = 0;
    mapCentreX = 0;
    mapCentreY = 0;
    mapCentreZ = (InitZ+0.000001) / CellSize;
@@ -147,9 +151,14 @@ void PositionTrack3D::initialiseMap() {
    if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) {
       cout << "Error initialising" << endl;
    }
+
+   if (CalculateFloorHeight) {
+      clFloor = opencl_manager->deviceAlloc(sizeof(ocl_int) * NumCellsHeight/ 2, CL_MEM_READ_WRITE, NULL);
+      heightPoints = new int[NumCellsHeight / 2];
+   }
 }
 
-Pose PositionTrack3D::processFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose icpPose) {
+Pose PositionTrack3D::processFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose icpPose, float *floorHeight) {
    icpPose.position.z = z;
 
    int i;
@@ -174,6 +183,11 @@ Pose PositionTrack3D::processFrame(DepthPointsPtr depthPoints, Pose sensorPose, 
    //cout << "Time to transform and normalise: " << totalTime.toSec() * 1000.0f << endl;
    bool success = true;
    float zChange = 0;
+
+   if (CalculateFloorHeight) {
+      *floorHeight = calculateFloorHeights(z);
+      cout << "Floor height is: " << *floorHeight << endl;
+   }
    
    if (beginCount < 0) {
       //t1 = ros::WallTime::now();
@@ -363,6 +377,39 @@ void PositionTrack3D::clearCells(int newMapX, int newMapY, int newMapZ) {
    int globalSize = getGlobalWorkSize(dim);
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 
+}
+
+float PositionTrack3D::calculateFloorHeights(float curZ) {
+   int kernelI = CALCULATE_FLOOR_HEIGHT;
+   int skip = 2;
+
+   memset(heightPoints, 0, sizeof(int) * NumCellsHeight / 2);
+   writeBuffer(clFloor, CL_FALSE, 0, sizeof(int) * NumCellsHeight / 2, heightPoints, 0, 0, 0,
+            "Copying Zeroing of floor array");
+
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clPoints);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clFloor);
+   opencl_task->setArg(3, kernelI, sizeof(ocl_int), &numDepthPoints);
+   opencl_task->setArg(4, kernelI, sizeof(ocl_int), &skip);
+   opencl_task->setArg(5, kernelI, sizeof(ocl_float), &curZ);
+
+   int globalSize = getGlobalWorkSize(numDepthPoints/skip);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+
+   readBuffer(clFloor, CL_TRUE, 0, sizeof(int) * NumCellsHeight / 2, heightPoints, 0, 0, 0,
+         "Reading floor array");
+
+   for (int i = 0; i < NumCellsHeight / 2; i++) {
+      //cout << heightPoints[i] << " ";
+      if (heightPoints[i] > 100) {
+         //0.2 - 0.3
+         prevFloorHeight =  curZ - (NumCellsHeight / 2 - i) * CellSize + 0.25;
+         return prevFloorHeight;
+      }
+   }
+   cout << "Didn't get a height reading" << endl;
+   return prevFloorHeight;
 }
 
 inline int PositionTrack3D::getGlobalWorkSize(int numThreads) {

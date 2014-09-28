@@ -335,4 +335,17 @@ __kernel void clearCells(global oclPositionTrackConfig *config, global oclLocalM
    }
 }
 
+__kernel void calculateFloorHeight(global oclPositionTrackConfig *config, global oclDepthPoints *points,
+      global int *cellCounts, const int numPoints, const int skip, const float zRob) {
+   int index = get_global_id(0) * skip;
+
+   if (index < numPoints && !isnan(points->pointX[index])) {
+      float zH = points->pointZ[index] - zRob;
+      int zInd = zH / config->CellSize + config->NumCellsHeight / 2;
+      if (zInd >= 0 && zInd < config->NumCellsHeight / 2) {
+         atomic_inc(&(cellCounts[zInd]));
+      } 
+   }
+}
+
 

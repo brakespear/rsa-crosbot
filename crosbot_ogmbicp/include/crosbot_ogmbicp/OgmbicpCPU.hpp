@@ -54,7 +54,7 @@ private:
    //int tt; //debugging
 
    //Get the offset from an iteration of ogmbicp
-   bool getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth);
+   bool getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth, int &lastCount);
    //Find the best matching point (mPoint) to scanPoint
    //Returns the matching score. INFINITY if no matching point was found
    double findMatchingPoint(Point scanPoint, Point &mPoint, double lVal);

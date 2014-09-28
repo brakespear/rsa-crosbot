@@ -293,6 +293,7 @@ void OgmbicpGPU::setKernelArgs() {
 }
 
 void OgmbicpGPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
+   curPose.position.z = zOffset;
    if (discardScan) {
       cout << "Ignoring scan" << endl;
    }
@@ -427,6 +428,17 @@ int OgmbicpGPU::prepareLaserPoints(PointCloudPtr p, int numPoints, Pose sensorPo
    double dx, dy, dz;
    int numAdded = 0;
 
+   /*double minZ = 999;
+   double maxZ = -999;
+   for (i = 0; i < numPoints - 1; i++) {
+         if (p->cloud[i].z > maxZ) {
+            maxZ = p->cloud[i].z;
+         }
+         if (p->cloud[i].z < minZ) {
+            minZ = p->cloud[i].z;
+         }
+   }
+   int removed = 0;*/
    for (i = 0; i < numPoints - 1; i++) {
       dx = p->cloud[i+1].x - p->cloud[i].x;
       dy = p->cloud[i+1].y - p->cloud[i].y;
@@ -440,6 +452,10 @@ int OgmbicpGPU::prepareLaserPoints(PointCloudPtr p, int numPoints, Pose sensorPo
             continue;
          }
          if (p->cloud[i].z < FloorHeight) {
+            continue;
+         }
+         if ((!isnan(floorHeight) && p->cloud[i].z <= floorHeight) /*|| (maxZ - minZ > 0.5 && p->cloud[i].z < minZ + 0.2)*/) {
+            //removed++;
             continue;
          }
          points->pointX[numAdded] = p->cloud[i].x;
@@ -456,6 +472,7 @@ int OgmbicpGPU::prepareLaserPoints(PointCloudPtr p, int numPoints, Pose sensorPo
          ++numAdded;         
       }
    }
+   //cout << "Z's are: " << minZ << " " << maxZ << " " << floorHeight << " " << zOffset << " " << removed << " " << numAdded << endl;
    
    if (!UsePriorMove) {
       memset(&(points->offset), 0, 16);

@@ -33,6 +33,7 @@ public:
     * z value
     */
    double zOffset;
+   double floorHeight;
 protected:
    //height of a 3D map cell in metres
    double CellHeight;

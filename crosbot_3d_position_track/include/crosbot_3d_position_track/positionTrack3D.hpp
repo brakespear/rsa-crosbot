@@ -48,7 +48,7 @@ public:
    /*
     * Process a kinect frame
     */
-   Pose processFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose icpPose);
+   Pose processFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose icpPose, float *floorHeight);
 
 private:
    /*
@@ -83,6 +83,8 @@ private:
    //Minimum number of observations of a cell required before being used
    //in matching
    int MinObsCount;
+   //Estimate the height of the floor
+   bool CalculateFloorHeight;
 
    //derived configs
    int NumCells;
@@ -112,6 +114,8 @@ private:
    //Current height of the robot
    double z;
 
+   double prevFloorHeight;
+
    int mapCentreX;
    int mapCentreY;
    int mapCentreZ;
@@ -132,6 +136,9 @@ private:
    cl_mem clLocalMap;
    //general information
    cl_mem clCommon;
+   //stores floor heights
+   cl_mem clFloor;
+   int *heightPoints;
 
 
    /*
@@ -145,6 +152,7 @@ private:
    bool alignZ(float *zChange);
    void addScan(float zChange);
    void clearCells(int newMapX, int newMapY, int newMapZ);
+   float calculateFloorHeights(float zCur);
 
    /*
     * GPU helper methods

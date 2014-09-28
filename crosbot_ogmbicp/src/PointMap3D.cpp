@@ -11,10 +11,22 @@ LaserPoint::LaserPoint() {
 }
 
 _LaserPoints::_LaserPoints(PointCloudPtr p, double MaxSegLen, bool IgnoreZValues,
-      double FloorHeight, double MinAddHeight, double MaxAddHeight) {
+      double FloorHeight, double MinAddHeight, double MaxAddHeight, double curFloorHeight) {
 
    int i, j;
    double dx, dy, dz;
+   
+   /*double minZ = 999;
+   double maxZ = -999;
+   int removed = 0;
+   for (i = 0; i < p->cloud.size(); i++) {
+         if (p->cloud[i].z > maxZ) {
+            maxZ = p->cloud[i].z;
+         }
+         if (p->cloud[i].z < minZ) {
+            minZ = p->cloud[i].z;
+         }
+   }*/
 
    points.resize(p->cloud.size());
 
@@ -24,6 +36,12 @@ _LaserPoints::_LaserPoints(PointCloudPtr p, double MaxSegLen, bool IgnoreZValues
       } else if (p->cloud[i].z < FloorHeight) {
          continue;
       }
+      if ((!isnan(curFloorHeight) && p->cloud[i].z <= curFloorHeight) /*|| (maxZ - minZ > 0.5 && p->cloud[i].z < minZ + 0.2)*/) {
+         //removed++;
+         continue;
+      }
+
+
       points[j].point = p->cloud[i];
       if (IgnoreZValues) {
          points[j].point.z = (MaxAddHeight + MinAddHeight)/ 2.0;
@@ -46,6 +64,8 @@ _LaserPoints::_LaserPoints(PointCloudPtr p, double MaxSegLen, bool IgnoreZValues
       j++;
    }
    points.resize(j);
+   //cout << "Z's are: " << minZ << " " << maxZ << " " << curFloorHeight << " " << removed << " " << points.size();
+   
 
 }
 

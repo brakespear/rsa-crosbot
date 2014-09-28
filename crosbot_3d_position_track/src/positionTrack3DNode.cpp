@@ -72,10 +72,16 @@ void PositionTrack3DNode::callbackKinect(const sensor_msgs::PointCloud2ConstPtr&
       position_track_3d.initialiseFrame(depthPoints, sensorPose, icpPose);
       isInit = false;
    } else {
-      Pose newIcpPose = position_track_3d.processFrame(depthPoints, sensorPose, icpPose);
+      float floorHeight = NAN;
+      Pose newIcpPose = position_track_3d.processFrame(depthPoints, sensorPose, icpPose, &floorHeight);
 
       if (PublishMessage) {
-         tf::Vector3 pose = icpPose.position.toTF();
+         tf::Vector3 pose = newIcpPose.position.toTF();
+         pose[0] = 0;
+         pose[1] = 0;
+         if (!isnan(floorHeight)) {
+            pose[0] = floorHeight;
+         }
          geometry_msgs::Vector3 vecMsg;
          tf::vector3TFToMsg(pose, vecMsg);
          zPub.publish(vecMsg);

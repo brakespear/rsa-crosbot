@@ -69,6 +69,7 @@ private:
    ros::ServiceServer recentScansServer;
 
    bool UseExternalZ;
+   bool UseFloorHeight;
    Ogmbicp &pos_tracker;
    //Is it the initial scan?
    bool isInit;

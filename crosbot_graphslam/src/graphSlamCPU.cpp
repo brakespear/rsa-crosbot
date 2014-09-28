@@ -772,9 +772,9 @@ void GraphSlamCPU::getGlobalMap(vector<LocalMapPtr> curMap, vector<double> mapSl
                }
 
                //test
-               if (localMaps.size() > 3 && x > localMaps[0].numPoints + localMaps[1].numPoints && x < localMaps[0].numPoints + localMaps[1].numPoints + localMaps[2].numPoints) {
+               /*if (localMaps.size() > 3 && x > localMaps[0].numPoints + localMaps[1].numPoints && x < localMaps[0].numPoints + localMaps[1].numPoints + localMaps[2].numPoints) {
                   cellsP->current = true;
-               }
+               }*/
 
 
             }
