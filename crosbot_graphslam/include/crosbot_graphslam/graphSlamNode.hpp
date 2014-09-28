@@ -70,8 +70,8 @@ private:
     */
    string icp_frame, base_frame, slam_frame;
    string scan_sub, snap_sub;
-   string global_map_image_pub, slam_history_pub, global_grid_pub, local_map_pub, optimise_map_pub;
-   string snap_list_srv, snap_update_srv, snap_get_srv;
+   string global_map_image_pub, slam_history_pub, global_grid_pub, local_map_pub;
+   string snap_list_srv, snap_update_srv, snap_get_srv, optimise_map_srv;
 
    /*
     * Publish an additional map slice of a higher height
@@ -93,7 +93,7 @@ private:
    ros::Publisher imagePub;
    ros::Publisher slamHistoryPub;
    ros::Publisher localMapInfoPub;
-   ros::Publisher optimiseMapPub;
+   ros::ServiceClient optimiseMapService;
    vector<ros::Publisher> slamGridPubs;
    ros::ServiceServer snapListServer;
    ros::ServiceServer snapUpdateServer;
