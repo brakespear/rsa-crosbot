@@ -653,12 +653,12 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             }
          }
          vector<int> iNodes;
-         vector<int jNodes;
+         vector<int> jNodes;
          iNodes.resize(common->numLoopConstraints);
          jNodes.resize(common->numLoopConstraints);
          for (int k = 0; k < common->numLoopConstraints; k++) {
             iNodes[k] = common->loopConstraintI[k];
-            jNodes[k] = common->LoopConstraintJ[k];
+            jNodes[k] = common->loopConstraintJ[k];
          }
          graphSlamNode->publishOptimiseLocalMapInfo(changes, iNodes, jNodes, loopClosed);
 

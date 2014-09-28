@@ -18,6 +18,7 @@
 #include <crosbot/utils.hpp>
 #include <crosbot_graphslam/localMap.hpp>
 #include <crosbot_graphslam/LocalMapMsg.h>
+#include <crosbot_graphslam/LocalMapMsgList.h>
 #include <crosbot_graphslam/LoopClose.h>
 
 #include <crosbot_3d_graphslam/graphSlam3D.hpp>

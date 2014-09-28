@@ -50,7 +50,7 @@ void GraphSlam3DNode::initialise(ros::NodeHandle& nh) {
 void GraphSlam3DNode::shutdown() {
    kinectSub.shutdown();
    localMapSub.shutdown();
-   optimiseMapSub.shutdown();
+   //optimiseMapSub.shutdown();
    graph_slam_3d.stop();
 }
 

@@ -15,7 +15,7 @@
 		<remap from="image" to="/camera/rgb/image_color" />
    </node-->
 	
-	<node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp" output="screen">
+	<node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp">
 		<!--param name="odom_frame" value="" /-->
 		<param name="base_frame" value="camera_stablized" />
       <param name="icp_frame" value="icp_test" />
@@ -50,7 +50,7 @@
       <param name="InitHeight" value ="0.5" />
 	</node>
 
-	<node pkg="crosbot_3d_graphslam_gpu" type="crosbot_3d_graphslam_gpu" name="crosbot_3d_graphslam_gpu">
+	<node pkg="crosbot_3d_graphslam_gpu" type="crosbot_3d_graphslam_gpu" name="crosbot_3d_graphslam_gpu" output="screen">
 		<param name="base_frame" value="camera_stablized" />
       <param name="CellSize" value="0.05" />
 	</node>

@@ -39,7 +39,7 @@ private:
       bool fullLoop;
       bool valid;
       float z;
-   } Constraints;
+   } Constraint;
    /*
     * GPU config params
     */
@@ -111,7 +111,7 @@ private:
    size_t numMatchOffset;
 
    vector<Local3DMap *> maps;
-   vector<Constraints> constraints;
+   vector<Constraint> constraints;
    int currentMap;
 
    bool hasInitialised;
@@ -144,7 +144,7 @@ private:
    void extractPoints(int numBlocks, cl_mem &clPointCloud, cl_mem &clColours);
    PointCloudPtr copyPoints(int numPoints, cl_mem &clPointCloud, cl_mem &clColours);
 
-   vector<LocalMapInfoPtr> optimiseChanges(cl_mem &clPointCloud);
+   vector<LocalMapInfoPtr> alignAndOptimise(cl_mem &clPointCloud);
    bool alignMap(double *zChange, int prevMapI, Pose curNewPose, Pose prevNewPose, cl_mem &clPointCloud);
    void optimiseMap(bool fullL, int start);
 

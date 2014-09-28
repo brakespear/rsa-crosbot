@@ -71,7 +71,7 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    if (PublishLocalMapInfo) {
       localMapInfoPub = nh.advertise<crosbot_graphslam::LocalMapMsg>(local_map_pub, 1);
       //optimiseMapPub = nh.advertise<crosbot_graphslam::LocalMapMsgList>(optimise_map_pub, 1);
-      optimiseMapService = nh.serviceClient<corsbot_graphslam::LoopClose>(optimise_map_srv);
+      optimiseMapService = nh.serviceClient<crosbot_graphslam::LoopClose>(optimise_map_srv);
    }
 
    //Kinect subscriber
