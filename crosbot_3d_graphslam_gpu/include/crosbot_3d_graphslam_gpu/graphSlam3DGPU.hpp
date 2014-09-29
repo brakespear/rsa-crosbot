@@ -114,6 +114,9 @@ private:
    vector<Constraint> constraints;
    int currentMap;
 
+   double globalZ;
+   double prevZ;
+
    bool hasInitialised;
    bool receivedOptimisationRequest;
    vector<LocalMapInfoPtr> optimiseChanges;

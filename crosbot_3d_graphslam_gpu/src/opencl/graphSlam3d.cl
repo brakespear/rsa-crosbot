@@ -476,18 +476,21 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
                r[blockOffset + retI] = localMapCells[bIndex].r[i];
                g[blockOffset + retI] = localMapCells[bIndex].g[i];
                b[blockOffset + retI] = localMapCells[bIndex].b[i];
-               localMapCells[bIndex].pI[i] = (unsigned char)retI;
+               localMapCells[bIndex].pI[i] = retI;
                fullIndex[blockOffset + retI] = i;
             } else if (count + 1 < config->NumCellsWidth) {
                r[blockOffset + retI] = localMapCells[bIndex].r[nextI];
                g[blockOffset + retI] = localMapCells[bIndex].g[nextI];
                b[blockOffset + retI] = localMapCells[bIndex].b[nextI];
-               localMapCells[bIndex].pI[nextI] = (unsigned char)retI;
-               fullIndex[blockOffset + retI] = i;
+               localMapCells[bIndex].pI[nextI] = retI;
+               fullIndex[blockOffset + retI] = nextI;
             } else {
                r[blockOffset + retI] = localMapCells[bNextIndex].r[startI];
                g[blockOffset + retI] = localMapCells[bNextIndex].g[startI];
                b[blockOffset + retI] = localMapCells[bNextIndex].b[startI];
+               
+               localMapCells[bIndex].pI[i] = retI;
+               fullIndex[blockOffset + retI] = i;
             }
          }
       }
@@ -664,7 +667,7 @@ __kernel void transform3D(global float *points, const int numPoints, float3 orig
 __kernel void alignZ(constant oclGraphSlam3DConfig *config, global int *blocks,
       global oclLocalBlock *localMapCells, global oclLocalMapCommon *common,
       global float *ptsCurMap, global float *ptsPrevMap, const int numPrevPts, 
-      const int zInc) {
+      const float zInc) {
    
    int index = get_global_id(0);
    int lIndex = get_local_id(0);
@@ -690,7 +693,8 @@ __kernel void alignZ(constant oclGraphSlam3DConfig *config, global int *blocks,
          float minDist = INFINITY;
          int bInd = blocks[blockI];
          int maxTravel = config->MaxSearchCells;
-         if (bInd >= 0 && localMapCells[bInd].pI[cellI] >= 0) {
+         if (bInd >= 0 && localMapCells[bInd].pI[cellI] >= 0 
+               && localMapCells[bInd].pI[cellI] / 3 < common->numPoints) {
             minDist = ptsCurMap[localMapCells[bInd].pI[cellI] + 2] - p.z;
             maxTravel = 1;
          }
@@ -708,7 +712,8 @@ __kernel void alignZ(constant oclGraphSlam3DConfig *config, global int *blocks,
                }
                bCur = blocks[blocksCur];
             }
-            if (bCur >= 0 && localMapCells[bCur].pI[cellCur] >= 0) {
+            if (bCur >= 0 && localMapCells[bCur].pI[cellCur] >= 0
+                  && localMapCells[bCur].pI[cellCur] / 3 < common->numPoints) {
                if (ptsCurMap[localMapCells[bCur].pI[cellCur] + 2] - p.z < fabs(minDist)) {
                   minDist = ptsCurMap[localMapCells[bCur].pI[cellCur] + 2] - p.z;
                }
@@ -728,7 +733,8 @@ __kernel void alignZ(constant oclGraphSlam3DConfig *config, global int *blocks,
                }
                bCur = blocks[blocksCur];
             }
-            if (bCur >= 0 && localMapCells[bCur].pI[cellCur] >= 0) {
+            if (bCur >= 0 && localMapCells[bCur].pI[cellCur] >= 0
+                  && localMapCells[bCur].pI[cellCur] / 3 < common->numPoints) {
                if (ptsCurMap[localMapCells[bCur].pI[cellCur] + 2] - p.z < fabs(minDist)) {
                   minDist = ptsCurMap[localMapCells[bCur].pI[cellCur] + 2] - p.z;
                }
