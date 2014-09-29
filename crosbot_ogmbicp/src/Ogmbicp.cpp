@@ -23,9 +23,9 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("MaxErrorXY", MaxErrorXY, 0.0001);
    paramNH.param<double>("MaxErrorTh", MaxErrorTh, 0.01);
    paramNH.param<double>("MaxErrorZ", MaxErrorZ, 0.001);
-   paramNH.param<double>("MinAddHeight", MinAddHeight, 1.2);
-   paramNH.param<double>("MaxAddHeight", MaxAddHeight, 3.0);
-   paramNH.param<double>("FloorHeight", FloorHeight, 1.0);
+   paramNH.param<double>("MinAddHeight", MinAddHeight, -1);
+   paramNH.param<double>("MaxAddHeight", MaxAddHeight, 1);
+   paramNH.param<double>("FloorHeight", FloorHeight, -INFINITY);
    paramNH.param<double>("LaserMinDist", LaserMinDist, 0.4);
    paramNH.param<double>("LaserMaxDistance", LaserMaxDistance, 10.0);
    paramNH.param<bool>("IgnoreZValues", IgnoreZValues, false);
