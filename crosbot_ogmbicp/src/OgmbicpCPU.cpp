@@ -153,7 +153,7 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    }
    failCount = 0;
    if (!alignedScan && iterCount < MaxIterations) {
-      cout << "Scan alignment failed " << lastCount << endl;
+      cout << "Scan alignment failed " << lastCount << " " << iterCount << endl;
       gx = gy = gth = gz = 0;
    }
 
@@ -243,7 +243,7 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
 
    for (i = 0; i < scan->points.size(); i += LaserSkip) {
       //TODO: deal with z values properly
-      if (scan->points[i].point.z < MinAddHeight || scan->points[i].point.z > MaxAddHeight || (!isnan(floorHeight) && scan->points[i].point.z < floorHeight)) {
+      if (scan->points[i].point.z < MinAddHeight || scan->points[i].point.z > MaxAddHeight /*|| (!isnan(floorHeight) && scan->points[i].point.z < floorHeight)*/) {
          //tempH++;
          //cout << "points have the wrong height" << endl;
          continue;
@@ -354,6 +354,7 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
       }
       count++;
    }
+   lastCount = count;
    //cout << "count: " << count << " " << tempH << " " << tempNan << " " <<
    //   tempMax << " " << tempInf << " " << tempCol << " " << tempCount << " " << tt << endl;
    if (count < MinGoodCount) {

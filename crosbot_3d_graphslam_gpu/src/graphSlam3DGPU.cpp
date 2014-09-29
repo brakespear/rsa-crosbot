@@ -583,10 +583,12 @@ vector<LocalMapInfoPtr> GraphSlam3DGPU::alignAndOptimise(cl_mem &clPointCloud) {
          c.fullLoop = false;
       }
       if (c.j == currentMap) {
-         double zChange;
+         double zChange = 0;
          cout << "About to align maps: " << c.i << " " << c.j << endl;
          c.valid = alignMap(&zChange, c.i, maps[c.j]->getPose(), maps[c.i]->getPose(), clPointCloud);
          c.z = maps[c.j]->getPose().position.z - (maps[c.i]->getPose().position.z + zChange);
+         cout << "Poses of the two maps: " << maps[c.j]->getPose().position.z << " " << 
+            maps[c.i]->getPose().position.z << endl;
          cout << "Change between maps " << c.i << " " << c.j << " is " << c.z << " " << zChange << endl;
       } else {
          c.valid = false;
@@ -614,6 +616,7 @@ bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Po
       prevPoints[i * 3 + 1] = maps[prevMapI]->cloud->cloud[i].y;
       prevPoints[i * 3 + 2] = maps[prevMapI]->cloud->cloud[i].z;
    }
+   cout << "number of previous points is: " << maps[prevMapI]->cloud->cloud.size() << endl;
    writeBuffer(clPrevPoints, CL_FALSE, 0, prevPointsSize, prevPoints, 0, 0, 0,
          "Copying prev points to GPU");
 
@@ -662,16 +665,20 @@ bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Po
 
    int numIts;
    for(numIts = 0; numIts < MaxIterations; numIts++) {
+      cout << "Starting iteration " << numIts << endl;
       commonInfo.numMatch = 0;
       commonInfo.distance = 0;
       writeBuffer(clLocalMapCommon, CL_FALSE, numMatchOffset, sizeof(CommonICP), &commonInfo, 0, 0, 0,
             "Copying Zeroing of CommonICP struct");
       opencl_task->setArg(7, kernelI, sizeof(ocl_float), &zInc);
+      if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) 
+         cout << "error align z " << endl;
       opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 
       readBuffer(clLocalMapCommon, CL_TRUE, numMatchOffset, sizeof(CommonICP), &commonInfo, 0, 0, 0,
             "Reading commonICP after alignment");
       double zAl = commonInfo.distance / (float) commonInfo.numMatch;
+      cout << "results are: " << commonInfo.distance << " " << commonInfo.numMatch << " " << zAl << endl;
       if (commonInfo.numMatch < MinCount) {
          zInc = 0;
          success = false;
@@ -687,7 +694,7 @@ bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Po
    } else {
       *zChange = 0;
    }
-
+   cout << "Success: " << success << " numits: " << numIts << endl;
    opencl_manager->deviceRelease(clPrevPoints);
    free(prevPoints);
 
@@ -696,12 +703,15 @@ bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Po
 }
 
 void GraphSlam3DGPU::optimiseMap(bool fullL, int start) {
+   cout << "About to optimise the map" << endl;
    for (int i = start; i < constraints.size(); i++) {
+      cout << "here here" << endl;
       if (constraints[i].valid) {
          int startOpt = constraints[i].i + 1;
          if (!fullL && previousINode > startOpt) {
             startOpt = previousINode + 1;
          } 
+         cout << "start opt: " << startOpt << " " << maps.size() << " " << constraints[i].i << " " << constraints[i].j << endl << endl;
          int numMaps = constraints[i].j - startOpt + 1;
          Pose pI = maps[constraints[i].i]->getPose();
          Pose pJ = maps[constraints[i].j]->getPose();
@@ -715,6 +725,7 @@ void GraphSlam3DGPU::optimiseMap(bool fullL, int start) {
          }
       }
    }
+   cout << "Finished optimise map" << endl;
 }
 
 

@@ -140,7 +140,8 @@ __kernel void alignZ(global oclPositionTrackConfig *config, global oclDepthPoint
          int cellI = getCellIndex(config, xyCell, zCell);
          float minDist = INFINITY;
          if (map->count[cellI] >= config->MinObsCount) {
-            float zCellVal = map->z[cellI] / (float)map->count[cellI];
+            //float zCellVal = map->z[cellI] / (float)map->count[cellI];
+            float zCellVal = map->z[cellI];
             minDist = zCellVal - zVal;
             maxTravelNeg = 1;
             maxTravelPos = 1;
@@ -150,7 +151,8 @@ __kernel void alignZ(global oclPositionTrackConfig *config, global oclDepthPoint
             int z = (zCell + travel) % config->NumCellsHeight;
             int cell = getCellIndex(config, xyCell, z);
             if (map->count[cell] >= config->MinObsCount) {
-               float zCellVal = map->z[cell] / (float)map->count[cell];
+               //float zCellVal = map->z[cell] / (float)map->count[cell];
+               float zCellVal = map->z[cell];
                if (zCellVal - zVal < fabs(minDist)) {
                   minDist = zCellVal - zVal;
                }
@@ -165,7 +167,8 @@ __kernel void alignZ(global oclPositionTrackConfig *config, global oclDepthPoint
             }
             int cell = getCellIndex(config, xyCell, z);
             if (map->count[cell] >= config->MinObsCount) {
-               float zCellVal = map->z[cell] / (float) map->count[cell];
+               //float zCellVal = map->z[cell] / (float) map->count[cell];
+               float zCellVal = map->z[cell];
                if (zVal - zCellVal < fabs(minDist)) {
                   minDist = zCellVal - zVal;
                }
@@ -234,9 +237,9 @@ __kernel void addScan(global oclPositionTrackConfig *config, global oclDepthPoin
          int retVal = atomic_inc(&(map->count[cellI]));
          //Todo: should this be the average? (would have to watch out for speed slowdown)
          
-         //if (retVal == 0) {
+         if (retVal == 0) {
             atomicFloatAdd(&(map->z[cellI]), points->pointZ[index] + zChange);
-         //}
+         }
       }
    }
 }
@@ -250,13 +253,14 @@ __kernel void clearCells(global oclPositionTrackConfig *config, global oclLocalM
       int diff = newPos.x - oldPos.x;
       int increment = 0;
       int start = 0;
+      int posI = oldPos.x % config->NumCellsWidth;
       if (diff < 0) {
          increment = -1;
-         start = oldPos.x - config->NumCellsWidth;
+         start = posI - config->NumCellsWidth/2;
          diff *= -1;
       } else if (diff > 0) {
          increment = 1;
-         start = oldPos.x + config->NumCellsWidth + 1;
+         start = posI + config->NumCellsWidth/2 + 1;
       }
       int z = index / config->NumCellsWidth;
       int y = index % config->NumCellsWidth;
@@ -279,13 +283,14 @@ __kernel void clearCells(global oclPositionTrackConfig *config, global oclLocalM
       diff = newPos.y - oldPos.y;
       increment = 0;
       start = 0;
+      posI = oldPos.y % config->NumCellsWidth;
       if (diff < 0) {
          increment = -1;
-         start = oldPos.y - config->NumCellsWidth;
+         start = posI - config->NumCellsWidth/2;
          diff *= -1;
       } else if (diff > 0) {
          increment = 1;
-         start = oldPos.y + config->NumCellsWidth + 1;
+         start = posI + config->NumCellsWidth/2 + 1;
       }
       int x = index % config->NumCellsWidth;
       z = index / config->NumCellsWidth;
@@ -308,13 +313,14 @@ __kernel void clearCells(global oclPositionTrackConfig *config, global oclLocalM
       int diff = newPos.z - oldPos.z;
       int increment = 0;
       int start = 0;
+      int posI = oldPos.z % config->NumCellsHeight;
       if (diff < 0) {
          increment = -1;
-         start = oldPos.z - config->NumCellsHeight;
+         start = posI - config->NumCellsHeight/2;
          diff *= -1;
       } else if (diff > 0) {
          increment = 1;
-         start = oldPos.z + config->NumCellsHeight + 1;
+         start = posI + config->NumCellsHeight/2 + 1;
       }
       int x = index % config->NumCellsWidth;
       int y = index / config->NumCellsWidth;

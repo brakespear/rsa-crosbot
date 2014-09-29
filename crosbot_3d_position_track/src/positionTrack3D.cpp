@@ -403,7 +403,7 @@ float PositionTrack3D::calculateFloorHeights(float curZ) {
    for (int i = 0; i < NumCellsHeight / 2; i++) {
       //cout << heightPoints[i] << " ";
       if (heightPoints[i] > 100) {
-         //0.2 - 0.3
+         //0.2 - 0.3. 0.25
          prevFloorHeight =  curZ - (NumCellsHeight / 2 - i) * CellSize + 0.25;
          return prevFloorHeight;
       }

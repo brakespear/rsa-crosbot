@@ -33,6 +33,7 @@
       <param name="LifeRatio" value ="5" />
       <!--param name="MinCellCount" value ="6" /-->
       <param name="IgnoreZValues" value ="true" />
+      <param name="UseSimpleH" value ="true" />
       
       <param name="LaserSkip" value="2" />
 	</node>
@@ -41,6 +42,7 @@
       <param name="icp_frame" value="icp_test" />
       <param name="base_frame" value="camera_stablized" />
       <param name="PublishTransform" value="true" />
+      <param name="SkipPoints" value="4" />
 	</node>
 
 	<node pkg="crosbot_graphslam" type="crosbot_graphslam" name="crosbot_graphslam">
