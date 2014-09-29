@@ -46,7 +46,7 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("InitialScans", InitialScans, 20);
    //paramNH.param<double>("LifeRatio", LifeRatio, 2.0);
    paramNH.param<double>("LifeRatio", LifeRatio, 3.0);
-   paramNH.param<double>("InitHeight", InitHeight, 1.0);
+   paramNH.param<double>("InitHeight", InitHeight, 0.0);
 
    //paramNH.param<double>("MaxMoveXYZ", MaxMoveXYZ, 0.1);
    paramNH.param<double>("MaxMoveXYZ", MaxMoveXYZ, 0.2);

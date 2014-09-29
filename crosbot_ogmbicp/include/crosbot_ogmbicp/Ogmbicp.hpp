@@ -158,6 +158,8 @@ public:
    //True if the code has finished initialising
    bool finishedSetup;
 
+
+   virtual ~Ogmbicp() {}
    /*
     * Initialise the position tracker
     */

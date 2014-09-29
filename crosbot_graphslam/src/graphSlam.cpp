@@ -17,8 +17,8 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("GlobalMapSize", GlobalMapSize, 50);
    paramNH.param<double>("CellSize", CellSize, 0.05);
    paramNH.param<int>("ImgTransmitTime", ImgTransmitTime, 2000000);
-   paramNH.param<double>("MinAddHeight", MinAddHeight, 1.2);
-   paramNH.param<double>("MaxAddHeight", MaxAddHeight, 3.0);
+   paramNH.param<double>("MinAddHeight", MinAddHeight, -1);
+   paramNH.param<double>("MaxAddHeight", MaxAddHeight, 1);
    paramNH.param<double>("LaserMinDist", LaserMinDist, 0.4);
    paramNH.param<double>("LaserMaxDist", LaserMaxDist, 10.0);
    paramNH.param<double>("LocalMapSize", LocalMapSize, 16);
@@ -65,8 +65,8 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("RGBDWidth", RGBDWidth, 640);
    paramNH.param<int>("RGBDHeight", RGBDHeight, 480);
    paramNH.param<int>("SkipVal", SkipVal, 2);
-   paramNH.param<double>("RGBDMinHeight", RGBDMinHeight, 0.1);
-   paramNH.param<double>("RGBDMaxHeight", RGBDMaxHeight, 2.0);
+   paramNH.param<double>("RGBDMinHeight", RGBDMinHeight, -INFINITY);
+   paramNH.param<double>("RGBDMaxHeight", RGBDMaxHeight, INFINITY);
    paramNH.param<double>("RGBDMaxDistance", RGBDMaxDistance, 36.0);
    paramNH.param<double>("RGBDMinDistance", RGBDMinDistance, 0.3);
 
