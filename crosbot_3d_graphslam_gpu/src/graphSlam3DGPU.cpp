@@ -300,6 +300,21 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
          vector<LocalMapInfoPtr> changes = alignAndOptimise(clPointCloud);
          graphSlam3DNode->publishOptimisedMapPositions(changes);
          receivedOptimisationRequest = false;
+   
+         /*float *prevPoints = (float *) malloc(sizeof(float) * numPoints * 3);
+         readBuffer(clPointCloud, CL_TRUE, 0, sizeof(float) * numPoints * 3, prevPoints, 0, 0, 0,
+         "Copying prev points to GPU");
+   
+         cout << "outputting current map: " << endl;
+         FILE *f = fopen("/home/adrianr/curMap.pcd", "w");
+         fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F\nCOUNT 1 1 1\nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
+         for (int i = 0; i < numPoints;i++) {
+            fprintf(f, "%f %f %f\n", prevPoints[i*3], prevPoints[i*3 +1], prevPoints[i*3+2]);
+         }
+         fclose(f);
+         cout << "done" << endl;*/
+      
+      
       }
       
       PointCloudPtr cloud = copyPoints(numPoints, clPointCloud, clColours);
@@ -319,6 +334,7 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
    currentMap = localMapInfo->index;
    if (maps.size() == currentMap) {
       Pose p = localMapInfo->pose;
+      //cout << "New map pOld: " << p.position.z << " new: " << globalZ << endl;
       p.position.z = globalZ;
       maps.push_back(new Local3DMap(p));
    } else {
@@ -577,7 +593,9 @@ vector<LocalMapInfoPtr> GraphSlam3DGPU::alignAndOptimise(cl_mem &clPointCloud) {
 
    for (i = 0; i < optimiseChanges.size(); i++) {
       int index = optimiseChanges[i]->index;
-      maps[index]->updatePose(optimiseChanges[i]->pose);
+      Pose p = optimiseChanges[i]->pose;
+      p.position.z = maps[index]->getPose().position.z;
+      maps[index]->updatePose(p);
       maps[index]->poseChanged = true;
    }
    int numExisting = constraints.size();
@@ -597,7 +615,7 @@ vector<LocalMapInfoPtr> GraphSlam3DGPU::alignAndOptimise(cl_mem &clPointCloud) {
          double zChange = 0;
          cout << "About to align maps: " << c.i << " " << c.j << endl;
          c.valid = alignMap(&zChange, c.i, maps[c.j]->getPose(), maps[c.i]->getPose(), clPointCloud);
-         c.z = -(maps[c.j]->getPose().position.z - (maps[c.i]->getPose().position.z + zChange));
+         c.z = maps[c.j]->getPose().position.z - (maps[c.i]->getPose().position.z + zChange);
          cout << "Poses of the two maps: " << maps[c.j]->getPose().position.z << " " << 
             maps[c.i]->getPose().position.z << endl;
          cout << "Change between maps " << c.i << " " << c.j << " is " << c.z << " " << zChange << endl;
@@ -661,6 +679,19 @@ bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Po
 
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 
+   /*readBuffer(clPrevPoints, CL_TRUE, 0, prevPointsSize, prevPoints, 0, 0, 0,
+         "Copying prev points to GPU");
+   cout << "outputting transformed map: " << prevMapI << endl;
+   FILE *f = fopen("/home/adrianr/prevMap.pcd", "w");
+   fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F\nCOUNT 1 1 1\nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
+   for (int i = 0; i < numPoints;i++) {
+      fprintf(f, "%f %f %f\n", prevPoints[i*3], prevPoints[i*3 +1], prevPoints[i*3+2]);
+   }
+   fclose(f);
+   cout << "done" << endl;*/
+
+   
+   
    kernelI = ALIGN_Z;
    float zInc = 0;
 
@@ -706,6 +737,18 @@ bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Po
    } else {
       *zChange = 0;
    }
+
+   /*readBuffer(clPrevPoints, CL_TRUE, 0, prevPointsSize, prevPoints, 0, 0, 0,
+         "Copying prev points to GPU");
+   cout << "outputting transformed and aligned map: " << prevMapI << endl;
+   f = fopen("/home/adrianr/prevMapAligned.pcd", "w");
+   fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F\nCOUNT 1 1 1\nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
+   for (int i = 0; i < numPoints;i++) {
+      fprintf(f, "%f %f %f\n", prevPoints[i*3], prevPoints[i*3 +1], prevPoints[i*3+2] + zInc);
+   }
+   fclose(f);
+   cout << "done" << endl;*/
+
    cout << "Success: " << success << " numits: " << numIts << endl;
    opencl_manager->deviceRelease(clPrevPoints);
    free(prevPoints);
@@ -744,7 +787,7 @@ void GraphSlam3DGPU::optimiseMap(bool fullL, int start) {
    }
    double newZ = maps[lastMap]->getPose().position.z;
    globalZ += newZ - oldZ;
-   cout << "Finished optimise map" << endl;
+   cout << "Finished optimise map " << newZ << " " << oldZ << endl;
 }
 
 

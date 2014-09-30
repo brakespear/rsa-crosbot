@@ -431,6 +431,9 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
       if (isnan(cellVal) || isnan(cellNextVal)) {
          continue;
       }
+      if (fabs(cellVal) > config->CellSize * 10 || fabs(cellNextVal) > config->CellSize * 10) {
+         continue;
+      }
       if ((sign(cellVal) != sign(cellNextVal) || cellVal == 0) && localMapCells[bIndex].weight[i] > 5.0f/*15.9f*/) {
          //There is a crossing!
          float3 p = getCellCentre(config, i, localMapCells[bIndex].blockIndex);
@@ -489,8 +492,8 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
                g[blockOffset + retI] = localMapCells[bNextIndex].g[startI];
                b[blockOffset + retI] = localMapCells[bNextIndex].b[startI];
                
-               localMapCells[bIndex].pI[i] = retI;
-               fullIndex[blockOffset + retI] = i;
+               //localMapCells[bIndex].pI[i] = retI;
+               //fullIndex[blockOffset + retI] = i;
             }
          }
       }
@@ -688,6 +691,13 @@ __kernel void alignZ(constant oclGraphSlam3DConfig *config, global int *blocks,
       int blockI = getBlockIndex(config, p);
       int cellI = getCellIndex(config, p, blockI);
       int cellXY = cellI % increment;
+
+      //Only aligning low points (as in, the floor) makes z alignment
+      //a huge amount more accurate. Don't know why...
+      //TODO: work out a better way to fix the alignment
+      if (p.z > -0.2) {
+         return;
+      }
 
       if (blockI >= 0) {
          float minDist = INFINITY;
