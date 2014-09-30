@@ -43,7 +43,7 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("MaxThetaOptimise", MaxThetaOptimise, M_PI / 2.0);
    paramNH.param<int>("HistoryTime", HistoryTime, 1000000);
    paramNH.param<int>("MinObservationCount", MinObservationCount, 30);
-   paramNH.param<double>("InitHeight", InitHeight, 1.0);
+   paramNH.param<double>("InitHeight", InitHeight, 0.0);
    paramNH.param<bool>("LocalMapWarp", LocalMapWarp, true);
    paramNH.param<double>("FreeAreaThreshold", FreeAreaThreshold, 0.2);
    paramNH.param<bool>("UseTempLoopClosures", UseTempLoopClosures, true);
@@ -353,7 +353,7 @@ void GraphSlam::captureScan(const vector<uint8_t>& points, Pose correction) {
    newScan->scanIndex = getScanIndex(activeMapIndex);
    int i = 0;
    int skipSize = 32 * RGBDWidth;
-   cout << "*********** Capturing scan" << endl;
+//   cout << "*********** Capturing scan" << endl;
    for (row = 0; row < RGBDHeight; row+=step) {
       off = skipSize * row;
       for (col = 0; col < RGBDWidth; col+=step) {

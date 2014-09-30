@@ -48,7 +48,7 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    graph_slam.initialise(nh);
    graph_slam.start();
 
-   slamGridPubs.push_back(nh.advertise<nav_msgs::OccupancyGrid>(global_grid_pub, 1));
+   slamGridPubs.push_back(nh.advertise<nav_msgs::OccupancyGrid>(global_grid_pub, 1, true));
    mapSlices.push_back(graph_slam.MinAddHeight);
    if (IncludeHighMapSlice) {
       string name = global_grid_pub + "High";
@@ -65,7 +65,6 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
 
    //Kinect subscriber
    if (useKinect) {
-	   ROS_WARN("Connectin to point cloud.");
       kinectSub = nh.subscribe(kinect_sub, 1, &GraphSlamNode::callbackKinect, this);
       worldMap = nh.advertise<sensor_msgs::PointCloud2>(world_pub, 1, true);
       worldScan.header.frame_id = slam_frame;
