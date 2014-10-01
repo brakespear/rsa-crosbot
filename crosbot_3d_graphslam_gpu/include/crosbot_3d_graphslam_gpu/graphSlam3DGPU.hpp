@@ -127,6 +127,10 @@ private:
 
    bool done;
 
+   int totalNumPoints;
+   FILE *f;
+   int counter;
+
    typedef struct {
       int numMatch;
       float distance;

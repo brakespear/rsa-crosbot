@@ -15,6 +15,15 @@ using namespace std;
 using namespace crosbot;
 
 GraphSlamDisplay::GraphSlamDisplay() {
+   f = fopen("/home/adrianr/timing3DMap.txt", "w");
+
+   minX = 9999;
+   minY = 9999;
+   minZ = 9999;
+   maxX = -999;
+   maxY = -999;
+   maxZ = -999;
+
 
 }
 
@@ -34,6 +43,8 @@ void GraphSlamDisplay::initialise(ros::NodeHandle &nh) {
 }
 
 void GraphSlamDisplay::stop() {
+   fclose(f);
+
 }
 
 void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
@@ -66,6 +77,25 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
          p.x = point.x;
          p.y = point.y;
          p.z = point.z;
+
+         if (p.x > maxX) {
+            maxX = p.x;
+         }
+         if (p.y > maxY) {
+            maxY = p.y;
+         }
+         if (p.z > maxZ) {
+            maxZ = p.z;
+         }
+         if (p.x < minX) {
+            minX = p.x;
+         }
+         if (p.y < minY) {
+            minY = p.y;
+         }
+         if (p.z < minZ) {
+            minZ = p.z;
+         }
 
          //cloud->push_back(p);
          (*cloud)[i] = p;
@@ -163,6 +193,9 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       ros::WallTime t2 = ros::WallTime::now();
       ros::WallDuration totalTime = t2 - t1;
       cout << "Time to create mesh: " << totalTime.toSec() * 1000.0f << endl;
+      cout << "Max and mins are: " << minX << " " << minY << " " << minZ << "   " 
+         << maxX << " " << maxY << " " << maxZ << endl;
+      //fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
 
       //testing
       /*if(maps.size() == 2) {
@@ -195,6 +228,7 @@ void GraphSlamDisplay::correctMap(vector<LocalMapInfoPtr> newMapPositions) {
    cout << "Correcting map" << endl;
    //viewerLock.lock();
 
+      ros::WallTime t1 = ros::WallTime::now();
    int i;
    int maxI = -1;
    vector<bool> newPos;
@@ -262,6 +296,12 @@ void GraphSlamDisplay::correctMap(vector<LocalMapInfoPtr> newMapPositions) {
          }
       }
    } 
+      ros::WallTime t2 = ros::WallTime::now();
+      ros::WallDuration totalTime = t2 - t1;
+      cout << "Time to create mesh: " << totalTime.toSec() * 1000.0f << endl;
+      cout << "Max and mins are: " << minX << " " << minY << " " << minZ << "   " 
+         << maxX << " " << maxY << " " << maxZ << endl;
+      fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
    
    viewerLock.lock();
    for(i = 0; i < hasChanged.size(); i++) {
@@ -471,7 +511,7 @@ PointCloud &GraphSlamDisplay::getPointCloud() {
 
 void GraphSlamDisplay::run() {
    viewer = new pcl::visualization::PCLVisualizer ("3D Viewer");
-   viewer->setBackgroundColor(0.0, 0.0, 0.0);
+   viewer->setBackgroundColor(1.0, 1.0, 1.0);
    viewer->initCameraParameters ();
    while(!viewer->wasStopped()) {
       viewer->spinOnce(1000);

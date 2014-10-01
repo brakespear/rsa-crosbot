@@ -102,7 +102,7 @@ private:
    ros::WallDuration totalTime;
    int numIterations;
    int avNumIts;
-
+   FILE *f;
    //center point cloud around the robot's current position
    PointCloudPtr centerPointCloud(PointCloud &p, Pose curPose, Pose sensorPose);
    //Initialise results struct for opencl

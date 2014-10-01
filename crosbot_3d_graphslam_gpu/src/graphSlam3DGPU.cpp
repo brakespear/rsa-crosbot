@@ -52,6 +52,10 @@ GraphSlam3DGPU::GraphSlam3DGPU() : GraphSlam3D() {
    receivedOptimisationRequest = false;
    previousINode = 0;
 
+   totalNumPoints = 0;
+   f = fopen("/home/adrianr/timing3DSLAM.txt", "w");
+   counter = 0;
+
 }
 
 GraphSlam3DGPU::~GraphSlam3DGPU() {
@@ -62,6 +66,7 @@ GraphSlam3DGPU::~GraphSlam3DGPU() {
    opencl_manager->deviceRelease(clLocalMapCommon);
    delete opencl_task;
    delete opencl_manager;
+   fclose(f);
 }
 
 void GraphSlam3DGPU::initialise(ros::NodeHandle &nh) {
@@ -154,6 +159,14 @@ void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
       globalZ += slamPose.position.z - prevZ;
       prevZ = slamPose.position.z;
       slamPose.position.z = globalZ;
+      counter++;
+      if (counter % 30 == 0) {
+         double yy, pp, rr;
+         slamPose.getYPR(yy,pp,rr);
+         cout << "Slam pose is: " << slamPose.position.x << " " << slamPose.position.y << " " << slamPose.position.z
+            << "  " << yy << " " << pp << " " << rr << endl;
+      }
+
 
       if (done) {
          return;
@@ -175,13 +188,13 @@ void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
          //cout << points->pointX[i] << "  " << points->pointY[i] << " " << points->pointZ[i] << endl;
 
       }
+      ros::WallTime t1 = ros::WallTime::now();
       writeBuffer(clPoints, CL_TRUE, 0, pointsSize, points->pointX, 0, 0, 0,
             "Copying depth points to GPU");
       writeBuffer(clPoints, CL_TRUE, pointsSize, coloursSize, points->r, 0, 0, 0,
             "Copying point colours to GPU");
 
       {{ Lock lock(masterLock);
-      //ros::WallTime t1 = ros::WallTime::now();
 
       //Check that the required blocks in the local map exist
       checkBlocksExist(numDepthPoints, offset);
@@ -198,8 +211,8 @@ void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
       }
       cout << endl;*/
       
-      //ros::WallTime t2 = ros::WallTime::now();
-      //ros::WallDuration totalTime = t2 - t1;
+      ros::WallTime t2 = ros::WallTime::now();
+      ros::WallDuration totalTime = t2 - t1;
       //cout << "Time of check blocks: " << totalTime.toSec() * 1000.0f << endl;
       /*int temp; 
       readBuffer(clLocalMapCommon, CL_TRUE, 8, 
@@ -243,11 +256,11 @@ void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
       
       //if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) 
       //   cout << "error add frame" << endl;
-      //t2 = ros::WallTime::now();
-      //totalTime = t2 - t1;
+      t2 = ros::WallTime::now();
+      totalTime = t2 - t1;
       //cout << "Time of add frame: " << totalTime.toSec() * 1000.0f << endl;
      
-
+      //fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
       //done = true;
 
       }}
@@ -286,20 +299,28 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       extractPoints(numBlocks, clPointCloud, clColours);
       if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) 
          cout << "error extract points " << maxPoints << endl;
-      ros::WallTime t2 = ros::WallTime::now();
-      ros::WallDuration totalTime = t2 - t1;
-      cout << "Time of extracting points: " << totalTime.toSec() * 1000.0f << endl;
+      //ros::WallTime t2 = ros::WallTime::now();
+      //ros::WallDuration totalTime = t2 - t1;
+      //cout << "Time of extracting points: " << totalTime.toSec() * 1000.0f << endl;
 
       int numPoints;
       readBuffer(clLocalMapCommon, CL_TRUE, numPointsOffset, 
          sizeof(int), &numPoints, 0, 0, 0, "Reading total number of points");
-      cout << "Number of points is: " << numPoints << endl;
+      totalNumPoints += numPoints;
+      cout << "Number of points is: " << numPoints << " " << totalNumPoints << endl;
+
+      //bool here = false;
       
       if (receivedOptimisationRequest) {
          cout << "Creating a new local map - optimsing previous maps. Max Points cur: " << maxPoints << endl;
+         t1 = ros::WallTime::now();
          vector<LocalMapInfoPtr> changes = alignAndOptimise(clPointCloud);
          graphSlam3DNode->publishOptimisedMapPositions(changes);
          receivedOptimisationRequest = false;
+      
+         ros::WallTime t2 = ros::WallTime::now();
+         ros::WallDuration totalTime = t2 - t1;
+         fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
    
          /*float *prevPoints = (float *) malloc(sizeof(float) * numPoints * 3);
          readBuffer(clPointCloud, CL_TRUE, 0, sizeof(float) * numPoints * 3, prevPoints, 0, 0, 0,
@@ -314,7 +335,7 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
          fclose(f);
          cout << "done" << endl;*/
       
-      
+         //here = true;
       }
       
       PointCloudPtr cloud = copyPoints(numPoints, clPointCloud, clColours);
@@ -326,6 +347,11 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) 
          cout << "error clear map" << endl;
 
+      //ros::WallTime t2 = ros::WallTime::now();
+      //ros::WallDuration totalTime = t2 - t1;
+      //if (!here) {
+      //fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
+      //}
       LocalMapInfoPtr oldLocalMap = new LocalMapInfo(maps[currentMap]->getPose(), currentMap,
             cloud);
       graphSlam3DNode->publishLocalMap(oldLocalMap);

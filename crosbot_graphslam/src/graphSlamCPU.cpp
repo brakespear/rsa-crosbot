@@ -40,6 +40,8 @@ GraphSlamCPU::GraphSlamCPU() {
    lastCloudPublished = 0;
    messageSize = 0;
    activeMapIndex = -1;
+
+   f = fopen("/home/adrianr/timing2DSLAM.txt", "w");
 }
 
 void GraphSlamCPU::initialise(ros::NodeHandle &nh) {
@@ -81,11 +83,17 @@ void GraphSlamCPU::stop() {
    delete [] common->loopConstraintInfo;
    delete [] common->graphHessian;
    delete common;
+   fclose(f);
+
 }
 
 void GraphSlamCPU::initialiseTrack(Pose icpPose, PointCloudPtr cloud) {
-   currentLocalMapICPPose = icpPose;
-   oldICPPose = icpPose;
+   Pose p;
+   currentLocalMapICPPose = p;
+   oldICPPose = p;
+   //currentLocalMapICPPose = icpPose;
+   //oldICPPose = icpPose;
+
 
    LocalMap temp;
    localMaps.push_back(temp);
@@ -380,6 +388,11 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
    double sumTh = 0/*fabs(localMaps[currentLocalMap].internalCovar[2][0]) + 
       fabs(localMaps[currentLocalMap].internalCovar[2][1]) + localMaps[currentLocalMap].internalCovar[2][2]*/;
 
+   //ros::WallTime t2 = ros::WallTime::now();
+   t1 = ros::WallTime::now();
+   //totalTime = t2 - t1;
+   //fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
+
    if (sumX > LocalMapCovarianceThreshold || sumY > LocalMapCovarianceThreshold 
          || sumTh > LocalMapCovarianceThreshold) {
       cout << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^New local map because of covariances" << endl;
@@ -402,7 +415,9 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
    oldICPPose = icpPose;
 
    ros::WallTime t2 = ros::WallTime::now();
-   totalTime += t2 - t1;
+   totalTime = t2 - t1;
+   fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
+   //totalTime += t2 - t1;
    numIterations++;
    if (numIterations % 50 == 0 || didOptimise) {
       double ys, ps, rs, yi;
@@ -1914,7 +1929,7 @@ void GraphSlamCPU::calculateICPMatrix(int matchIndex, bool fullLoop, int current
             (localMaps[common->potentialMatches[matchIndex]].currentGlobalPosTh + constraintTh);
          ANGNORM(angleDiff);
          bool stopMatch = false;
-         if (PreventMatchesSymmetrical && (angleDiff < -3.0 * M_PI / 4.0 || angleDiff > 3.0 * M_PI / 4.0)) {
+         if (PreventMatchesSymmetrical && (angleDiff < -2.0 * M_PI / 5.0 || angleDiff > 2.0 * M_PI / 5.0)) {
             //cout << "***********************************************************" << endl;
             cout << "***Skipping match " << currentMap << " " << angleDiff << endl;
             //cout << "***********************************************************" << endl;
@@ -2450,7 +2465,7 @@ void GraphSlamCPU::calculateOptimisationChange(int numIterations, int type) {
 
       }
 
-      if (PreventMatchesSymmetrical && (residual[2] > 3.0 * M_PI / 4.0 || residual[2] < -3.0 * M_PI / 4.0)) {
+      if (PreventMatchesSymmetrical && (residual[2] > 2.0 * M_PI / 4.0 || residual[2] < -2.0 * M_PI / 4.0)) {
          cout << "Fixing residual angles " << residual[2] << " " << iNode << " " << jNode << endl;
          common->loopConstraintWeight[constraintIndex] = 0;
          continue;
