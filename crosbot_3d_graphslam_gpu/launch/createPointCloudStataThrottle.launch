@@ -1,0 +1,36 @@
+<launch>
+  <arg name="manager" default="pointcloud_manager" />
+   <!--node pkg="tf" type="static_transform_publisher" name="openni_depth_broadcast"
+		args="0 0 0 0 0 0 /openni_rgb_frame /openni_depth_optical_frame /openni_rgb_frame 10" >
+	</node-->
+
+  <node pkg="topic_tools" type="drop" name="drop1" args="/camera/depth/image_raw 2 3" />
+  <node pkg="topic_tools" type="drop" name="drop2" args="/camera/rgb/image_raw 2 3" />
+
+  
+  <node pkg="nodelet" type="nodelet" name="$(arg manager)" args="manager"
+        output="screen" />
+  
+  <!--node pkg="nodelet" type="nodelet" name="depth_image_registration"
+        args="load depth_image_proc/register $(arg manager)"
+        respawn="false">
+    <remap from="rgb/camera_info"             to="/camera/rgb/camera_info" />
+    <remap from="depth/camera_info"           to="/camera/depth/camera_info" />
+    <remap from="depth/image_rect"            to="/camera/depth/image_raw_drop" />
+    
+    <remap from="depth_registered/camera_info"    to="/camera/depth_registered/camera_info" />
+    <remap from="depth_registered/image_rect"     to="/camera/depth_registered/image_raw" />
+  </node-->
+  
+  <node pkg="nodelet" type="nodelet" name="points_xyzrgb_generator"
+        args="load depth_image_proc/point_cloud_xyzrgb $(arg manager)"
+        respawn="false">
+    <!-- Explicit topic remappings, shouldn't need all of these -->
+    <!--remap from="rgb/image_rect_color"        to="/camera/rgb/image_color" /-->
+    <remap from="rgb/image_rect_color"        to="/camera/rgb/image_raw" />
+    <remap from="rgb/camera_info"             to="/camera/rgb/camera_info" />
+    <remap from="depth_registered/image_rect" to="/camera/depth/image_raw" />
+    <remap from="depth_registered/points"     to="/camera/depth_registered/points" />
+    <param name="queue_size" value="20" />
+  </node>
+</launch>
