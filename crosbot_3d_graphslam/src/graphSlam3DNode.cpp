@@ -109,6 +109,7 @@ bool GraphSlam3DNode::callbackOptimiseMap(crosbot_graphslam::LoopClose::Request&
 
 void GraphSlam3DNode::publishLocalMap(LocalMapInfoPtr localMap) {
    localMap->cloud->frameID = slam_frame;
+   localMap->normals->frameID = slam_frame;
    localMapPub.publish(localMap->toROS());
 }
 

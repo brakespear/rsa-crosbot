@@ -31,6 +31,8 @@ public:
     */
    PointCloudPtr cloud;
 
+   PointCloudPtr normals;
+
    LocalMapInfo(): index(-1) {}
    LocalMapInfo(Pose pose, uint32_t index): pose(pose), index(index) {}
    LocalMapInfo(Pose pose, uint32_t index, PointCloudPtr cloud): 
@@ -45,6 +47,10 @@ public:
 
       if(msg.cloud.size() == 1) {
          cloud = new PointCloud(msg.cloud[0]);
+      }
+
+      if (msg.normals.size() == 1) {
+         normals = new PointCloud(msg.normals[0]);
       }
 
       return *this;
@@ -69,6 +75,7 @@ public:
       rval->pose = pose.toROS();
 
       rval->cloud.push_back(*(cloud->toROS1()));
+      rval->cloud.push_back(*(normals->toROS()));
 
       return rval;
    }

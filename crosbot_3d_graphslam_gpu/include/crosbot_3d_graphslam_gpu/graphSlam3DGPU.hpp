@@ -148,8 +148,9 @@ private:
    void checkBlocksExist(int numPoints, tf::Transform trans);
    void addRequiredBlocks();
    void addFrame(tf::Transform trans);
-   void extractPoints(int numBlocks, cl_mem &clPointCloud, cl_mem &clColours);
-   PointCloudPtr copyPoints(int numPoints, cl_mem &clPointCloud, cl_mem &clColours);
+   void extractPoints(int numBlocks, cl_mem &clPointCloud, cl_mem &clColours, cl_mem &clNormals);
+   PointCloudPtr copyPoints(int numPoints, cl_mem &clPointCloud, cl_mem &clColours, cl_mem &clNormals,
+         PointCloudPtr &normCloud);
 
    vector<LocalMapInfoPtr> alignAndOptimise(cl_mem &clPointCloud);
    bool alignMap(double *zChange, int prevMapI, Pose curNewPose, Pose prevNewPose, cl_mem &clPointCloud);

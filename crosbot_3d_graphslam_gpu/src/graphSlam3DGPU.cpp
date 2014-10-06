@@ -291,12 +291,14 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
             CL_MEM_READ_WRITE, NULL);
       cl_mem clColours = opencl_manager->deviceAlloc(sizeof(unsigned char) * maxPoints * 3,
             CL_MEM_READ_WRITE, NULL);
-      if (clPointCloud == NULL || clColours == NULL) {
+      cl_mem clNormals = opencl_manager->deviceAlloc(sizeof(ocl_float) * maxPoints * 3, 
+            CL_MEM_READ_WRITE, NULL);
+      if (clPointCloud == NULL || clColours == NULL || clNormals == NULL) {
          cout << "Error allocated point storage" << endl;
       }
 
       ros::WallTime t1 = ros::WallTime::now();
-      extractPoints(numBlocks, clPointCloud, clColours);
+      extractPoints(numBlocks, clPointCloud, clColours, clNormals);
       if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) 
          cout << "error extract points " << maxPoints << endl;
       //ros::WallTime t2 = ros::WallTime::now();
@@ -337,11 +339,13 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       
          //here = true;
       }
-      
-      PointCloudPtr cloud = copyPoints(numPoints, clPointCloud, clColours);
+     
+      PointCloudPtr norms;
+      PointCloudPtr cloud = copyPoints(numPoints, clPointCloud, clColours, clNormals, norms);
 
       opencl_manager->deviceRelease(clPointCloud);
       opencl_manager->deviceRelease(clColours);
+      opencl_manager->deviceRelease(clNormals);
 
       clearLocalMap(numBlocks);
       if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) 
@@ -354,6 +358,7 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       //}
       LocalMapInfoPtr oldLocalMap = new LocalMapInfo(maps[currentMap]->getPose(), currentMap,
             cloud);
+      oldLocalMap->normals = norms;
       graphSlam3DNode->publishLocalMap(oldLocalMap);
       maps[currentMap]->cloud = cloud;
    }
@@ -544,7 +549,7 @@ void GraphSlam3DGPU::addFrame(tf::Transform trans) {
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 }
 
-void GraphSlam3DGPU::extractPoints(int numBlocks, cl_mem &clPointCloud, cl_mem &clColours) {
+void GraphSlam3DGPU::extractPoints(int numBlocks, cl_mem &clPointCloud, cl_mem &clColours, cl_mem &clNormals) {
 
    int kernelI = EXTRACT_POINTS;
 
@@ -554,6 +559,7 @@ void GraphSlam3DGPU::extractPoints(int numBlocks, cl_mem &clPointCloud, cl_mem &
    opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCommon);
    opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clPointCloud);
    opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clColours);
+   opencl_task->setArg(6, kernelI, sizeof(cl_mem), &clNormals);
 
    int numBlocksPerGroup = LocalSize / (NumCellsWidth * NumCellsWidth);
    int numGroups = numBlocks / numBlocksPerGroup;
@@ -565,29 +571,35 @@ void GraphSlam3DGPU::extractPoints(int numBlocks, cl_mem &clPointCloud, cl_mem &
 
 }
 
-PointCloudPtr GraphSlam3DGPU::copyPoints(int numPoints, cl_mem &clPointCloud, cl_mem &clColours) {
+PointCloudPtr GraphSlam3DGPU::copyPoints(int numPoints, cl_mem &clPointCloud, cl_mem &clColours, cl_mem &clNormals,
+      PointCloudPtr &normCloud) {
 
    size_t pointsSize = sizeof(float) * numPoints * 3;
    size_t coloursSize = sizeof(unsigned char) * numPoints * 3;
    float *ps = (float *) malloc(pointsSize);
    unsigned char *cols = (unsigned char *) malloc(coloursSize);
-   if (ps == NULL || cols == NULL) {
+   float *norms = (float *) malloc(pointsSize);
+   if (ps == NULL || cols == NULL || norms == NULL) {
       cout << "ERROR: malloc call for extracting point failed" << endl << endl;
    }
    readBuffer(clPointCloud, CL_TRUE, 0, 
          pointsSize, ps, 0, 0, 0, "Reading points");
    readBuffer(clColours, CL_TRUE, 0, 
          coloursSize, cols, 0, 0, 0, "Reading colours");
+   readBuffer(clNormals, CL_TRUE, 0, 
+         pointsSize, norms, 0, 0, 0, "Reading normals");
    
    PointCloudPtr cloud = new PointCloud();
    cloud->cloud.resize(numPoints);
    cloud->colours.resize(numPoints);
+   normCloud = new PointCloud();
+   normCloud->cloud.resize(numPoints);
    int rIndex = 0;
    int added = 0;
    for (int i = 0; i < numPoints; i++, rIndex = rIndex + 3) {
       Point p;
       Colour c;
-      if (!isnan(ps[rIndex])) {
+      if (!isnan(ps[rIndex]) && !isnan(norms[rIndex])) {
          p.x = ps[rIndex];
          p.y = ps[rIndex + 1];
          p.z = ps[rIndex + 2];
@@ -596,6 +608,10 @@ PointCloudPtr GraphSlam3DGPU::copyPoints(int numPoints, cl_mem &clPointCloud, cl
          c.b = cols[rIndex + 2];
          cloud->cloud[added] = p;
          cloud->colours[added] = c;
+         p.x = norms[rIndex];
+         p.y = norms[rIndex + 1];
+         p.z = norms[rIndex + 2];
+         normCloud->cloud[added] = p;
          added++;
          //cout << p.x << " " << p.y << " " << p.z << endl;
       } else {
@@ -605,8 +621,10 @@ PointCloudPtr GraphSlam3DGPU::copyPoints(int numPoints, cl_mem &clPointCloud, cl
    cout << "Publishing " << added << " points" << endl;
    cloud->cloud.resize(added);
    cloud->colours.resize(added);
+   normCloud->cloud.resize(added);
    free(ps);
    free(cols);
+   free(norms);
    return cloud;
 }
 
