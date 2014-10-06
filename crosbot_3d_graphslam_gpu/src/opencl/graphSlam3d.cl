@@ -442,8 +442,8 @@ float getOneCellValue(constant oclGraphSlam3DConfig *config, global int *blocks,
          int cX = pos.x / config->CellSize;
          int cellI = cZ * config->NumCellsWidth * config->NumCellsWidth + cY * config->NumCellsWidth
             + cX;
-         *count += 1;
          if (!isnan(localMapCells[bI].distance[cellI])) {
+            *count += 1;
             return localMapCells[bI].distance[cellI];
          }
       }
@@ -459,28 +459,28 @@ float getCellValue(constant oclGraphSlam3DConfig *config, global int *blocks, gl
    float value = 0.0f;
    
    float3 pos = curPos + (float3)(-change, -change, -change);
-   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count);
+   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count, change);
    
-   float3 pos = curPos + (float3)(-change, -change, +change);
-   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count);
+   pos = curPos + (float3)(-change, -change, change);
+   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count, change);
 
-   float3 pos = curPos + (float3)(-change, +change, change);
-   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count);
+   pos = curPos + (float3)(-change, change, -change);
+   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count, change);
 
-   float3 pos = curPos + (float3)(-change, +change, +change);
-   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count);
+   pos = curPos + (float3)(-change, change, change);
+   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count, change);
 
-   float3 pos = curPos + (float3)(+change, -change, change);
-   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count);
+   pos = curPos + (float3)(change, -change, -change);
+   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count, change);
 
-   float3 pos = curPos + (float3)(+change, -change, +change);
-   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count);
+   pos = curPos + (float3)(change, -change, change);
+   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count, change);
 
-   float3 pos = curPos + (float3)(+change, +change, -change);
-   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count);
+   pos = curPos + (float3)(change, change, -change);
+   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count, change);
 
-   float3 pos = curPos + (float3)(+change, +change, +change);
-   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count);
+   pos = curPos + (float3)(change, change, change);
+   value += getOneCellValue(config, blocks, localMapCells, pos, blockCur, &count, change);
 
    if (count == 0) {
       return NAN;
@@ -498,28 +498,29 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
 
    int bI = localMapCells[bIndex].blockIndex;
    int3 blockCur;
-   blockCur.x = bI / (config->NumBlocksWidth * config->NumBlocksWidth);
-   blockCur.y = (bI / config->NumBlocksWidth) % config->NuBlocksWidth;
-   blockCur.z = bI % config->NumBlocksWidth; 
-   float3 inc = (float3)(incXV, intYV, intZV);
+   blockCur.z = bI / (config->NumBlocksWidth * config->NumBlocksWidth);
+   blockCur.y = (bI / config->NumBlocksWidth) % config->NumBlocksWidth;
+   blockCur.x = bI % config->NumBlocksWidth; 
+   float3 inc = (float3)(incXV, incYV, incZV);
 
    float cellVal = getCellValue(config, blocks, localMapCells, start, blockCur);
-   float nextCellVall;
+   float nextCellVal;
    for (int i = 1; i < config->NumCellsWidth; i++) {
-      float nextCellVal = getCellValue(config, blocks, localMapCells, start + inc, blockCur);
-      if (!isnan(cellVal) && !isnan(nextCellVal) && sign(cellVal) != sign(cellNextVal)) {
+      nextCellVal = getCellValue(config, blocks, localMapCells, start + inc, blockCur);
+      if (!isnan(cellVal) && !isnan(nextCellVal) && sign(cellVal) != sign(nextCellVal)) {
          //There is a crossing!
-         float3 crossing = start + fabs(cellVal / (cellNextVal - cellVal)) * inc;
+         float3 crossing = start + fabs(cellVal / (nextCellVal - cellVal)) * inc;
          float3 p = getBlockPosition(config, bI);
          int mid = config->CellSize / 2.0f;
          int xC = (start.x + mid) / config->CellSize;
          int yC = (start.y + mid) / config->CellSize;
          int zC = (start.z + mid) / config->CellSize;
-         int cellI = xC * config->NumCellsWidth * config->NumCellsWidth + yC * config->NumCellsWidth
+         int cellI = zC * config->NumCellsWidth * config->NumCellsWidth + yC * config->NumCellsWidth
             + xC;
-         if (!isnan(localMapCells[bIndex].distance[cellI]) && localMapCells[bIndex].pI[i] >= 0) {
+         if (!isnan(localMapCells[bIndex].distance[cellI]) && localMapCells[bIndex].pI[cellI] >= 0) {
             //Cell has been marked before, so average
-            int retI = localMapCells[bIndex].pI[i];
+            int retI = localMapCells[bIndex].pI[cellI];
+
             x[blockOffset + retI] = (x[blockOffset + retI] + crossing.x + p.x) / 2.0f;
             y[blockOffset + retI] = (y[blockOffset + retI] + crossing.y + p.y) / 2.0f;
             z[blockOffset + retI] = (z[blockOffset + retI] + crossing.z + p.z) / 2.0f;
@@ -539,7 +540,7 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
                r[blockOffset + retI] = localMapCells[bIndex].r[cellI];
                g[blockOffset + retI] = localMapCells[bIndex].g[cellI];
                b[blockOffset + retI] = localMapCells[bIndex].b[cellI];
-               localMapCells[bIndex].pI[i] = retI;
+               localMapCells[bIndex].pI[cellI] = retI;
                fullIndex[blockOffset + retI] = cellI;
             }
          }
@@ -643,7 +644,8 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
    }
 }*/
 
-float getPoint(global int *blocks, global oclLocalBlock *localMapCells, float3 p) {
+float getPoint(constant oclGraphSlam3DConfig *config, global int *blocks, 
+      global oclLocalBlock *localMapCells, float3 p) {
    int blockI = getBlockIndex(config, p);
    int cellI = getCellIndex(config, p, blockI);
 
@@ -651,39 +653,40 @@ float getPoint(global int *blocks, global oclLocalBlock *localMapCells, float3 p
       return localMapCells[blocks[blockI]].distance[cellI];
    } else {
       return NAN;
+   }
 
 }
 
 float3 getNormal(constant oclGraphSlam3DConfig *config, global int *blocks, 
       global oclLocalBlock *localMapCells, float x, float y, float z) {
 
-   float change = config->CellSize / 2.0f - 0.001f;
+   float change = config->CellSize / 2.0f + 0.001f;
    float3 p = (float3)(x,y,z);
 
    float3 pTemp = p;
    pTemp.x += change;
-   float xH = getPoint(bllocks, localMapCells, pTemp);
-   float3 pTemp = p;
+   float xH = getPoint(config, blocks, localMapCells, pTemp);
+   pTemp = p;
    pTemp.x -= change;
-   float xL = getPoint(bllocks, localMapCells, pTemp);
-   float3 pTemp = p;
+   float xL = getPoint(config, blocks, localMapCells, pTemp);
+   pTemp = p;
    pTemp.y += change;
-   float yH = getPoint(bllocks, localMapCells, pTemp);
-   float3 pTemp = p;
-   pTemp.y i= change;
-   float yL = getPoint(bllocks, localMapCells, pTemp);
-   float3 pTemp = p;
+   float yH = getPoint(config, blocks, localMapCells, pTemp);
+   pTemp = p;
+   pTemp.y -= change;
+   float yL = getPoint(config, blocks, localMapCells, pTemp);
+   pTemp = p;
    pTemp.z += change;
-   float zH = getPoint(bllocks, localMapCells, pTemp);
-   float3 pTemp = p;
+   float zH = getPoint(config, blocks, localMapCells, pTemp);
+   pTemp = p;
    pTemp.z -= change;
-   float zL = getPoint(bllocks, localMapCells, pTemp);
+   float zL = getPoint(config, blocks, localMapCells, pTemp);
    if (isnan(xH) || isnan(xL) || isnan(yH) || isnan(yL) ||
          isnan(zH) || isnan(zL)) {
       return (float3)(NAN,NAN,NAN);
    } else {
       float3 normal = (float3)(xH - xL, yH - yL, zH - zL);
-      return normalise(normal);
+      return normalize(normal);
    }
 }
 
@@ -729,13 +732,12 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
    }
    barrier(CLK_LOCAL_MEM_FENCE);
 
-   
    float3 start;
    if (bLocalIndex < BLOCKS_PER_GROUP && bIndex < common->numBlocks) {
       int xx = cIndex % config->NumCellsWidth;
       int yy = cIndex / config->NumCellsWidth;
-      start.x = xx * config->CellSize;
-      start.y = yy * config->CellSize;
+      start.x = (float)xx * config->CellSize;
+      start.y = (float)yy * config->CellSize;
       start.z = 0.0f;
       checkDirection(config, localMapCells, blocks, x, y, z, r, g, b, fullIndex, blockCount,
             bIndex, bLocalIndex, blockOffset, start, 0.0f, 0.0f, config->CellSize);
@@ -744,8 +746,8 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
    if (bLocalIndex < BLOCKS_PER_GROUP && bIndex < common->numBlocks) {
       int yy = cIndex % config->NumCellsWidth;
       int zz = cIndex / config->NumCellsWidth;
-      start.y = yy * config->CellSize;
-      start.z = zz * config->CellSize;
+      start.y = (float)yy * config->CellSize;
+      start.z = (float)zz * config->CellSize;
       start.x = 0.0f;
       checkDirection(config, localMapCells, blocks, x, y, z, r, g, b, fullIndex, blockCount,
             bIndex, bLocalIndex, blockOffset, start, config->CellSize, 0.0f, 0.0f);
@@ -754,8 +756,8 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
    if (bLocalIndex < BLOCKS_PER_GROUP && bIndex < common->numBlocks) {
       int xx = cIndex % config->NumCellsWidth;
       int zz = cIndex / config->NumCellsWidth;
-      start.x = xx * config->CellSize;
-      start.z = zz * config->CellSize;
+      start.x = (float)xx * config->CellSize;
+      start.z = (float)zz * config->CellSize;
       start.y = 0.0f;
       checkDirection(config, localMapCells, blocks, x, y, z, r, g, b, fullIndex, blockCount,
             bIndex, bLocalIndex, blockOffset, start, 0.0f, config->CellSize, 0.0f);
@@ -824,11 +826,11 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
        cols[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 1] = g[blockOffset + i];
        cols[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 2] = b[blockOffset + i];
        
-       float3 normal = getNormal(config, blocks, localMapCells, 
+       /*float3 normal = getNormal(config, blocks, localMapCells, 
              x[blockOffset + i], y[blockOffset + i], z[blockOffset + i]);
        normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3] = normal.x;
        normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 1] = normal.y;
-       normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 2] = normal.z;
+       normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 2] = normal.z;*/
        
        if (fullIndex[blockOffset + i] >= 0) {
           localMapCells[bIndex].pI[fullIndex[blockOffset + i]] = (startGIndex +

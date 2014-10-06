@@ -73,7 +73,7 @@ void GraphSlam3DGPU::initialise(ros::NodeHandle &nh) {
    GraphSlam3D::initialise(nh);
    ros::NodeHandle paramNH("~");
    paramNH.param<int>("LocalSize", LocalSize, 256);
-   paramNH.param<int>("NumBlocksAllocated", NumBlocksAllocated, 7000);
+   paramNH.param<int>("NumBlocksAllocated", NumBlocksAllocated, 10000);
    paramNH.param<int>("MaxNumActiveBlocks", MaxNumActiveBlocks, 2500);
 
    //Params that can probably move to general code
@@ -599,7 +599,7 @@ PointCloudPtr GraphSlam3DGPU::copyPoints(int numPoints, cl_mem &clPointCloud, cl
    for (int i = 0; i < numPoints; i++, rIndex = rIndex + 3) {
       Point p;
       Colour c;
-      if (!isnan(ps[rIndex]) && !isnan(norms[rIndex])) {
+      if (!isnan(ps[rIndex])/* && !isnan(norms[rIndex])*/) {
          p.x = ps[rIndex];
          p.y = ps[rIndex + 1];
          p.z = ps[rIndex + 2];

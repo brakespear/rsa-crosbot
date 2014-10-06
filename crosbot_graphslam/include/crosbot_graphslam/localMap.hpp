@@ -75,7 +75,7 @@ public:
       rval->pose = pose.toROS();
 
       rval->cloud.push_back(*(cloud->toROS1()));
-      rval->cloud.push_back(*(normals->toROS()));
+      rval->normals.push_back(*(normals->toROS1()));
 
       return rval;
    }
