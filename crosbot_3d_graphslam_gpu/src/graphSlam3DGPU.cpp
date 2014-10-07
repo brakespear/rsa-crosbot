@@ -77,7 +77,7 @@ void GraphSlam3DGPU::initialise(ros::NodeHandle &nh) {
    //Params that can probably move to general code
    paramNH.param<double>("BlockSize", BlockSize, 0.2);
    paramNH.param<double>("TruncNeg", TruncNeg, 0.4);
-   paramNH.param<double>("TrunkPos", TruncPos, 0.8);
+   paramNH.param<double>("TruncPos", TruncPos, 0.8);
    paramNH.param<double>("MaxDistance", MaxDistance, 5.0);
    paramNH.param<int>("MaxSearchDistance", MaxSearchDistance, 1.0);
    paramNH.param<int>("MaxIterations", MaxIterations, 20);

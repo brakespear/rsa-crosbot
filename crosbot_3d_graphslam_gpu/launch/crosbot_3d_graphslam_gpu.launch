@@ -31,6 +31,9 @@
       <param name="CellSize" value="0.025" />
       <param name="LocalMapHeight" value="3" />
       <param name="MaxDistance" value="4" />
+      <param name="TruncNeg" value="0.1" />
+      <param name="TruncPos" value="0.2" />
+
 
 	</node>
 
