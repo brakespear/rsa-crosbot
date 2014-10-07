@@ -167,6 +167,8 @@ void markBlockActive(constant oclGraphSlam3DConfig *config, global int *blocks,
             int aIndex = atomic_inc(&(common->numActiveBlocks));
             if (aIndex < MAX_NUM_ACTIVE_BLOCKS) {
                common->activeBlocks[aIndex] = bIndex;
+            } else {
+               atomic_xchg(&(blocks[bIndex]), -1);
             } 
          }
       } else if (blocks[bIndex] >= 0 && blocks[bIndex] < config->NumBlocksAllocated) {
@@ -177,7 +179,9 @@ void markBlockActive(constant oclGraphSlam3DConfig *config, global int *blocks,
             int aIndex = atomic_inc(&(common->numActiveBlocks));
             if (aIndex < MAX_NUM_ACTIVE_BLOCKS) {
                common->activeBlocks[aIndex] = bIndex;
-            }
+            } else {
+               atomic_xchg(&(blocks[bIndex]), oldVal % config->NumBlocksAllocated);
+            } 
          }
       }
    }
@@ -436,12 +440,15 @@ float getOneCellValue(constant oclGraphSlam3DConfig *config, global int *blocks,
       int bIndex = blockI.z * config->NumBlocksWidth * config->NumBlocksWidth +
          blockI.y * config->NumBlocksWidth + blockI.x;
       int bI = blocks[bIndex];
+      //2nd part test
+      //if (bI >= 0 && bI < 1000) {
       if (bI >= 0) {
          int cZ = pos.z / config->CellSize;
          int cY = pos.y / config->CellSize;
          int cX = pos.x / config->CellSize;
          int cellI = cZ * config->NumCellsWidth * config->NumCellsWidth + cY * config->NumCellsWidth
             + cX;
+
          if (!isnan(localMapCells[bI].distance[cellI])) {
             *count += 1;
             return localMapCells[bI].distance[cellI];
@@ -517,6 +524,8 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
          int zC = (start.z + mid) / config->CellSize;
          int cellI = zC * config->NumCellsWidth * config->NumCellsWidth + yC * config->NumCellsWidth
             + xC;
+
+
          if (!isnan(localMapCells[bIndex].distance[cellI]) && localMapCells[bIndex].pI[cellI] >= 0) {
             //Cell has been marked before, so average
             int retI = localMapCells[bIndex].pI[cellI];
@@ -727,7 +736,7 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
          blockCount[bLocalIndex] = 0;
       }
    }
-   for (int i = lIndex; i < MAX_POINTS_GROUP; i++) {
+   for (int i = lIndex; i < MAX_POINTS_GROUP; i+= LOCAL_SIZE) {
       fullIndex[i] = -1;
    }
    barrier(CLK_LOCAL_MEM_FENCE);

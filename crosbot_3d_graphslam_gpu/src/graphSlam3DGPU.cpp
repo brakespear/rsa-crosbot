@@ -219,6 +219,7 @@ void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
 
       readBuffer(clLocalMapCommon, CL_TRUE, numActiveBlocksOffset, 
          sizeof(int), &numActiveBlocks, 0, 0, 0, "Reading num active blocks");
+
       if (numActiveBlocks > MaxNumActiveBlocks) {
          numActiveBlocks = MaxNumActiveBlocks;
       }
