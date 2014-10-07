@@ -41,7 +41,6 @@ GraphSlamCPU::GraphSlamCPU() {
    messageSize = 0;
    activeMapIndex = -1;
 
-   f = fopen("/home/adrianr/timing2DSLAM.txt", "w");
 }
 
 void GraphSlamCPU::initialise(ros::NodeHandle &nh) {
@@ -83,7 +82,6 @@ void GraphSlamCPU::stop() {
    delete [] common->loopConstraintInfo;
    delete [] common->graphHessian;
    delete common;
-   fclose(f);
 
 }
 
@@ -389,9 +387,8 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
       fabs(localMaps[currentLocalMap].internalCovar[2][1]) + localMaps[currentLocalMap].internalCovar[2][2]*/;
 
    //ros::WallTime t2 = ros::WallTime::now();
-   t1 = ros::WallTime::now();
+   //t1 = ros::WallTime::now();
    //totalTime = t2 - t1;
-   //fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
 
    if (sumX > LocalMapCovarianceThreshold || sumY > LocalMapCovarianceThreshold 
          || sumTh > LocalMapCovarianceThreshold) {
@@ -415,9 +412,7 @@ void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stam
    oldICPPose = icpPose;
 
    ros::WallTime t2 = ros::WallTime::now();
-   totalTime = t2 - t1;
-   fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
-   //totalTime += t2 - t1;
+   totalTime += t2 - t1;
    numIterations++;
    if (numIterations % 50 == 0 || didOptimise) {
       double ys, ps, rs, yi;

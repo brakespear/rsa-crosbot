@@ -184,7 +184,6 @@ private:
    //debugging for timings
    ros::WallDuration totalTime;
    int numIterations;
-   FILE *f;
 
    /*
     * Private methods

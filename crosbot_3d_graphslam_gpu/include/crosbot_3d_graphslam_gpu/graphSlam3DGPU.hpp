@@ -128,7 +128,7 @@ private:
    bool done;
 
    int totalNumPoints;
-   FILE *f;
+   //Debugging only
    int counter;
 
    typedef struct {

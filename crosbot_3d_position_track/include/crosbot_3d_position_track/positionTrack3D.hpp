@@ -140,9 +140,6 @@ private:
    cl_mem clFloor;
    int *heightPoints;
 
-   FILE *f;
-
-
 
    /*
     * GPU structure methods

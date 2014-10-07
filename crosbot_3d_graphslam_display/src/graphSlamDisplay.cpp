@@ -15,15 +15,6 @@ using namespace std;
 using namespace crosbot;
 
 GraphSlamDisplay::GraphSlamDisplay() {
-   f = fopen("/home/adrianr/timing3DMap.txt", "w");
-
-   minX = 9999;
-   minY = 9999;
-   minZ = 9999;
-   maxX = -999;
-   maxY = -999;
-   maxZ = -999;
-
 
 }
 
@@ -43,7 +34,6 @@ void GraphSlamDisplay::initialise(ros::NodeHandle &nh) {
 }
 
 void GraphSlamDisplay::stop() {
-   fclose(f);
 
 }
 
@@ -81,25 +71,6 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
          p.y = point.y;
          p.z = point.z;
          //pcl::Normal n(normal.x, normal.y, normal.z);
-
-         if (p.x > maxX) {
-            maxX = p.x;
-         }
-         if (p.y > maxY) {
-            maxY = p.y;
-         }
-         if (p.z > maxZ) {
-            maxZ = p.z;
-         }
-         if (p.x < minX) {
-            minX = p.x;
-         }
-         if (p.y < minY) {
-            minY = p.y;
-         }
-         if (p.z < minZ) {
-            minZ = p.z;
-         }
 
          //cloud->push_back(p);
          (*cloud)[i] = p;
@@ -198,9 +169,6 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       ros::WallTime t2 = ros::WallTime::now();
       ros::WallDuration totalTime = t2 - t1;
       cout << "Time to create mesh: " << totalTime.toSec() * 1000.0f << endl;
-      cout << "Max and mins are: " << minX << " " << minY << " " << minZ << "   " 
-         << maxX << " " << maxY << " " << maxZ << endl;
-      //fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
 
       //testing
       /*if(maps.size() == 2) {
@@ -233,7 +201,7 @@ void GraphSlamDisplay::correctMap(vector<LocalMapInfoPtr> newMapPositions) {
    cout << "Correcting map" << endl;
    //viewerLock.lock();
 
-      ros::WallTime t1 = ros::WallTime::now();
+   ros::WallTime t1 = ros::WallTime::now();
    int i;
    int maxI = -1;
    vector<bool> newPos;
@@ -301,12 +269,9 @@ void GraphSlamDisplay::correctMap(vector<LocalMapInfoPtr> newMapPositions) {
          }
       }
    } 
-      ros::WallTime t2 = ros::WallTime::now();
-      ros::WallDuration totalTime = t2 - t1;
-      cout << "Time to create mesh: " << totalTime.toSec() * 1000.0f << endl;
-      cout << "Max and mins are: " << minX << " " << minY << " " << minZ << "   " 
-         << maxX << " " << maxY << " " << maxZ << endl;
-      fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
+   ros::WallTime t2 = ros::WallTime::now();
+   ros::WallDuration totalTime = t2 - t1;
+   cout << "Time to create mesh: " << totalTime.toSec() * 1000.0f << endl;
    
    viewerLock.lock();
    for(i = 0; i < hasChanged.size(); i++) {
@@ -381,10 +346,6 @@ void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, Pose
       rotPoseToVector(maps[index + 2].pose, oldEndNextRot);
       oldEndNextPos = maps[index + 2].pose.position.toTF();
    }
-   //cout << "new start " << newStartRot[0] << " " << newStartRot[1] << " " << newStartRot[2] << endl;
-   //cout << "new end " << newEndRot[0] << " " << newEndRot[1] << " " << newEndRot[2] << endl;
-   //cout << "old start " << oldStartRot[0] << " " << oldStartRot[1] << " " << oldStartRot[2] << endl;
-   //cout << "old end " << oldEndRot[0] << " " << oldEndRot[1] << " " << oldEndRot[2] << endl;
 
    if (!warpMap) {
       //Just transform the points according to the pose at the start of the map

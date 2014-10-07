@@ -53,7 +53,6 @@ GraphSlam3DGPU::GraphSlam3DGPU() : GraphSlam3D() {
    previousINode = 0;
 
    totalNumPoints = 0;
-   f = fopen("/home/adrianr/timing3DSLAM.txt", "w");
    counter = 0;
 
 }
@@ -66,7 +65,6 @@ GraphSlam3DGPU::~GraphSlam3DGPU() {
    opencl_manager->deviceRelease(clLocalMapCommon);
    delete opencl_task;
    delete opencl_manager;
-   fclose(f);
 }
 
 void GraphSlam3DGPU::initialise(ros::NodeHandle &nh) {
@@ -260,7 +258,6 @@ void GraphSlam3DGPU::addFrame(DepthPointsPtr depthPoints, Pose sensorPose, Pose 
       totalTime = t2 - t1;
       //cout << "Time of add frame: " << totalTime.toSec() * 1000.0f << endl;
      
-      //fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
       //done = true;
 
       }}
@@ -311,8 +308,6 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       totalNumPoints += numPoints;
       cout << "Number of points is: " << numPoints << " " << totalNumPoints << endl;
 
-      //bool here = false;
-      
       if (receivedOptimisationRequest) {
          cout << "Creating a new local map - optimsing previous maps. Max Points cur: " << maxPoints << endl;
          t1 = ros::WallTime::now();
@@ -322,7 +317,6 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       
          ros::WallTime t2 = ros::WallTime::now();
          ros::WallDuration totalTime = t2 - t1;
-         fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
    
          /*float *prevPoints = (float *) malloc(sizeof(float) * numPoints * 3);
          readBuffer(clPointCloud, CL_TRUE, 0, sizeof(float) * numPoints * 3, prevPoints, 0, 0, 0,
@@ -337,7 +331,6 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
          fclose(f);
          cout << "done" << endl;*/
       
-         //here = true;
       }
      
       PointCloudPtr norms;
@@ -353,8 +346,6 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
 
       //ros::WallTime t2 = ros::WallTime::now();
       //ros::WallDuration totalTime = t2 - t1;
-      //if (!here) {
-      //fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
       //}
       LocalMapInfoPtr oldLocalMap = new LocalMapInfo(maps[currentMap]->getPose(), currentMap,
             cloud);

@@ -47,7 +47,6 @@ OgmbicpGPU::OgmbicpGPU() {
    pclose(file);
    rootDir = buffer;
 
-   f = fopen("/home/adrianr/timing2DICPGPU.txt", "w");
 }
 
 OgmbicpGPU::~OgmbicpGPU() {
@@ -63,7 +62,6 @@ OgmbicpGPU::~OgmbicpGPU() {
 
    delete opencl_task;
    delete opencl_manager;
-   fclose(f);
 }
 
 void OgmbicpGPU::initialise(ros::NodeHandle &nh) {
@@ -405,7 +403,6 @@ void OgmbicpGPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
 
    ros::WallTime t2 = ros::WallTime::now();
    totalTime = t2 - t1;
-   fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
 
    //totalTime += t2 - t1;
    numIterations++;

@@ -4,8 +4,8 @@
 		args="0 0 0 0 0 0 /openni_rgb_frame /openni_depth_optical_frame /openni_rgb_frame 10" >
 	</node-->
 
-  <node pkg="topic_tools" type="drop" name="drop1" args="/camera/depth/image_raw 2 3" />
-  <node pkg="topic_tools" type="drop" name="drop2" args="/camera/rgb/image_raw 2 3" />
+  <!--node pkg="topic_tools" type="drop" name="drop1" args="/camera/depth/image_raw 2 3" /-->
+  <!--node pkg="topic_tools" type="drop" name="drop2" args="/camera/rgb/image_raw 2 3" /-->
 
   
   <node pkg="nodelet" type="nodelet" name="$(arg manager)" args="manager"
@@ -16,7 +16,7 @@
         respawn="false">
     <remap from="rgb/camera_info"             to="/camera/rgb/camera_info" />
     <remap from="depth/camera_info"           to="/camera/depth/camera_info" />
-    <remap from="depth/image_rect"            to="/camera/depth/image_raw_drop" />
+    <remap from="depth/image_rect"            to="/camera/depth/image_raw" />
     
     <remap from="depth_registered/camera_info"    to="/camera/depth_registered/camera_info" />
     <remap from="depth_registered/image_rect"     to="/camera/depth_registered/image_raw" />

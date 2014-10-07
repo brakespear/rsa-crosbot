@@ -97,14 +97,6 @@ private:
    bool viewerUpdateOptimise;
    vector<int> mapsChanged;
 
-
-   FILE *f;
-   double minX;
-   double maxX;
-   double minY;
-   double maxY;
-   double maxZ;
-   double minZ;
    /*
     * Runs the pcl visualiser in its own thread
     */

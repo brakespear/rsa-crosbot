@@ -45,8 +45,6 @@ PositionTrack3D::PositionTrack3D() {
    rootDir = buffer;
 
    failCount = 0;
-   
-   f = fopen("/home/adrianr/timing3DICP.txt", "w");
 }
 
 void PositionTrack3D::initialise(ros::NodeHandle &nh) {
@@ -87,7 +85,6 @@ void PositionTrack3D::start() {
 PositionTrack3D::~PositionTrack3D() {
    delete opencl_task;
    delete opencl_manager;
-   fclose(f);
 }
 
 void PositionTrack3D::stop() {
@@ -171,7 +168,7 @@ Pose PositionTrack3D::processFrame(DepthPointsPtr depthPoints, Pose sensorPose, 
       points->pointZ[i] = depthPoints->cloud[i].z;
    }
 
-   ros::WallTime t1 = ros::WallTime::now();
+   //ros::WallTime t1 = ros::WallTime::now();
 
    writeBuffer(clPoints, CL_TRUE, 0, pointsSize, points->pointX, 0, 0, 0,
          "Copying depth points to GPU");
@@ -238,11 +235,9 @@ Pose PositionTrack3D::processFrame(DepthPointsPtr depthPoints, Pose sensorPose, 
    if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) {
       cout << "Error clear cells" << endl;
    }
-   ros::WallTime t2 = ros::WallTime::now();
-   ros::WallDuration totalTime = t2 - t1;
+   //ros::WallTime t2 = ros::WallTime::now();
+   //ros::WallDuration totalTime = t2 - t1;
    //cout << "Time to clear cells: " << totalTime.toSec() * 1000.0f << endl;
-   fprintf(f, "%lf\n", totalTime.toSec() * 1000.0f);
-
 
    mapCentreX = newMapCentreX;
    mapCentreY = newMapCentreY;
