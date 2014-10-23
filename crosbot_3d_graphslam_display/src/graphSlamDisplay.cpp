@@ -51,13 +51,13 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
    pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
 
    cloud->resize(localMapPoints->cloud->cloud.size());
-   //normals->resize(localMapPoints->normals->cloud.size());
+   normals->resize(localMapPoints->normals->cloud.size());
 
    tf::Transform mapPose = localMapPoints->pose.toTF();
 
    for (int i = 0; i < localMapPoints->cloud->cloud.size(); i++) {
       Point point = mapPose * localMapPoints->cloud->cloud[i].toTF();
-      //Point normal = mapPose.getBasis() * localMapPoints->normals->cloud[i].toTF();
+      Point normal = mapPose.getBasis() * localMapPoints->normals->cloud[i].toTF();
       if (PublishPointCloud) {
          point.z -= 1.0;
          points.cloud[startIndex + i] = point;
@@ -70,11 +70,11 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
          p.x = point.x;
          p.y = point.y;
          p.z = point.z;
-         //pcl::Normal n(normal.x, normal.y, normal.z);
+         pcl::Normal n(normal.x, normal.y, normal.z);
 
          //cloud->push_back(p);
          (*cloud)[i] = p;
-         //(*normals)[i] = n;
+         (*normals)[i] = n;
       }
    }
 
@@ -100,14 +100,14 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       
       //Test stuff.....
       //Normal estimation
-      pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> n;
+      /*pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> n;
       //pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
       pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGB>);
       tree->setInputCloud (cloud);
       n.setInputCloud (cloud);
       n.setSearchMethod (tree);
       n.setKSearch (20);
-      n.compute (*normals);
+      n.compute (*normals);*/
       // normals should not contain the point normals + surface curvatures
 
       // Concatenate the XYZ and normal fields*

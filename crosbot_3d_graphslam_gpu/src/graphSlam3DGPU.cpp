@@ -299,15 +299,35 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       extractPoints(numBlocks, clPointCloud, clColours, clNormals);
       if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) 
          cout << "error extract points " << maxPoints << endl;
-      //ros::WallTime t2 = ros::WallTime::now();
-      //ros::WallDuration totalTime = t2 - t1;
-      //cout << "Time of extracting points: " << totalTime.toSec() * 1000.0f << endl;
+      ros::WallTime t2 = ros::WallTime::now();
+      ros::WallDuration totalTime = t2 - t1;
+      cout << "**Time of extracting points: " << totalTime.toSec() * 1000.0f << endl;
 
       int numPoints;
       readBuffer(clLocalMapCommon, CL_TRUE, numPointsOffset, 
          sizeof(int), &numPoints, 0, 0, 0, "Reading total number of points");
       totalNumPoints += numPoints;
       cout << "Number of points is: " << numPoints << " " << totalNumPoints << endl;
+         
+      
+      float *pPoints = (float *) malloc(sizeof(float) * numPoints * 3);
+      float *pNormals = (float *) malloc(sizeof(float) * numPoints * 3);
+      readBuffer(clPointCloud, CL_TRUE, 0, sizeof(float) * numPoints * 3, pPoints, 0, 0, 0,
+         "Copying prev points to GPU");
+      readBuffer(clNormals, CL_TRUE, 0, sizeof(float) * numPoints * 3, pNormals, 0, 0, 0,
+         "Copying prev normals to GPU");
+   
+      /*cout << "outputting current map: " << endl;
+      FILE *f = fopen("/home/adrianrobolab/curMap.pcd", "w");
+      fprintf(f, "VERSION .7\nFIELDS x y z normal_x normal_y normal_z\nSIZE 4 4 4 4 4 4 \nTYPE F F F F F F\nCOUNT 1 1 1 1 1 1\nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
+      for (int i = 0; i < numPoints;i++) {
+         fprintf(f, "%f %f %f %f %f %f\n", pPoints[i*3], pPoints[i*3 +1], pPoints[i*3+2],
+               pNormals[i*3], pNormals[i * 3 + 1], pNormals[i * 3 + 2]);
+      }
+      fclose(f);
+      cout << "done" << endl;*/
+
+
 
       if (receivedOptimisationRequest) {
          cout << "Creating a new local map - optimsing previous maps. Max Points cur: " << maxPoints << endl;
