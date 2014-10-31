@@ -868,8 +868,8 @@ __kernel void transform3D(global float *points, const int numPoints, float3 orig
 
 __kernel void alignZ(constant oclGraphSlam3DConfig *config, global int *blocks,
       global oclLocalBlock *localMapCells, global oclLocalMapCommon *common,
-      global float *ptsCurMap, global float *ptsPrevMap, const int numPrevPts, 
-      const float zInc) {
+      global float *ptsCurMap, global float *ptsPrevMap, global float *normsCurMap,
+      global float *normsPrevMap, const int numPrevPts, const float zInc) {
    
    int index = get_global_id(0);
    int lIndex = get_local_id(0);
@@ -885,25 +885,43 @@ __kernel void alignZ(constant oclGraphSlam3DConfig *config, global int *blocks,
       p.x = ptsPrevMap[index * 3];
       p.y = ptsPrevMap[index * 3 + 1];
       p.z = ptsPrevMap[index * 3 + 2] + zInc;
+      float3 pNorm;
+      pNorm.x = normsPrevMap[index * 3];
+      pNorm.y = normsPrevMap[index * 3 + 1];
+      pNorm.z = normsPrevMap[index * 3 + 2];
+      
 
       int increment = config->NumCellsWidth * config->NumCellsWidth;
       int blockI = getBlockIndex(config, p);
       int cellI = getCellIndex(config, p, blockI);
       int cellXY = cellI % increment;
 
+
+      int cont = 1;
+
       //Only aligning low points (as in, the floor) makes z alignment
       //a huge amount more accurate. Don't know why...
       //TODO: work out a better way to fix the alignment
       if (p.z > -0.2) {
-         return;
+         //return;
+         //cont = 0;
       }
 
-      if (blockI >= 0) {
+      float normThresh = 0.75;
+      //float normThresh = 0.0;
+
+      if (fabs(pNorm.z) < normThresh) {
+         cont = 0;
+      }
+      //normThresh = 0;
+
+      if (blockI >= 0 && cont) {
          float minDist = INFINITY;
          int bInd = blocks[blockI];
-         int maxTravel = config->MaxSearchCells;
+         int maxTravel = config->MaxSearchCells * 4;
          if (bInd >= 0 && localMapCells[bInd].pI[cellI] >= 0 
-               && localMapCells[bInd].pI[cellI] / 3 < common->numPoints) {
+               && localMapCells[bInd].pI[cellI] / 3 < common->numPoints &&
+               fabs(normsCurMap[localMapCells[bInd].pI[cellI] + 2]) > normThresh) {
             minDist = ptsCurMap[localMapCells[bInd].pI[cellI] + 2] - p.z;
             maxTravel = 1;
          }
@@ -922,7 +940,8 @@ __kernel void alignZ(constant oclGraphSlam3DConfig *config, global int *blocks,
                bCur = blocks[blocksCur];
             }
             if (bCur >= 0 && localMapCells[bCur].pI[cellCur] >= 0
-                  && localMapCells[bCur].pI[cellCur] / 3 < common->numPoints) {
+                  && localMapCells[bCur].pI[cellCur] / 3 < common->numPoints &&
+                  fabs(normsCurMap[localMapCells[bCur].pI[cellCur] + 2]) > normThresh) {
                if (ptsCurMap[localMapCells[bCur].pI[cellCur] + 2] - p.z < fabs(minDist)) {
                   minDist = ptsCurMap[localMapCells[bCur].pI[cellCur] + 2] - p.z;
                }
@@ -943,7 +962,8 @@ __kernel void alignZ(constant oclGraphSlam3DConfig *config, global int *blocks,
                bCur = blocks[blocksCur];
             }
             if (bCur >= 0 && localMapCells[bCur].pI[cellCur] >= 0
-                  && localMapCells[bCur].pI[cellCur] / 3 < common->numPoints) {
+                  && localMapCells[bCur].pI[cellCur] / 3 < common->numPoints &&
+                  fabs(normsCurMap[localMapCells[bCur].pI[cellCur] + 2]) > normThresh) {
                if (ptsCurMap[localMapCells[bCur].pI[cellCur] + 2] - p.z < fabs(minDist)) {
                   minDist = ptsCurMap[localMapCells[bCur].pI[cellCur] + 2] - p.z;
                }

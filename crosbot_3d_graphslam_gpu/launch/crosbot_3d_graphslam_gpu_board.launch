@@ -54,6 +54,7 @@
       <param name="InitHeight" value ="0.5" />
       <param name="OverlapThreshold" value ="40" />
       <param name="InformationScaleFactor" value ="100000" />
+      <param name="UseTempLoopClosures" value ="false" />
 	</node>
 
 	<node pkg="crosbot_3d_graphslam_gpu" type="crosbot_3d_graphslam_gpu" name="crosbot_3d_graphslam_gpu" output="screen">

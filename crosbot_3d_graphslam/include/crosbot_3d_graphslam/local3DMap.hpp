@@ -106,6 +106,8 @@ public:
    bool poseChanged;
    PointCloudPtr cloud;
 
+   PointCloudPtr normals;
+
 private:
 
    Pose globalPose;

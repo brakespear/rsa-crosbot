@@ -310,14 +310,14 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       cout << "Number of points is: " << numPoints << " " << totalNumPoints << endl;
          
       
-      float *pPoints = (float *) malloc(sizeof(float) * numPoints * 3);
+      /*float *pPoints = (float *) malloc(sizeof(float) * numPoints * 3);
       float *pNormals = (float *) malloc(sizeof(float) * numPoints * 3);
       readBuffer(clPointCloud, CL_TRUE, 0, sizeof(float) * numPoints * 3, pPoints, 0, 0, 0,
          "Copying prev points to GPU");
       readBuffer(clNormals, CL_TRUE, 0, sizeof(float) * numPoints * 3, pNormals, 0, 0, 0,
          "Copying prev normals to GPU");
    
-      /*cout << "outputting current map: " << endl;
+      cout << "outputting current map: " << endl;
       FILE *f = fopen("/home/adrianrobolab/curMap.pcd", "w");
       fprintf(f, "VERSION .7\nFIELDS x y z normal_x normal_y normal_z\nSIZE 4 4 4 4 4 4 \nTYPE F F F F F F\nCOUNT 1 1 1 1 1 1\nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
       for (int i = 0; i < numPoints;i++) {
@@ -332,25 +332,26 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       if (receivedOptimisationRequest) {
          cout << "Creating a new local map - optimsing previous maps. Max Points cur: " << maxPoints << endl;
          t1 = ros::WallTime::now();
-         vector<LocalMapInfoPtr> changes = alignAndOptimise(clPointCloud);
+         vector<LocalMapInfoPtr> changes = alignAndOptimise(clPointCloud, clNormals);
          graphSlam3DNode->publishOptimisedMapPositions(changes);
          receivedOptimisationRequest = false;
       
          ros::WallTime t2 = ros::WallTime::now();
          ros::WallDuration totalTime = t2 - t1;
    
-         /*float *prevPoints = (float *) malloc(sizeof(float) * numPoints * 3);
+         
+         float *prevPoints = (float *) malloc(sizeof(float) * numPoints * 3);
          readBuffer(clPointCloud, CL_TRUE, 0, sizeof(float) * numPoints * 3, prevPoints, 0, 0, 0,
          "Copying prev points to GPU");
    
          cout << "outputting current map: " << endl;
-         FILE *f = fopen("/home/adrianr/curMap.pcd", "w");
+         FILE *f = fopen("/home/adrianrobolab/curMap.pcd", "w");
          fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F\nCOUNT 1 1 1\nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
          for (int i = 0; i < numPoints;i++) {
             fprintf(f, "%f %f %f\n", prevPoints[i*3], prevPoints[i*3 +1], prevPoints[i*3+2]);
          }
          fclose(f);
-         cout << "done" << endl;*/
+         cout << "done" << endl;
       
       }
      
@@ -373,6 +374,7 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       oldLocalMap->normals = norms;
       graphSlam3DNode->publishLocalMap(oldLocalMap);
       maps[currentMap]->cloud = cloud;
+      maps[currentMap]->normals = norms;
    }
    currentMap = localMapInfo->index;
    if (maps.size() == currentMap) {
@@ -640,7 +642,7 @@ PointCloudPtr GraphSlam3DGPU::copyPoints(int numPoints, cl_mem &clPointCloud, cl
    return cloud;
 }
 
-vector<LocalMapInfoPtr> GraphSlam3DGPU::alignAndOptimise(cl_mem &clPointCloud) {
+vector<LocalMapInfoPtr> GraphSlam3DGPU::alignAndOptimise(cl_mem &clPointCloud, cl_mem &clNormals) {
 
    int i;
    for (i = 0; i < maps.size(); i++) {
@@ -670,7 +672,7 @@ vector<LocalMapInfoPtr> GraphSlam3DGPU::alignAndOptimise(cl_mem &clPointCloud) {
       if (c.j == currentMap) {
          double zChange = 0;
          cout << "About to align maps: " << c.i << " " << c.j << endl;
-         c.valid = alignMap(&zChange, c.i, maps[c.j]->getPose(), maps[c.i]->getPose(), clPointCloud);
+         c.valid = alignMap(&zChange, c.i, maps[c.j]->getPose(), maps[c.i]->getPose(), clPointCloud, clNormals);
          c.z = maps[c.j]->getPose().position.z - (maps[c.i]->getPose().position.z + zChange);
          cout << "Poses of the two maps: " << maps[c.j]->getPose().position.z << " " << 
             maps[c.i]->getPose().position.z << endl;
@@ -693,18 +695,25 @@ vector<LocalMapInfoPtr> GraphSlam3DGPU::alignAndOptimise(cl_mem &clPointCloud) {
 }
 
 bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Pose prevNewPose,
-      cl_mem &clPointCloud) {
+      cl_mem &clPointCloud, cl_mem &clNormals) {
    size_t prevPointsSize = sizeof(float) * maps[prevMapI]->cloud->cloud.size() * 3;
    float *prevPoints = (float *)malloc(prevPointsSize);
+   float *prevNormals = (float *)malloc(prevPointsSize);
    cl_mem clPrevPoints = opencl_manager->deviceAlloc(prevPointsSize, CL_MEM_READ_WRITE, NULL);
+   cl_mem clPrevNormals = opencl_manager->deviceAlloc(prevPointsSize, CL_MEM_READ_WRITE, NULL);
    for (int i = 0; i < maps[prevMapI]->cloud->cloud.size(); i++) {
       prevPoints[i * 3] = maps[prevMapI]->cloud->cloud[i].x;
       prevPoints[i * 3 + 1] = maps[prevMapI]->cloud->cloud[i].y;
       prevPoints[i * 3 + 2] = maps[prevMapI]->cloud->cloud[i].z;
+      prevNormals[i * 3] = maps[prevMapI]->normals->cloud[i].x;
+      prevNormals[i * 3 + 1] = maps[prevMapI]->normals->cloud[i].y;
+      prevNormals[i * 3 + 2] = maps[prevMapI]->normals->cloud[i].z;
    }
    cout << "number of previous points is: " << maps[prevMapI]->cloud->cloud.size() << endl;
    writeBuffer(clPrevPoints, CL_FALSE, 0, prevPointsSize, prevPoints, 0, 0, 0,
          "Copying prev points to GPU");
+   writeBuffer(clPrevNormals, CL_FALSE, 0, prevPointsSize, prevNormals, 0, 0, 0,
+         "Copying prev normals to GPU");
 
    tf::Transform prevPose = prevNewPose.toTF();
    tf::Transform curPose = curNewPose.toTF();
@@ -735,16 +744,16 @@ bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Po
 
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 
-   /*readBuffer(clPrevPoints, CL_TRUE, 0, prevPointsSize, prevPoints, 0, 0, 0,
+   readBuffer(clPrevPoints, CL_TRUE, 0, prevPointsSize, prevPoints, 0, 0, 0,
          "Copying prev points to GPU");
    cout << "outputting transformed map: " << prevMapI << endl;
-   FILE *f = fopen("/home/adrianr/prevMap.pcd", "w");
+   FILE *f = fopen("/home/adrianrobolab/prevMap.pcd", "w");
    fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F\nCOUNT 1 1 1\nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
    for (int i = 0; i < numPoints;i++) {
       fprintf(f, "%f %f %f\n", prevPoints[i*3], prevPoints[i*3 +1], prevPoints[i*3+2]);
    }
    fclose(f);
-   cout << "done" << endl;*/
+   cout << "done" << endl;
 
    
    
@@ -757,7 +766,9 @@ bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Po
    opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCommon);
    opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clPointCloud);
    opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clPrevPoints);
-   opencl_task->setArg(6, kernelI, sizeof(ocl_int), &numPoints);
+   opencl_task->setArg(6, kernelI, sizeof(cl_mem), &clNormals);
+   opencl_task->setArg(7, kernelI, sizeof(cl_mem), &clPrevNormals);
+   opencl_task->setArg(8, kernelI, sizeof(ocl_int), &numPoints);
 
    bool success = true;
    CommonICP commonInfo;
@@ -769,7 +780,7 @@ bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Po
       commonInfo.distance = 0;
       writeBuffer(clLocalMapCommon, CL_FALSE, numMatchOffset, sizeof(CommonICP), &commonInfo, 0, 0, 0,
             "Copying Zeroing of CommonICP struct");
-      opencl_task->setArg(7, kernelI, sizeof(ocl_float), &zInc);
+      opencl_task->setArg(9, kernelI, sizeof(ocl_float), &zInc);
       opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
       if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) 
          cout << "error align z " << endl;
@@ -794,20 +805,22 @@ bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Po
       *zChange = 0;
    }
 
-   /*readBuffer(clPrevPoints, CL_TRUE, 0, prevPointsSize, prevPoints, 0, 0, 0,
+   readBuffer(clPrevPoints, CL_TRUE, 0, prevPointsSize, prevPoints, 0, 0, 0,
          "Copying prev points to GPU");
-   cout << "outputting transformed and aligned map: " << prevMapI << endl;
-   f = fopen("/home/adrianr/prevMapAligned.pcd", "w");
+   cout << "outputting transformed and aligned map: " << prevMapI << endl << endl << endl << endl << endl;
+   f = fopen("/home/adrianrobolab/prevMapAligned.pcd", "w");
    fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F\nCOUNT 1 1 1\nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
    for (int i = 0; i < numPoints;i++) {
       fprintf(f, "%f %f %f\n", prevPoints[i*3], prevPoints[i*3 +1], prevPoints[i*3+2] + zInc);
    }
    fclose(f);
-   cout << "done" << endl;*/
+   cout << "done" << endl;
 
    cout << "Success: " << success << " numits: " << numIts << endl;
    opencl_manager->deviceRelease(clPrevPoints);
+   opencl_manager->deviceRelease(clPrevNormals);
    free(prevPoints);
+   free(prevNormals);
 
    return success;
 

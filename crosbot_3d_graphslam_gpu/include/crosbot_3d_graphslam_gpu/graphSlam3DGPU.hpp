@@ -152,8 +152,9 @@ private:
    PointCloudPtr copyPoints(int numPoints, cl_mem &clPointCloud, cl_mem &clColours, cl_mem &clNormals,
          PointCloudPtr &normCloud);
 
-   vector<LocalMapInfoPtr> alignAndOptimise(cl_mem &clPointCloud);
-   bool alignMap(double *zChange, int prevMapI, Pose curNewPose, Pose prevNewPose, cl_mem &clPointCloud);
+   vector<LocalMapInfoPtr> alignAndOptimise(cl_mem &clPointCloud, cl_mem &clNormals);
+   bool alignMap(double *zChange, int prevMapI, Pose curNewPose, Pose prevNewPose, cl_mem &clPointCloud,
+         cl_mem &clNormals);
    void optimiseMap(bool fullL, int start);
 
 
