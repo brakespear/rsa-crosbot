@@ -62,6 +62,9 @@ private:
    int MinCount;
    //WHen movement is below this level, icp stops
    double MoveThresh;
+   //Only use points in icp alignment when they have a z normal
+   //(normalized) greater than this
+   double NormThresh;
 
    //Derived params
    int NumBlocksTotal;
@@ -150,11 +153,11 @@ private:
    void addFrame(tf::Transform trans);
    void extractPoints(int numBlocks, cl_mem &clPointCloud, cl_mem &clColours, cl_mem &clNormals);
    PointCloudPtr copyPoints(int numPoints, cl_mem &clPointCloud, cl_mem &clColours, cl_mem &clNormals,
-         PointCloudPtr &normCloud);
+         PointCloudPtr &normCloud, double &avHeight);
 
-   vector<LocalMapInfoPtr> alignAndOptimise(cl_mem &clPointCloud, cl_mem &clNormals);
+   vector<LocalMapInfoPtr> alignAndOptimise(cl_mem &clPointCloud, cl_mem &clNormals, double avHeight);
    bool alignMap(double *zChange, int prevMapI, Pose curNewPose, Pose prevNewPose, cl_mem &clPointCloud,
-         cl_mem &clNormals);
+         cl_mem &clNormals, double prevAvHeight, double curAvHeight);
    void optimiseMap(bool fullL, int start);
 
 

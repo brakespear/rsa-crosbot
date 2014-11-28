@@ -79,10 +79,11 @@ void GraphSlam3DGPU::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("TruncNeg", TruncNeg, 0.4);
    paramNH.param<double>("TruncPos", TruncPos, 0.8);
    paramNH.param<double>("MaxDistance", MaxDistance, 5.0);
-   paramNH.param<int>("MaxSearchDistance", MaxSearchDistance, 1.0);
+   paramNH.param<int>("MaxSearchDistance", MaxSearchDistance, 0.3);
    paramNH.param<int>("MaxIterations", MaxIterations, 20);
    paramNH.param<int>("MinCount", MinCount, 300);
    paramNH.param<double>("MoveThresh", MoveThresh, 0.01);
+   paramNH.param<double>("NormThresh", NormThresh, 0.8);
 
    NumBlocksWidth = (LocalMapWidth + 0.00001) / BlockSize;
    NumBlocksHeight = (LocalMapHeight + 0.00001) / BlockSize;
@@ -125,6 +126,7 @@ void GraphSlam3DGPU::initialiseGraphSlam(DepthPointsPtr depthPoints) {
    graphSlam3DConfig.ty = ty;
    graphSlam3DConfig.MaxDistance = MaxDistance;
    graphSlam3DConfig.MaxSearchCells = MaxSearchDistance / CellSize;
+   graphSlam3DConfig.NormThresh = NormThresh;
 
    clGraphSlam3DConfig = opencl_manager->deviceAlloc(sizeof(oclGraphSlam3DConfig),
          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &graphSlam3DConfig);
@@ -327,12 +329,14 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       fclose(f);
       cout << "done" << endl;*/
 
-
+      PointCloudPtr norms;
+      double avHeight;
+      PointCloudPtr cloud = copyPoints(numPoints, clPointCloud, clColours, clNormals, norms, avHeight);
 
       if (receivedOptimisationRequest) {
          cout << "Creating a new local map - optimsing previous maps. Max Points cur: " << maxPoints << endl;
          t1 = ros::WallTime::now();
-         vector<LocalMapInfoPtr> changes = alignAndOptimise(clPointCloud, clNormals);
+         vector<LocalMapInfoPtr> changes = alignAndOptimise(clPointCloud, clNormals, avHeight);
          graphSlam3DNode->publishOptimisedMapPositions(changes);
          receivedOptimisationRequest = false;
       
@@ -355,9 +359,6 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       
       }
      
-      PointCloudPtr norms;
-      PointCloudPtr cloud = copyPoints(numPoints, clPointCloud, clColours, clNormals, norms);
-
       opencl_manager->deviceRelease(clPointCloud);
       opencl_manager->deviceRelease(clColours);
       opencl_manager->deviceRelease(clNormals);
@@ -375,6 +376,7 @@ void GraphSlam3DGPU::newLocalMap(LocalMapInfoPtr localMapInfo) {
       graphSlam3DNode->publishLocalMap(oldLocalMap);
       maps[currentMap]->cloud = cloud;
       maps[currentMap]->normals = norms;
+      maps[currentMap]->averageHeight = avHeight;
    }
    currentMap = localMapInfo->index;
    if (maps.size() == currentMap) {
@@ -586,7 +588,7 @@ void GraphSlam3DGPU::extractPoints(int numBlocks, cl_mem &clPointCloud, cl_mem &
 }
 
 PointCloudPtr GraphSlam3DGPU::copyPoints(int numPoints, cl_mem &clPointCloud, cl_mem &clColours, cl_mem &clNormals,
-      PointCloudPtr &normCloud) {
+      PointCloudPtr &normCloud, double &avHeight) {
 
    size_t pointsSize = sizeof(float) * numPoints * 3;
    size_t coloursSize = sizeof(unsigned char) * numPoints * 3;
@@ -610,10 +612,13 @@ PointCloudPtr GraphSlam3DGPU::copyPoints(int numPoints, cl_mem &clPointCloud, cl
    normCloud->cloud.resize(numPoints);
    int rIndex = 0;
    int added = 0;
+
+   avHeight = 0;
+
    for (int i = 0; i < numPoints; i++, rIndex = rIndex + 3) {
       Point p;
       Colour c;
-      if (!isnan(ps[rIndex])/* && !isnan(norms[rIndex])*/) {
+      if (!isnan(ps[rIndex]) && !isnan(norms[rIndex])) {
          p.x = ps[rIndex];
          p.y = ps[rIndex + 1];
          p.z = ps[rIndex + 2];
@@ -622,6 +627,9 @@ PointCloudPtr GraphSlam3DGPU::copyPoints(int numPoints, cl_mem &clPointCloud, cl
          c.b = cols[rIndex + 2];
          cloud->cloud[added] = p;
          cloud->colours[added] = c;
+         
+         avHeight += p.z;
+         
          p.x = norms[rIndex];
          p.y = norms[rIndex + 1];
          p.z = norms[rIndex + 2];
@@ -632,6 +640,7 @@ PointCloudPtr GraphSlam3DGPU::copyPoints(int numPoints, cl_mem &clPointCloud, cl
          //cout << "bbb" << endl;
       }
    }
+   avHeight /= (double) added;
    cout << "Publishing " << added << " points" << endl;
    cloud->cloud.resize(added);
    cloud->colours.resize(added);
@@ -642,7 +651,8 @@ PointCloudPtr GraphSlam3DGPU::copyPoints(int numPoints, cl_mem &clPointCloud, cl
    return cloud;
 }
 
-vector<LocalMapInfoPtr> GraphSlam3DGPU::alignAndOptimise(cl_mem &clPointCloud, cl_mem &clNormals) {
+vector<LocalMapInfoPtr> GraphSlam3DGPU::alignAndOptimise(cl_mem &clPointCloud, cl_mem &clNormals,
+      double avHeight) {
 
    int i;
    for (i = 0; i < maps.size(); i++) {
@@ -672,7 +682,7 @@ vector<LocalMapInfoPtr> GraphSlam3DGPU::alignAndOptimise(cl_mem &clPointCloud, c
       if (c.j == currentMap) {
          double zChange = 0;
          cout << "About to align maps: " << c.i << " " << c.j << endl;
-         c.valid = alignMap(&zChange, c.i, maps[c.j]->getPose(), maps[c.i]->getPose(), clPointCloud, clNormals);
+         c.valid = alignMap(&zChange, c.i, maps[c.j]->getPose(), maps[c.i]->getPose(), clPointCloud, clNormals, maps[c.i]->averageHeight, avHeight);
          c.z = maps[c.j]->getPose().position.z - (maps[c.i]->getPose().position.z + zChange);
          cout << "Poses of the two maps: " << maps[c.j]->getPose().position.z << " " << 
             maps[c.i]->getPose().position.z << endl;
@@ -695,7 +705,7 @@ vector<LocalMapInfoPtr> GraphSlam3DGPU::alignAndOptimise(cl_mem &clPointCloud, c
 }
 
 bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Pose prevNewPose,
-      cl_mem &clPointCloud, cl_mem &clNormals) {
+      cl_mem &clPointCloud, cl_mem &clNormals, double prevAvHeight, double curAvHeight) {
    size_t prevPointsSize = sizeof(float) * maps[prevMapI]->cloud->cloud.size() * 3;
    float *prevPoints = (float *)malloc(prevPointsSize);
    float *prevNormals = (float *)malloc(prevPointsSize);
@@ -720,6 +730,9 @@ bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Po
    tf::Transform diffPose = curPose.inverse() * prevPose;
    tf::Matrix3x3 basis = diffPose.getBasis();
    tf::Vector3 origin = diffPose.getOrigin();
+
+   float initZ = (curNewPose.position.z + curAvHeight) - (prevNewPose.position.z + prevAvHeight);
+   //cout << "Average heights are: " << prevAvHeight << " " << curAvHeight << endl;
 
    ocl_float3 clBasis[3];
    ocl_float3 clOrigin;
@@ -758,7 +771,7 @@ bool GraphSlam3DGPU::alignMap(double *zChange, int prevMapI, Pose curNewPose, Po
    
    
    kernelI = ALIGN_Z;
-   float zInc = 0;
+   float zInc = initZ;
 
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clGraphSlam3DConfig);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);

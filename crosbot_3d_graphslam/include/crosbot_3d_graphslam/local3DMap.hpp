@@ -108,6 +108,8 @@ public:
 
    PointCloudPtr normals;
 
+   double averageHeight;
+
 private:
 
    Pose globalPose;

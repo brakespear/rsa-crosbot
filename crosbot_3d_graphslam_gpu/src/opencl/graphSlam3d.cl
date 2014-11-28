@@ -899,26 +899,18 @@ __kernel void alignZ(constant oclGraphSlam3DConfig *config, global int *blocks,
 
       int cont = 1;
 
-      //Only aligning low points (as in, the floor) makes z alignment
-      //a huge amount more accurate. Don't know why...
-      //TODO: work out a better way to fix the alignment
-      if (p.z > -0.2) {
-         //return;
+      //if (p.z > -0.2) {
          //cont = 0;
-      }
-
-      float normThresh = 0.75;
-      //float normThresh = 0.0;
-
+      //}
+      float normThresh = config->NormThresh;
       if (fabs(pNorm.z) < normThresh) {
          cont = 0;
       }
-      //normThresh = 0;
 
       if (blockI >= 0 && cont) {
          float minDist = INFINITY;
          int bInd = blocks[blockI];
-         int maxTravel = config->MaxSearchCells * 4;
+         int maxTravel = config->MaxSearchCells;
          if (bInd >= 0 && localMapCells[bInd].pI[cellI] >= 0 
                && localMapCells[bInd].pI[cellI] / 3 < common->numPoints &&
                fabs(normsCurMap[localMapCells[bInd].pI[cellI] + 2]) > normThresh) {

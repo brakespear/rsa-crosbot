@@ -76,6 +76,9 @@ typedef struct {
    ocl_float MaxDistance;
    //Max distance to search during map alignment
    ocl_int MaxSearchCells;
+   //Only points with a z normal greater than this will be used in
+   //ICP alignment (0 disables)
+   ocl_float NormThresh;
 
 } oclGraphSlam3DConfig;
 
