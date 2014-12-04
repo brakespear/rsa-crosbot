@@ -27,8 +27,8 @@ public:
    void initialise(ros::NodeHandle &nh);
    void start();
    void stop();
-   void initialiseTrack(Pose sensorPose, PointCloudPtr cloud);
-   void updateTrack(Pose sensorPose, PointCloudPtr cloud);
+   void initialiseTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose);
+   void updateTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose);
 
    OgmbicpCPU();
    ~OgmbicpCPU();

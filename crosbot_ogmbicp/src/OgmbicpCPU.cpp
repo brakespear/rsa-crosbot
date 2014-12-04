@@ -47,13 +47,19 @@ void OgmbicpCPU::start() {
 void OgmbicpCPU::stop() {
 }
 
-void OgmbicpCPU::initialiseTrack(Pose sensorPose, PointCloudPtr cloud) {
+void OgmbicpCPU::initialiseTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose) {
    curPose.position.z = zOffset;
    px = py = pz = pth = 0;
+   oldOdom = odomPose;
 }
 
-void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
+void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose) {
    curPose.position.z = zOffset;
+   if (UseOdometry) {
+      getOdomGuess(oldOdom.toTF(), odomPose.toTF(), curPose.toTF(), px, py, pth);
+      //cout << "guess is: " << px << " " << py << " " << pth << endl;
+      oldOdom = odomPose;
+   }
 
    if (discardScan) {
       //cout << "Ignoring scan" << endl;
@@ -177,6 +183,7 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    curPose.position.x += gx;
    curPose.position.y += gy;
    curPose.position.z = zOffset + gz;
+   //cout << "Movement is: " << gx << " " << gy << " " << gth << endl;
 
    double roll, pitch, yaw;
    curPose.getYPR(yaw, pitch, roll);

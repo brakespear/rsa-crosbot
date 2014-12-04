@@ -22,8 +22,8 @@ public:
    void initialise(ros::NodeHandle &nh);
    void start();
    void stop();
-   void initialiseTrack(Pose sensorPose, PointCloudPtr cloud);
-   void updateTrack(Pose sensorPose, PointCloudPtr cloud);
+   void initialiseTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose);
+   void updateTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose);
 
    OgmbicpGPU();
    ~OgmbicpGPU();
@@ -62,6 +62,8 @@ private:
    size_t arrayPointsSize;
    //size of the rest of the clPoints struct
    size_t restPointsSize;
+   //Guess of movement between frames from odom
+   double px,py,pth;
 
    /* 
     * Opencl data structures

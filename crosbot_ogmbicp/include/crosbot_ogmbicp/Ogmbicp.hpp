@@ -104,6 +104,8 @@ protected:
    int MaxFail;
    //Use previous move as a starting guess for the next move
    bool UsePriorMove;
+   //Use odometry as a starting guess for the next move
+   bool UseOdometry;
    //Time in us between transfers of local map images
    int ImgTransmitTime;
    //Number of seconds of history recent scans are stored for
@@ -124,6 +126,10 @@ protected:
     * Absolute pose of the laser
     */
    Pose laserPose;
+   /*
+    * The last odom pose
+    */
+   Pose oldOdom;
    /*
     * The last time an image was grabbed from the position tracker
     */
@@ -183,12 +189,14 @@ public:
    /*
     * Called for processing the first scan
     */
-   virtual void initialiseTrack(Pose sensorPose, PointCloudPtr cloud) = 0;
+   virtual void initialiseTrack(Pose sensorPose, PointCloudPtr cloud, 
+         Pose odomPose) = 0;
 
    /*
     * Update the position tracker with the lastest scan
     */
-   virtual void updateTrack(Pose sensorPose, PointCloudPtr cloud) = 0;
+   virtual void updateTrack(Pose sensorPose, PointCloudPtr cloud,
+         Pose odomPose) = 0;
 
    /*
     * Grabs the current local map
@@ -203,7 +211,14 @@ public:
    /*
     * Reads the orientation data from the imu
     */
-   void processImuOrientation(const geometry_msgs::Quaternion& quat); 
+   void processImuOrientation(const geometry_msgs::Quaternion& quat);
+
+   /*
+    * Guess the next ICP move from odom readings
+    */
+   void getOdomGuess(tf::Transform oldOdom, tf::Transform newOdom,
+         tf::Transform icpCur, double &x, double &y, double &th);
+
 private:
    //double yawOffset;
 

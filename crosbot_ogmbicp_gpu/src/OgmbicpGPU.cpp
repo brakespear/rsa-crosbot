@@ -41,6 +41,8 @@ OgmbicpGPU::OgmbicpGPU() {
    pos_y = 0;
    oldNumPoints = 0;
 
+   px = py = pth = 0;
+
    FILE *file = popen("rospack find crosbot_ogmbicp_gpu", "r");
    char buffer[200];
    fscanf(file, "%199s", buffer);
@@ -127,8 +129,9 @@ void OgmbicpGPU::stop() {
 
 }
 
-void OgmbicpGPU::initialiseTrack(Pose sensorPose, PointCloudPtr cloud) {
+void OgmbicpGPU::initialiseTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose) {
    curPose.position.z = zOffset;
+   oldOdom = odomPose;
 
    cout << "Starting compile" << endl;
 
@@ -293,8 +296,20 @@ void OgmbicpGPU::setKernelArgs() {
 
 }
 
-void OgmbicpGPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
+void OgmbicpGPU::updateTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose) {
    curPose.position.z = zOffset;
+
+   if (UseOdometry) {
+      getOdomGuess(oldOdom.toTF(), odomPose.toTF(), curPose.toTF(), px, py, pth);
+      results->finalOffset.x = px;
+      results->finalOffset.y = py;
+      results->finalOffset.z = 0;
+      results->finalOffset.w = pth;
+      clEnqueueWriteBuffer(opencl_manager->getCommandQueue(), clResults, CL_TRUE, 
+         0, sizeof(ocl_float4), results, 0, 0, 0);
+      oldOdom = odomPose;
+   }
+
    if (discardScan) {
       cout << "Ignoring scan" << endl;
    }
@@ -477,14 +492,19 @@ int OgmbicpGPU::prepareLaserPoints(PointCloudPtr p, int numPoints, Pose sensorPo
    }
    //cout << "Z's are: " << minZ << " " << maxZ << " " << floorHeight << " " << zOffset << " " << removed << " " << numAdded << endl;
    
-   if (!UsePriorMove) {
-      memset(&(points->offset), 0, 16);
-   } else {
+   if (UseOdometry) {
+      points->offset.x = px;
+      points->offset.y = py;
+      points->offset.z = 0;
+      points->offset.w = pth;
+   } else if (UsePriorMove) {
       points->offset.x = results->finalOffset.x;
       points->offset.y = results->finalOffset.y;
       points->offset.z = results->finalOffset.z;
       //points->offset.z = 0;
       points->offset.w = results->finalOffset.w;
+   } else {
+      memset(&(points->offset), 0, 16);
    }
 
    int ret = clEnqueueWriteBuffer(opencl_manager->getCommandQueue(), clPoints, CL_TRUE, 

@@ -132,11 +132,11 @@ void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan)
    //sensorPose.position = Point();
    if (!isInit) {
       isInit = true;
-      pos_tracker.initialiseTrack(sensorPose, cloud);
+      pos_tracker.initialiseTrack(sensorPose, cloud, odomPose);
       uint32_t dim = (uint32_t) (pos_tracker.MapSize / pos_tracker.CellSize);
       localMap = new LocalMap(dim, dim, pos_tracker.CellSize, icp_frame);
    } else {
-      pos_tracker.updateTrack(sensorPose, cloud);
+      pos_tracker.updateTrack(sensorPose, cloud, odomPose);
    }
    ImagePtr image = pos_tracker.drawMap(localMap);
    if (image != NULL) {

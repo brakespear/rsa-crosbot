@@ -55,6 +55,7 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("AddSkipCount", AddSkipCount, 50);
    paramNH.param<int>("MaxFail", MaxFail, 5);
    paramNH.param<bool>("UsePriorMove", UsePriorMove, true);
+   paramNH.param<bool>("UseOdometry", UseOdometry, false);
    paramNH.param<int>("ImgTransmitTime", ImgTransmitTime, 50000);
    paramNH.param<double>("ScanListTime", ScanListTime, 20);
    //paramNH.param<bool>("UseIMUOrientation", UseIMUOrientation, true);
@@ -62,6 +63,7 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("DiscardThreshold", DiscardThreshold, 0.6);
 
    zOffset = InitHeight;
+   floorHeight = FloorHeight;
 
 }
 
@@ -238,5 +240,21 @@ void Ogmbicp::processImuOrientation(const geometry_msgs::Quaternion& quat) {
          discardScan = false;
       }
    }
+}
+
+void Ogmbicp::getOdomGuess(tf::Transform oldOdom, tf::Transform newOdom, tf::Transform icpCur,
+      double &x, double &y, double &th) {
+
+   tf::Vector3 odomChange = newOdom.getOrigin() - oldOdom.getOrigin();
+   tf::Transform trans = oldOdom.inverse() * icpCur;
+   tf::Vector3 update = trans.getBasis() * odomChange;
+   x = update[0];
+   y = update[1];
+
+   Pose pEst(oldOdom.inverse() * newOdom);
+   double yo,po,ro;
+   pEst.getYPR(yo,po,ro);
+   th = yo;
+
 }
 
