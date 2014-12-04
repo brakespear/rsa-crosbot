@@ -22,6 +22,7 @@ __kernel void clearLocalMap(constant oclGraphSlam3DConfig *config,
       localMapCells[blockIndex].r[cellIndex] = 0;
       localMapCells[blockIndex].g[cellIndex] = 0;
       localMapCells[blockIndex].b[cellIndex] = 0;
+      localMapCells[blockIndex].occupied[cellIndex] = 0;
       localMapCells[blockIndex].pI[cellIndex] = -1;
    }
 
@@ -156,7 +157,8 @@ int getCellIndex(constant oclGraphSlam3DConfig *config, float3 point, int bIndex
 }
 
 void markBlockActive(constant oclGraphSlam3DConfig *config, global int *blocks,
-      global oclLocalMapCommon *common, int bIndex) {
+      global oclLocalMapCommon *common, int bIndex, int isOrig, int cIndex,
+      global oclLocalBlock *localMapCells) {
    if (bIndex >= 0) {
       //Deal with the block
       if (blocks[bIndex] == -1) {
@@ -183,6 +185,14 @@ void markBlockActive(constant oclGraphSlam3DConfig *config, global int *blocks,
                atomic_xchg(&(blocks[bIndex]), oldVal % config->NumBlocksAllocated);
             } 
          }
+      } 
+      if (blocks[bIndex] >= 0 && isOrig && config->UseOccupancyForSurface) {
+         int blockI = blocks[bIndex] % config->NumBlocksAllocated;
+         if (localMapCells[blockI].occupied[cIndex] == 0) {
+            //Note: concurrency doesn't really matter here - as long as one
+            //add works
+            localMapCells[blockI].occupied[cIndex]++;
+         }
       }
    }
 }
@@ -193,7 +203,7 @@ void markBlockActive(constant oclGraphSlam3DConfig *config, global int *blocks,
  */
 __kernel void checkBlocksExist(constant oclGraphSlam3DConfig *config,
       global int *blocks, global oclLocalMapCommon *common,
-      global oclDepthPoints *points,
+      global oclDepthPoints *points, global oclLocalBlock *localMapCells,
       const int numPoints, const float3 origin,
       const float3 rotation0, const float3 rotation1, const float3 rotation2) {
 
@@ -209,7 +219,8 @@ __kernel void checkBlocksExist(constant oclGraphSlam3DConfig *config,
 
       int bIndex = getBlockIndex(config, transP);
       if (bIndex >= 0) {
-         markBlockActive(config, blocks, common, bIndex);
+         int cIndex = getCellIndex(config, transP, bIndex);
+         markBlockActive(config, blocks, common, bIndex, 1, cIndex, localMapCells);
          
          //todo: could find needed adjacent points by looking at the intersection of the ray with the block
 
@@ -235,35 +246,35 @@ __kernel void checkBlocksExist(constant oclGraphSlam3DConfig *config,
          }*/
 
          int adjXP = getBlockAdjX(config, bIndex, 1);
-         markBlockActive(config, blocks, common, adjXP);
+         markBlockActive(config, blocks, common, adjXP, 0, cIndex, localMapCells);
          int adjXN = getBlockAdjX(config, bIndex, -1);
-         markBlockActive(config, blocks, common, adjXN);
+         markBlockActive(config, blocks, common, adjXN, 0, cIndex, localMapCells);
          int adjYP = getBlockAdjX(config, bIndex, 1);
-         markBlockActive(config, blocks, common, adjYP);
+         markBlockActive(config, blocks, common, adjYP, 0, cIndex, localMapCells);
          int adjYN = getBlockAdjX(config, bIndex, -1);
-         markBlockActive(config, blocks, common, adjYN);
+         markBlockActive(config, blocks, common, adjYN, 0, cIndex, localMapCells);
          int adjZP = getBlockAdjX(config, bIndex, 1);
-         markBlockActive(config, blocks, common, adjZP);
+         markBlockActive(config, blocks, common, adjZP, 0, cIndex, localMapCells);
          int adjZN = getBlockAdjX(config, bIndex, -1);
-         markBlockActive(config, blocks, common, adjZN);
+         markBlockActive(config, blocks, common, adjZN, 0, cIndex, localMapCells);
          adjXP = getBlockAdjX(config, adjXP, 1);
-         markBlockActive(config, blocks, common, adjXP);
+         markBlockActive(config, blocks, common, adjXP, 0, cIndex, localMapCells);
          adjXN = getBlockAdjX(config, adjXN, -1);
-         markBlockActive(config, blocks, common, adjXN);
+         markBlockActive(config, blocks, common, adjXN, 0, cIndex, localMapCells);
          adjYP = getBlockAdjX(config, adjYP, 1);
-         markBlockActive(config, blocks, common, adjYP);
+         markBlockActive(config, blocks, common, adjYP, 0, cIndex, localMapCells);
          adjYN = getBlockAdjX(config, adjYN, -1);
-         markBlockActive(config, blocks, common, adjYN);
+         markBlockActive(config, blocks, common, adjYN, 0, cIndex, localMapCells);
          adjZP = getBlockAdjX(config, adjZP, 1);
-         markBlockActive(config, blocks, common, adjZP);
+         markBlockActive(config, blocks, common, adjZP, 0, cIndex, localMapCells);
          adjZN = getBlockAdjX(config, adjZN, -1);
-         markBlockActive(config, blocks, common, adjZN);
-         markBlockActive(config, blocks, common, getBlockAdjX(config, adjXP, 1));
-         markBlockActive(config, blocks, common, getBlockAdjX(config, adjXN, -1));
-         markBlockActive(config, blocks, common, getBlockAdjX(config, adjYP, 1));
-         markBlockActive(config, blocks, common, getBlockAdjX(config, adjYN, -1));
-         markBlockActive(config, blocks, common, getBlockAdjX(config, adjZP, 1));
-         markBlockActive(config, blocks, common, getBlockAdjX(config, adjZN, -1));
+         markBlockActive(config, blocks, common, adjZN, 0, cIndex, localMapCells);
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjXP, 1), 0, cIndex, localMapCells);
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjXN, -1), 0, cIndex, localMapCells);
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjYP, 1), 0, cIndex, localMapCells);
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjYN, -1), 0, cIndex, localMapCells);
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjZP, 1), 0, cIndex, localMapCells);
+         markBlockActive(config, blocks, common, getBlockAdjX(config, adjZN, -1), 0, cIndex, localMapCells);
          /*markBlockActive(config, blocks, common, getBlockAdjX(config, adjZP, 1));
          markBlockActive(config, blocks, common, getBlockAdjX(config, adjZP, -1));
          markBlockActive(config, blocks, common, getBlockAdjX(config, adjZN, 1));
@@ -572,14 +583,20 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
    for (int i = startI; count < config->NumCellsWidth; i += increment, count++) {
       nextI = i + increment;
       cellVal = localMapCells[bIndex].distance[i];
+      int bni = 0;
+      int ni = 0;
       if (count + 1 < config->NumCellsWidth) {
          cellNextVal = localMapCells[bIndex].distance[nextI];
+         bni = bIndex;
+         ni = nextI;
       } else if (bNextIndex < 0 || bNextIndex > config->NumBlocksAllocated) {
          continue;
       } else {
       //if (incYV > 0.5) { continue; }
       //continue;
          cellNextVal = localMapCells[bNextIndex].distance[startI];
+         bni = bNextIndex;
+         ni = startI;
       }
       if (isnan(cellVal) || isnan(cellNextVal)) {
          continue;
@@ -587,7 +604,9 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
       if (fabs(cellVal) > config->CellSize * 10 || fabs(cellNextVal) > config->CellSize * 10) {
          continue;
       }
-      if ((sign(cellVal) != sign(cellNextVal) || cellVal == 0) && localMapCells[bIndex].weight[i] > 5.0f) {
+      if ((sign(cellVal) != sign(cellNextVal) || cellVal == 0) && 
+            localMapCells[bIndex].weight[i] > 5.0f && (config->UseOccupancyForSurface == 0 || 
+            localMapCells[bIndex].occupied[i] > 0 || localMapCells[bni].occupied[ni] > 0)) {
          //There is a crossing!
          float3 p = getCellCentre(config, i, localMapCells[bIndex].blockIndex);
          float inc = fabs(cellVal / (cellNextVal - cellVal)) * config->CellSize;

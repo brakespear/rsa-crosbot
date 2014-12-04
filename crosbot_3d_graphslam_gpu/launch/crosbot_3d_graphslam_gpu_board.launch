@@ -62,6 +62,8 @@
       <param name="CellSize" value="0.025" />
       <param name="LocalMapHeight" value="3" />
       <param name="MaxDistance" value="3" />
+      <!--param name="TruncNeg" value="0.1" /-->
+      <!--param name="TruncPos" value="0.15" /-->
 	</node>
 
    <node pkg="crosbot_3d_graphslam_display" type="crosbot_3d_graphslam_display" name="crosbot_3d_graphslam_display" output="screen" />

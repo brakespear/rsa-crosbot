@@ -84,6 +84,7 @@ void GraphSlam3DGPU::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("MinCount", MinCount, 300);
    paramNH.param<double>("MoveThresh", MoveThresh, 0.01);
    paramNH.param<double>("NormThresh", NormThresh, 0.8);
+   paramNH.param<bool>("UseOccupancyForSurface", UseOccupancyForSurface, true);
 
    NumBlocksWidth = (LocalMapWidth + 0.00001) / BlockSize;
    NumBlocksHeight = (LocalMapHeight + 0.00001) / BlockSize;
@@ -127,6 +128,7 @@ void GraphSlam3DGPU::initialiseGraphSlam(DepthPointsPtr depthPoints) {
    graphSlam3DConfig.MaxDistance = MaxDistance;
    graphSlam3DConfig.MaxSearchCells = MaxSearchDistance / CellSize;
    graphSlam3DConfig.NormThresh = NormThresh;
+   graphSlam3DConfig.UseOccupancyForSurface = UseOccupancyForSurface;
 
    clGraphSlam3DConfig = opencl_manager->deviceAlloc(sizeof(oclGraphSlam3DConfig),
          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &graphSlam3DConfig);
@@ -443,7 +445,7 @@ void GraphSlam3DGPU::initialiseLocalMap() {
    oclLocalBlock localBlock;
    size_t localBlockSize = (sizeof(*(localBlock.distance)) +
       sizeof(*(localBlock.weight)) + sizeof(*(localBlock.pI)) +
-      sizeof(*(localBlock.r)) * 3 + 1) * NumCellsTotal + sizeof(localBlock.blockIndex);
+      sizeof(*(localBlock.r)) * 4 + 1) * NumCellsTotal + sizeof(localBlock.blockIndex);
    clLocalMapCells = opencl_manager->deviceAlloc(localBlockSize * NumBlocksAllocated, 
          CL_MEM_READ_WRITE, NULL);
 
@@ -491,11 +493,12 @@ void GraphSlam3DGPU::checkBlocksExist(int numPoints, tf::Transform trans) {
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCommon);
    opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clPoints);
-   opencl_task->setArg(4, kernelI, sizeof(int), &numPoints);
-   opencl_task->setArg(5, kernelI, sizeof(ocl_float3), &clOrigin);
-   opencl_task->setArg(6, kernelI, sizeof(ocl_float3), &clBasis[0]);
-   opencl_task->setArg(7, kernelI, sizeof(ocl_float3), &clBasis[1]);
-   opencl_task->setArg(8, kernelI, sizeof(ocl_float3), &clBasis[2]);
+   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clLocalMapCells);
+   opencl_task->setArg(5, kernelI, sizeof(int), &numPoints);
+   opencl_task->setArg(6, kernelI, sizeof(ocl_float3), &clOrigin);
+   opencl_task->setArg(7, kernelI, sizeof(ocl_float3), &clBasis[0]);
+   opencl_task->setArg(8, kernelI, sizeof(ocl_float3), &clBasis[1]);
+   opencl_task->setArg(9, kernelI, sizeof(ocl_float3), &clBasis[2]);
 
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 }

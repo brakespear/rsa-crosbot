@@ -79,6 +79,9 @@ typedef struct {
    //Only points with a z normal greater than this will be used in
    //ICP alignment (0 disables)
    ocl_float NormThresh;
+   //Only detects a surface point if the cell the point is in is
+   //marked as occupied
+   ocl_int UseOccupancyForSurface;
 
 } oclGraphSlam3DConfig;
 
@@ -91,6 +94,7 @@ typedef struct {
    unsigned char r[NUM_CELLS];
    unsigned char g[NUM_CELLS];
    unsigned char b[NUM_CELLS];
+   unsigned char occupied[NUM_CELLS];
 #else
    ocl_float *distance;
    ocl_float *weight;
@@ -98,6 +102,7 @@ typedef struct {
    unsigned char *r;
    unsigned char *g;
    unsigned char *b;
+   unsigned char *occupied;
 #endif
 }  oclLocalBlock;
 

@@ -65,6 +65,10 @@ private:
    //Only use points in icp alignment when they have a z normal
    //(normalized) greater than this
    double NormThresh;
+   //Eliminate surface points detected when the cell the surface lies on
+   //has not had a depth point detected in it. Helps remove incorrect surfaces
+   //when the camera goes on both sides of a narrow surface
+   bool UseOccupancyForSurface;
 
    //Derived params
    int NumBlocksTotal;
