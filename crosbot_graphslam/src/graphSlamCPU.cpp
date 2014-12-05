@@ -774,8 +774,9 @@ void GraphSlamCPU::getGlobalMap(vector<LocalMapPtr> curMap, vector<double> mapSl
          int index = globalMap[x];
          int yi = index / DimGlobalOG;
          int xi = index % DimGlobalOG;
-         if (xi > DimGlobalOG || yi > DimGlobalOG) {
-            cout << "global map indicies are out: " << xi << " " << yi << " " << index << " " << x << " " << globalMap.size() << endl;
+         if (xi >= DimGlobalOG || yi >= DimGlobalOG || xi < 0 || yi < 0) {
+            //cout << "global map indicies are out: " << xi << " " << yi << " " << index << " " << x << " " << globalMap.size() << endl;
+            continue;
          }
 
 

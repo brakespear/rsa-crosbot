@@ -1740,6 +1740,11 @@ void GraphSlamGPU::getGlobalMap(vector<LocalMapPtr> curMap, vector<double> mapSl
          int index = globalMap[x];
          int yi = index / DimGlobalOG;
          int xi = index % DimGlobalOG;
+         if (xi >= DimGlobalOG || yi >= DimGlobalOG || xi < 0 || yi < 0) {
+            //cout << "global map indicies are out: " << xi << " " << yi << endl;
+            continue;
+         }
+
          for(mapNum = 0; mapNum < curMap.size(); mapNum++) {
             cellsP = &(curMap[mapNum]->cells[yi][xi]);
             if (globalMapHeights[x] >= mapSlices[mapNum]) {
