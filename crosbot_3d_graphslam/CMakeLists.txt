@@ -125,6 +125,10 @@ target_link_libraries(depthPoints
    ${catkin_LIBRARIES}
 )
 
+target_link_libraries(graphslam_3d
+   ${catkin_LIBRARIES}
+)
+
 #############
 ## Install ##
 #############

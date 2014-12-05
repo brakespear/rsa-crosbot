@@ -116,7 +116,8 @@ add_executable(crosbot_graphslam src/graphSlamNode.cpp src/graphSlam.cpp src/gra
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
-# add_dependencies(crosbot_graphslam_node crosbot_graphslam_generate_messages_cpp)
+#add_dependencies(crosbot_graphslam crosbot_graphslam_gencpp)
+add_dependencies(graphslam ${PROJECT_NAME}_gencpp)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(crosbot_graphslam graphslam

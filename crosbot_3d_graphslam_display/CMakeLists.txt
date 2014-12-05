@@ -6,8 +6,9 @@ project(crosbot_3d_graphslam_display)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  std_msgs crosbot crosbot_graphslam nav_msgs sensor_msgs tf pcl pcl_ros
+  std_msgs crosbot crosbot_graphslam nav_msgs sensor_msgs tf #pcl pcl_ros
 )
+find_package(PCL REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -81,7 +82,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES crosbot_3d_graphslam_display
-  CATKIN_DEPENDS roscpp std_msgs nav_msgs sensor_msgs tf crosbot crosbot_graphslam pcl pcl_ros
+  CATKIN_DEPENDS roscpp std_msgs nav_msgs sensor_msgs tf crosbot crosbot_graphslam #pcl pcl_ros
 #  DEPENDS system_lib
 )
 
@@ -93,7 +94,7 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(include
-  ${catkin_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS}
 )
 
 ## Declare a cpp library
@@ -110,7 +111,7 @@ add_executable(crosbot_3d_graphslam_display src/main.cpp src/graphSlamDisplay.cp
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(crosbot_3d_graphslam_display
-   ${catkin_LIBRARIES}
+   ${catkin_LIBRARIES} ${PCL_LIBRARIES}
  )
 
 #############
