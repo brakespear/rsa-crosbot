@@ -11,6 +11,7 @@
 #include <ros/ros.h>
 #include <tf/transform_listener.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <std_msgs/String.h>
 
 #include <crosbot/data.hpp>
 #include <crosbot/utils.hpp>
@@ -42,7 +43,7 @@ private:
    /*
     * ROS config params
     */
-   string local_map_sub, optimise_map_sub;
+   string local_map_sub, optimise_map_sub, save_map_sub;
    string point_cloud_pub;
 
    /*
@@ -50,6 +51,7 @@ private:
     */
    ros::Subscriber localMapSub;
    ros::Subscriber optimiseMapSub;
+   ros::Subscriber saveMapSub;
    ros::Publisher pointCloudPub;
 
    
@@ -64,6 +66,11 @@ private:
     * Callback for receiving information about local maps after they have been optimised
     */
    void callbackOptimiseMap(const crosbot_graphslam::LocalMapMsgListConstPtr& localMapMsgList);
+   
+   /*
+    * Callback for saving the current global map to a file in vtk format
+    */
+   void callbackSaveMap(const std_msgs::String& filename);
 
    /*
     * Publishes the entire point cloud

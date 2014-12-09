@@ -67,6 +67,11 @@ public:
     * Returns the point cloud of entire map
     */
    PointCloud &getPointCloud();
+   
+   /*
+    * Saves the current global map to a file in vtk format
+    */
+   void outputMapToFile(string fileName);
 
 private:
    //Structure for storing each local map.
@@ -114,6 +119,7 @@ private:
    bool hasPositionChanged(Pose oldPose, Pose newPose);
 
    inline void rotPoseToVector(Pose &pose, tf::Vector3 &vec);
+
 };
    
 

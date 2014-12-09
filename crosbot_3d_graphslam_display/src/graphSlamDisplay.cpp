@@ -187,6 +187,8 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       //TODO: implement saving the entire mesh to file if selected by a parameter
       //Can view files made by the following command by using pcd_viewer
       //pcl::io::saveVTKFile ("/home/adrianrobolab/groovy_workspace/crosbot/src/crosbot_3d_graphslam_display/mesh.vtk", triangles);
+      
+      //outputMapToFile("/home/adrianrobolab/mesh.vtk");
    } else if (CreateMesh) {
       cout << "ERROR: Creating an empty mesh" << endl;
       LocalMap newMap;
@@ -473,6 +475,48 @@ void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, Pose
 
 PointCloud &GraphSlamDisplay::getPointCloud() {
    return points;
+}
+
+void GraphSlamDisplay::outputMapToFile(string fileName) {
+   
+   if (maps.size() == 0) {
+      cout << "No map to save yet!" << endl;
+      return;
+   }
+
+   //cout << "before" << maps[0].mesh->cloud.height << " " << maps[0].mesh->cloud.width << endl;
+   pcl::PolygonMesh fullMesh = *(maps[0].mesh);
+   pcl::uint32_t pointStep = maps[0].mesh->cloud.point_step;
+
+   int numPoints = maps[0].mesh->cloud.width;
+   for (int i = 1; i < maps.size(); i++) {
+      pcl::uint32_t oldDataSize = fullMesh.cloud.data.size();
+      pcl::uint32_t cloudDataSize = maps[i].mesh->cloud.data.size();
+      fullMesh.cloud.data.resize(oldDataSize + cloudDataSize);
+      for (unsigned int j = 0; j < cloudDataSize; j++) {
+         fullMesh.cloud.data[j + oldDataSize] = maps[i].mesh->cloud.data[j];
+      }
+      fullMesh.cloud.width += maps[i].mesh->cloud.width;
+      
+      int oldPolygons = fullMesh.polygons.size();
+      int numNewPolygons = maps[i].mesh->polygons.size();
+      fullMesh.polygons.resize(oldPolygons + numNewPolygons);
+      for (unsigned int j = 0; j < numNewPolygons; j++) {
+         fullMesh.polygons[j + oldPolygons].vertices.resize(3);
+         fullMesh.polygons[j + oldPolygons].vertices[0] = maps[i].mesh->polygons[j].vertices[0] +
+            numPoints;
+         fullMesh.polygons[j + oldPolygons].vertices[1] = maps[i].mesh->polygons[j].vertices[1] +
+            numPoints;
+         fullMesh.polygons[j + oldPolygons].vertices[2] = maps[i].mesh->polygons[j].vertices[2] +
+            numPoints;
+      }
+      numPoints += maps[i].mesh->cloud.width;
+   }
+
+   fullMesh.cloud.row_step = fullMesh.cloud.data.size();
+   
+   cout << "Saving map!!" << endl;
+   pcl::io::saveVTKFile (fileName, fullMesh);
 }
 
 void GraphSlamDisplay::run() {
