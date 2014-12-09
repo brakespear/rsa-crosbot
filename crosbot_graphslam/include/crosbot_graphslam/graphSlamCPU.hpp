@@ -10,8 +10,8 @@
 
 #include <crosbot_graphslam/graphSlam.hpp>
 
-//#include <suitesparse/cs.h>
-#include <cs.h>
+#include <suitesparse/cs.h>
+//#include <cs.h>
 
 #define NUM_ORIENTATION_BINS 64
 #define NUM_PROJECTION_BINS 100
@@ -251,15 +251,16 @@ private:
    
    //Calculates the global hessian matrix for the map optimisation
    void getGlobalHessianMatrix();
-   //Performs the optimisation of the graph
+   //Performs the optimisation of the graph using gradient descent
    //type of 0 is normal, 1 is just full loop closures, -1 is only since last
    //full loop closure
    void calculateOptimisationChange(int numIterations, int type);
-
-   void optimiseGraph(int type);
-
    //Updates the global positions of all local maps
    void updateGlobalPositions();
+
+   //Optimises the graph using least squares
+   void optimiseGraph(int type);
+
    //Updates the global covariances of each local map and updates
    //the global positions of all laser points
    void updateGlobalMap();

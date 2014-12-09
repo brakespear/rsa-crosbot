@@ -675,22 +675,26 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          if (!loopClosed) {
             optType = -1;
          }
-         optimiseGraph(optType);
-         if (loopClosed) {
-            optType = 0;
-            evaluateTempConstraints();
+         
+         if (UseLeastSquaresOptimisation) {
             optimiseGraph(optType);
-         }
-         /*for (int numIterations = 1; numIterations < 10 * 2; numIterations++) {
-            getGlobalHessianMatrix();
-            if (numIterations == 10 && loopClosed) {
+            if (loopClosed) {
                optType = 0;
                evaluateTempConstraints();
+               optimiseGraph(optType);
             }
-            calculateOptimisationChange(numIterations, optType);
-            updateGlobalPositions();
-
-         }*/
+         } else {
+            for (int numIterations = 1; numIterations < 10 * 2; numIterations++) {
+               getGlobalHessianMatrix();
+               if (numIterations == 10 && loopClosed) {
+                  optType = 0;
+                  evaluateTempConstraints();
+               }
+               calculateOptimisationChange(numIterations, optType);
+               updateGlobalPositions();
+            }
+         }
+         
          updateRobotMapCentres();
          ros::WallTime t2 = ros::WallTime::now();
          ros::WallDuration tote = t2 - t1;
@@ -716,12 +720,17 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          }
          if (foundMoreLoops) {
             cout << "****Optimising again" << endl;
-            optimiseGraph(0);
-            /*for (int numIterations = 1; numIterations < 10; numIterations++) {
-               getGlobalHessianMatrix();
-               calculateOptimisationChange(numIterations, 0);
-               updateGlobalPositions();
-            }*/
+            
+            if (UseLeastSquaresOptimisation) {
+               optimiseGraph(0);
+            } else {
+               for (int numIterations = 1; numIterations < 10; numIterations++) {
+                  getGlobalHessianMatrix();
+                  calculateOptimisationChange(numIterations, 0);
+                  updateGlobalPositions();
+               }
+            }
+
             updateRobotMapCentres();
          }
 

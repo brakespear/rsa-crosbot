@@ -64,6 +64,8 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("MaxOptMoveXY", MaxOptMoveXY, 0.001);
    paramNH.param<double>("MaxOptMoveTh", MaxOptMoveTh, 0.0005);
 
+   paramNH.param<bool>("UseLeastSquaresOptimisation", UseLeastSquaresOptimisation, true);
+
    paramNH.param<int>("RGBDWidth", RGBDWidth, 640);
    paramNH.param<int>("RGBDHeight", RGBDHeight, 480);
    paramNH.param<int>("SkipVal", SkipVal, 2);

@@ -73,16 +73,13 @@ include_directories(include
 add_executable(crosbot_ogmbicp src/main.cpp src/OgmbicpNode.cpp src/Ogmbicp.cpp src/PointMap3D.cpp src/OgmbicpCPU.cpp)
 
 ## Add dependencies to the executable
-# add_dependencies(crosbot_ogmbicp_node ${PROJECT_NAME})
+add_dependencies(crosbot_ogmbicp
+      ogmbicp ${PROJECT_NAME}_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
  target_link_libraries(crosbot_ogmbicp ogmbicp
    ${catkin_LIBRARIES}   
    ${Newmat_LIBRARIES}
- )
-
-target_link_libraries(ogmbicp
-   ${catkin_LIBRARIES} 
  )
 
 target_link_libraries(ogmbicp

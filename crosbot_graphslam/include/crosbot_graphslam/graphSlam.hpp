@@ -144,6 +144,8 @@ protected:
    //to converge
    double MaxOptMoveXY;
    double MaxOptMoveTh;
+   //If should use a least squares optimiser. If false, will use gradient descent
+   bool UseLeastSquaresOptimisation;
 
 
    //Kinect Params
