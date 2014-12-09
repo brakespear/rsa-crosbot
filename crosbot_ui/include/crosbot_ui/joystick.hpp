@@ -10,6 +10,7 @@
 
 #include <crosbot/utils.hpp>
 #include <crosbot/config.hpp>
+#include <crosbot/thread.hpp>
 #include <string>
 
 namespace crosbot {

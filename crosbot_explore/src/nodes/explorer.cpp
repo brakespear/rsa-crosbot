@@ -170,7 +170,7 @@ public:
 
       tf::StampedTransform transform;
 		try {
-			tfListener.waitForTransform(mapFrame, baseFrame, ros::Time(0), ros::Duration(2));
+//			tfListener.waitForTransform(mapFrame, baseFrame, ros::Time(0), ros::Duration(5.0));
 			tfListener.lookupTransform(mapFrame, baseFrame, ros::Time(0), transform);
 		} catch (tf::TransformException& e) {
 			LOG("ExplorerNode::getLatestPose(): Exception caught(%s).\n", e.what());

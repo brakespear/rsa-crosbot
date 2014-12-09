@@ -120,7 +120,23 @@ public:
 			}
 		}
 
-		// TODO: publish history
+		// publish history
+		if (historyPub.getNumSubscribers() > 0) {
+			nav_msgs::PathPtr rosPath(new nav_msgs::Path());
+			rosPath->header.frame_id = mapFrame;
+			rosPath->header.stamp = newMean->getLatestUpdate()->timestamp.toROS();
+
+			PathPtr path = newMean->getPath();
+			rosPath->poses.resize(path->path.size());
+			for (size_t i = 0; i < path->path.size(); ++i) {
+				geometry_msgs::PoseStamped& pose = rosPath->poses[i];
+				pose.pose = path->path[i].toROS();
+				pose.header.frame_id = mapFrame;
+				pose.header.stamp = (i < path->timestamps.size())?(path->timestamps[i].toROS()):ros::Time(0);
+			}
+
+			historyPub.publish(rosPath);
+		}
 	}
 
 	void tagAdded(MapPtr map, TagPtr tag) {

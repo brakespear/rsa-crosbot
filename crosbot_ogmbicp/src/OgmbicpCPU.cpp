@@ -136,7 +136,7 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    //cout << "iter count is " << iterCount << endl;
    //cout << "iter count is " << iterCount << " count: " << count << " " << gx << " " << gy << " " << gth << endl;
 
-   if (isnan(gx) || isnan(gy) || isnan(gz) || isnan(gth) || fabs(gx) > MaxMoveXYZ ||
+   if (::isnan(gx) || ::isnan(gy) || ::isnan(gz) || ::isnan(gth) || fabs(gx) > MaxMoveXYZ ||
          fabs(gy) > MaxMoveXYZ || fabs(gz) > MaxMoveXYZ || fabs(gth) > MaxMoveTh) {
       failCount++;
       cout << "***********Failed scan " << gx << " " << gy << " " << gth << endl;
@@ -505,10 +505,10 @@ double OgmbicpCPU::getHValue(Point scanPoint, LaserPoint mapPoint, double center
    p2.x += centerX;
    p2.y += centerY;
 
-   if (isnan(p2.x)) {
+   if (::isnan(p2.x)) {
       matchPoint = p1;
       return calculateHValue(scanPoint, p1, lVal);
-   } else if (isnan(p1.x)) {
+   } else if (::isnan(p1.x)) {
       matchPoint = p2;
       return calculateHValue(scanPoint, p2, lVal);
    }

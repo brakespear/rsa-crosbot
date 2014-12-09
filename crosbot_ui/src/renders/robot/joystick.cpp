@@ -93,7 +93,7 @@ void JoystickRender::RenderJoystick::buttonReleased(int b) {
 		QKeyEvent keyEvent(QEvent::KeyRelease, buttonKeys[b], 0);
 		RobotWidget* widget = dynamic_cast < RobotWidget* > (render.panel.getWidget());
 		if (widget != NULL) {
-			widget->keyPressEvent(&keyEvent);
+			widget->keyReleaseEvent(&keyEvent);
 		}
 	}
 }

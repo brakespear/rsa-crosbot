@@ -8,6 +8,7 @@
 #include <ros/ros.h>
 #include <crosbot_ui/renders/map/geotiff.hpp>
 #include <crosbot/utils.hpp>
+#include <crosbot/thread.hpp>
 #include <crosbot_map/tag.hpp>
 
 #include <nav_msgs/OccupancyGrid.h>
@@ -412,7 +413,7 @@ public:
 			snapsRes.snaps.clear();
 		}
 
-		LOG("Have snaps list.\n", snapsRes.snaps.size());
+		LOG("Have snaps list(size: %Zd).\n", snapsRes.snaps.size());
 		// Paint GeoTiff
 		std::string geoData, snapData; Point2D minXY;
 		QImage *geotiff = getGeoTiffImage(currentMap, "", currentHistory, snapsRes.snaps, geoData, snapData);
@@ -426,7 +427,7 @@ public:
 			return false;
 		}
 
-		LOG("Have geotiff image list.\n", filename.c_str());
+		LOG("Have geotiff image list(%s).\n", filename.c_str());
 		// save file// write image to file
 		std::string rawFileName = filename + ".tiff";
 		if (!geotiff->save(QString(rawFileName.c_str()), "TIFF")) {

@@ -13,7 +13,7 @@
 #endif
 
 #include <math.h>
-#include <cmath>
+//#include <cmath>
 #include <stdint.h>
 
 #include <crosbot/serialization.hpp>
@@ -122,7 +122,7 @@ public:
 	}
 
 	inline bool hasNAN() const {
-		return std::isnan(x) || std::isnan(y);
+		return ::isnan(x) || ::isnan(y);
 	}
 
 	inline bool isFinite() const {
@@ -246,7 +246,7 @@ public:
 	}
 
 	inline bool hasNAN() const {
-		return std::isnan(x) || std::isnan(y) || std::isnan(z);
+		return ::isnan(x) || ::isnan(y) || ::isnan(z);
 	}
 
 	inline bool isFinite() const {
@@ -385,7 +385,7 @@ public:
 	}
 
 	inline bool hasNAN() const {
-		return std::isnan(x) || std::isnan(y) || std::isnan(z) || std::isnan(w);
+		return ::isnan(x) || ::isnan(y) || ::isnan(z) || ::isnan(w);
 	}
 
 	inline bool isFinite() const {
@@ -466,7 +466,7 @@ public:
 	Point2D position;
 	double orientation;
 
-	Pose2D() {}
+	Pose2D() : orientation(0) {}
 	Pose2D(const Point2D& position, const double& orientation) :
 		position(position), orientation(orientation) {}
 	Pose2D(const Pose2D& p) : position(p.position), orientation(p.orientation) {}
@@ -486,12 +486,12 @@ public:
 	}
 
 	inline bool hasNAN() const {
-		return position.hasNAN() || std::isnan(orientation);
+		return position.hasNAN() || ::isnan(orientation);
 	}
 
 	inline bool isFinite() const {
 		return position.isFinite() &&
-				!std::isnan(orientation) &&
+				!::isnan(orientation) &&
 				orientation != INFINITY && orientation != -INFINITY;
 	}
 
@@ -742,11 +742,11 @@ inline bool operator!=(const geometry_msgs::Pose& p1, const geometry_msgs::Pose&
  * Tests that a value isn't corrupt.
  */
 inline bool hasNAN(const geometry_msgs::Point& p) {
-    return std::isnan(p.x) || std::isnan(p.y) || std::isnan(p.z);
+    return ::isnan(p.x) || ::isnan(p.y) || ::isnan(p.z);
 }
 
 inline bool hasNAN(const geometry_msgs::Quaternion& q) {
-    return std::isnan(q.x) || std::isnan(q.y) || std::isnan(q.z) || std::isnan(q.w);
+    return ::isnan(q.x) || ::isnan(q.y) || ::isnan(q.z) || ::isnan(q.w);
 }
 
 inline bool hasNAN(const geometry_msgs::Pose& p) {

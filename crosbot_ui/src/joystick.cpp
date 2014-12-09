@@ -214,7 +214,7 @@ void Joystick::buttonReleased(int) {}
 
 void Joystick::run() {
 	int device = -1;
-	Time lastOpenAttempt;
+	Time lastOpenAttempt, lastRepeat = Time::now();
 
 	char deviceName[MAX_JOYSTICK_NAME];
 	int deviceAxesCount = 0, deviceButtonCount = 0;
@@ -327,6 +327,18 @@ void Joystick::run() {
 					}
 				}
 			break;
+		}
+
+		if (Time::now() > lastRepeat + Duration(0, 100000000LL)) {
+			bool repeat = false;
+			for (int n = 0; n < MAX_JOYSTICK_BUTTONS; ++n) {
+				if (buttonState[n]) {
+					repeat = true;
+					buttonPressed(n);
+				}
+			}
+			if (repeat)
+				lastRepeat = Time::now();
 		}
 
 		usleep(10000);
