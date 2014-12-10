@@ -11,6 +11,7 @@
 #include <ros/ros.h>
 #include <crosbot/utils.hpp>
 #include <crosbot/data.hpp>
+#include <crosbot/thread.hpp>
 #include <crosbot_map/localmap.hpp>
 #include <crosbot_map/tag.hpp>
 #include <sensor_msgs/LaserScan.h>
@@ -131,7 +132,7 @@ protected:
    //Total covariance at which a new local map will be created
    double LocalMapCovarianceThreshold;
    //Number of iterations of the graph optimiser
-   int NumOfOptimisationIts;
+   int MaxNumOfOptimisationIts;
    //Amount a local maps moves before it is evaluated for temp loop closures
    double LargeMovementThreshold;
    //amount two local maps have to overlap to be considered potentially matching
@@ -145,6 +146,13 @@ protected:
    //Amount the last scan of a local map needs to be corrected before the local map is warped
    double LocalMapWarpThreshXY;
    double LocalMapWarpThreshTh;
+   //Maximum movement of a map for the graph optimsation to be considered
+   //to converge
+   double MaxOptMoveXY;
+   double MaxOptMoveTh;
+   //If should use a least squares optimiser. If false, will use gradient descent
+   bool UseLeastSquaresOptimisation;
+
 
    //Kinect Params
    

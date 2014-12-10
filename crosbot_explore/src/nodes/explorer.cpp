@@ -26,7 +26,7 @@ using namespace crosbot_explore;
 
 class ExplorerNode : public Explorer {
 protected:
-	VoronoiGrid::Constraints voronoiConstraints;
+//	VoronoiGrid::Constraints voronoiConstraints;
 	std::string baseFrame;
 
 	ros::Subscriber gridSub, historySub;
@@ -87,7 +87,7 @@ public:
     }
 
     bool callbackSetMode(crosbot_explore::SetMode::Request& req, crosbot_explore::SetMode::Response& res) {
-    	switch (req.mode.data) {
+    	switch (req.mode) {
     	case 1:
     		resume(); break;
     	case 2:
@@ -96,6 +96,8 @@ public:
     	case 3:
     		search.side = SearchParameters::Right;
     		search.strategy = SearchParameters::WallFollow; break;
+    	case 4:
+    		search.strategy = SearchParameters::Waypoint; break;
     	case 0: default:
     		pause(); break;
     	}
@@ -120,6 +122,7 @@ public:
 		ConfigElementPtr searchCfg = cfg->getChild("search");
 		if (searchCfg != NULL) {
 			search.searchDistance = searchCfg->getParamAsDouble("search", search.searchDistance);
+			search.searchDistance = searchCfg->getParamAsDouble("distance", search.searchDistance);
 			search.searchAngle = searchCfg->getParamAsDouble("angle", search.searchAngle);
 		}
 		if (cfg != NULL) {
@@ -129,7 +132,7 @@ public:
 
 		gridSub = nh.subscribe("map", 1, &ExplorerNode::callbackOccGrid, this);
 		historySub = nh.subscribe("history", 1, &ExplorerNode::callbackHistory, this);
-		imagePub = nh.advertise<sensor_msgs::Image>("image", 1);
+		imagePub = nh.advertise<sensor_msgs::Image>("explore/image", 1);
 		velPub = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
 		statusPub = nh.advertise<std_msgs::String>("status", 1);
 		waypointSrv = nh.advertiseService("/explore/follow_path", &ExplorerNode::callbackFollowPath, this);
@@ -167,7 +170,7 @@ public:
 
       tf::StampedTransform transform;
 		try {
-			tfListener.waitForTransform(mapFrame, baseFrame, ros::Time(0), ros::Duration(2));
+//			tfListener.waitForTransform(mapFrame, baseFrame, ros::Time(0), ros::Duration(5.0));
 			tfListener.lookupTransform(mapFrame, baseFrame, ros::Time(0), transform);
 		} catch (tf::TransformException& e) {
 			LOG("ExplorerNode::getLatestPose(): Exception caught(%s).\n", e.what());

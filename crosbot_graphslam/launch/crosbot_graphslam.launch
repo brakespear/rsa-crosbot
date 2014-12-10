@@ -41,6 +41,9 @@
 	<node pkg="crosbot_graphslam" type="crosbot_graphslam" name="crosbot_graphslam" output="screen">
 		<param name="base_frame" value="base_footprint" />
       <param name="icp_frame" value="icp_test" />
+      
+      <param name="UseTempLoopClosures" value="true" />
+      <param name="LocalMapWarp" value="false" />
 	</node>
 
 	<!--node pkg="crosbot_ui" type="gui" args="$(env PWD)/bhuman.gui" name="gui" output="screen" >

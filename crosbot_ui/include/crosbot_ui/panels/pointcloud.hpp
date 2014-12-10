@@ -16,6 +16,7 @@
 #include <crosbot/PointCloudMsg.h>
 //#include <sensor_msgs/PointCloud.h>
 #include <geometry_msgs/Pose.h>
+#include <crosbot/thread.hpp>
 
 namespace crosbot {
 

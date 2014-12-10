@@ -55,7 +55,10 @@ catkin_package(
    LIBRARIES crosbot
    CATKIN_DEPENDS roscpp tf geometry_msgs sensor_msgs
 #  DEPENDS system_lib
+   CFG_EXTRAS ${PROJECT_NAME}-extras.cmake
 )
+
+INCLUDE ( cmake/${PROJECT_NAME}-extras.cmake.in )
 
 ###########
 ## Build ##

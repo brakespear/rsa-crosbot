@@ -1,5 +1,6 @@
-std_msgs/Int32 mode # 0 paused
-                    # 1 resume
-                    # 2 left wall
-                    # 3 right wall
+int32 mode # 0 paused
+           # 1 resume
+           # 2 left wall
+           # 3 right wall
+           # 4 waypoint
 ---

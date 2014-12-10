@@ -989,13 +989,13 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
          int kernelSize;
 
          //Now actually optimise the map
-         for (int numIterations = 1; numIterations < NumOfOptimisationIts * 2; 
+         for (int numIterations = 1; numIterations < MaxNumOfOptimisationIts * 2; 
                numIterations++) {
             opencl_task->setArg(3, 10, sizeof(int), &numIterations);
             kernelSize = getGlobalWorkSize(numConstraints * 32);
             opencl_task->queueKernel(9, 1, kernelSize, LocalSize,
                                  0, NULL, NULL, false);
-            if (numIterations == NumOfOptimisationIts && loopClosed) {
+            if (numIterations == MaxNumOfOptimisationIts && loopClosed) {
                optType = 0;
                opencl_task->setArg(5, 10, sizeof(int), &optType);
                int kSize = getGlobalWorkSize(numLoopConstraints);
@@ -1046,7 +1046,7 @@ void GraphSlamGPU::finishMap(double angleError, double icpTh, Pose icpPose) {
             cout << "****Optimising again" << endl;
             optType = 0;
             opencl_task->setArg(5, 10, sizeof(int), &optType);
-            for (int numIterations = 1; numIterations < NumOfOptimisationIts; 
+            for (int numIterations = 1; numIterations < MaxNumOfOptimisationIts; 
                   numIterations++) {
                opencl_task->setArg(3, 10, sizeof(int), &numIterations);
                kernelSize = getGlobalWorkSize(numConstraints * 32);

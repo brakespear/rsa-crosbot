@@ -144,7 +144,9 @@ Pose Explorer::findWallFollowTarget(const VoronoiGrid& voronoi, const Pose& robo
 		return Pose(INFINITY, INFINITY, INFINITY);
 	}
 
-	return Pose(voronoi.getPosition(currentCell), Quaternion());
+	Index2D saferCell = findSaferSkeletonCell(voronoi, currentCell, robotCell);
+
+	return Pose(voronoi.getPosition(saferCell), Quaternion());
 }
 
 Point Explorer::findWall(const VoronoiGrid& voronoi, const Pose& robot, double startAngle) {
@@ -322,6 +324,267 @@ Index2D Explorer::findNextSkeletonCell(const VoronoiGrid& voronoi, const Index2D
 
 	return Index2D(-1,-1);
 }
+
+Index2D Explorer::findSaferSkeletonCell(const VoronoiGrid& voronoi, const Index2D currentCell, const Index2D robot) {
+	uint32_t n = 0;
+	Index2D safeCell = currentCell;
+	if (currentCell == robot)
+		return currentCell;
+
+//	double currentRisk = cellTraversibleRisk(voronoi, currentCell, robot);
+//	Index2D searchOrder[4];
+//	searchOrder[0] = Index2D(0,1);
+//	searchOrder[1] = Index2D(0,-1);
+//	searchOrder[2] = Index2D(1,0);
+//	searchOrder[3] = Index2D(-1,0);
+//
+//	bool riskDecreasing = true;
+//	for (; n < search.maxIterations && riskDecreasing; ++n) {
+//		riskDecreasing = false;
+//		for (int ne = 0; ne < 4; ++ne) {
+//			Index2D neighbour = safeCell + searchOrder[ne];
+//
+//			if (!CELL_IS_VALID(neighbour, voronoi))
+//				continue;
+//
+//			const VoronoiGrid::VoronoiCell& cell = voronoi.cells[neighbour.y * voronoi.width + neighbour.x];
+//			if (!(cell.status & VoronoiGrid::VoronoiCell::Skeleton))
+//				continue;
+//
+//			double neighbourRisk = cellTraversibleRisk(voronoi, neighbour, robot);
+//			neighbourRisk *= 1 + neighbour.distanceTo(currentCell) / currentCell.distanceTo(robot);
+//			if (neighbourRisk < currentRisk) {
+//				safeCell = neighbour;
+//				currentRisk = neighbourRisk;
+//				riskDecreasing = true;
+//			}
+//		}
+//	}
+
+	int32_t windowSize = ceil(search.searchDistance / voronoi.resolution) + 1;
+	double restrictedC = (voronoiConstraints.restricted / voronoi.resolution),
+			maxExpandC = ((voronoiConstraints.partial + voronoiConstraints.expand) / voronoi.resolution);
+
+	double maxScore = 0, currentScore = -INFINITY, currentD = currentCell.distanceTo(robot);
+	for (int y = -windowSize; y <= windowSize; ++y) {
+		for (int x = -windowSize; x <= windowSize; ++x) {
+			Index2D cell2Check = currentCell + Index2D(x,y);
+
+			if (!CELL_IS_VALID(cell2Check, voronoi))
+				continue;
+
+			const VoronoiGrid::VoronoiCell& vCell = voronoi.getVoronoiCell(cell2Check);
+			if (!(vCell.status & VoronoiGrid::VoronoiCell::Skeleton))
+				continue;
+			double d = cell2Check.distanceTo(robot), score = 0;
+			double dx = (cell2Check.x - robot.x) / d,
+					dy = (cell2Check.y - robot.y) / d;
+
+			int count = 0;
+			for (double r = 0; r <= d; r += search.rayStep) {
+				Index2D rayCell(robot.x + dx*r, robot.y + dy*r);
+
+				if (!CELL_IS_VALID(rayCell, voronoi))
+					continue;
+
+				const VoronoiGrid::VoronoiCell& rCell = voronoi.getVoronoiCell(rayCell);
+				if ((rCell.status & VoronoiGrid::VoronoiCell::Wall) ||
+						(rCell.status & VoronoiGrid::VoronoiCell::Restricted)) {
+					score = 0;
+					break;
+				}
+
+				// The score for a raytraced cell is as 0..1 value representing distance from wall
+				double d = (rCell.distanceFromWall - restrictedC) / maxExpandC;
+				if (d > 1)
+					d = 1;
+				double cellScore;
+//				if (rCell.status & VoronoiGrid::VoronoiCell::Skeleton) {
+//					cellScore = 1.2 * d;
+//				} else
+				if (rCell.status & VoronoiGrid::VoronoiCell::Vacant) {
+					cellScore = 1;
+				} else if (rCell.status & VoronoiGrid::VoronoiCell::PatiallyRestricted) {
+					cellScore = 0.5 * d;
+				} else {
+					cellScore = d;
+				}
+
+				score += cellScore;
+				++count;
+//				ROS_INFO("Score Sum (%d, %d)(%.3lf) - %.2lf, %.2lf - %.2lf, %.2lf", cell2Check.x, cell2Check.y, score,
+//						rCell.distanceFromWall, restrictedC);
+			}
+
+			if (count == 0)
+				continue;
+
+			// Score for a cell is the mean of the intermediate ray traced cells
+			score = score / count;
+
+			// Adjust score based on distance from the goal
+			double adjustment = 1 - pow((currentCell.distanceTo(cell2Check) / currentD), 2);
+			score *= adjustment;
+
+//			ROS_INFO("Score (%d, %d)(%.3lf)", cell2Check.x, cell2Check.y, score);
+			if (currentCell == cell2Check) {
+				currentScore = score;
+			}
+
+			if (score > maxScore) {
+				safeCell = cell2Check;
+				maxScore = score;
+			}
+		}
+	}
+
+//	ROS_WARN("Preferring (%d, %d)(%.3lf) over (%d, %d)(%.3lf)",
+//			safeCell.x, safeCell.y, maxScore,
+//			currentCell.x, currentCell.y, currentScore);
+	return safeCell;
+}
+
+Index2D Explorer::findSaferCell(const VoronoiGrid& voronoi, const Index2D currentCell, const Index2D robot) {
+	double voronoiDistance = currentCell.distanceTo(robot) * voronoi.resolution;
+	double score, maxScore = 0, meanScore, sint, cost, xf, yf, cosA;
+	int c, count, xi, yi;
+
+	double vdSq = voronoiDistance*voronoiDistance, vd2cosA;
+	Index2D vectorCurrent = currentCell - robot;
+
+	Index2D saferCell = currentCell;
+	int32_t windowSize = ceil(search.searchDistance / voronoi.resolution) + 1;
+
+	double restrictedC = (voronoiConstraints.restricted / voronoi.resolution),
+			maxExpandC = ((voronoiConstraints.partial + voronoiConstraints.expand) / voronoi.resolution);
+
+	for (int y = -windowSize; y <= windowSize; ++y) {
+		for (int x = -windowSize; x <= windowSize; ++x) {
+			Index2D cell2Check = currentCell + Index2D(x,y);
+
+			if (!CELL_IS_VALID(cell2Check, voronoi))
+				continue;
+
+			const VoronoiGrid::VoronoiCell& vCell = voronoi.getVoronoiCell(cell2Check);
+			if ((vCell.status & VoronoiGrid::VoronoiCell::Wall) ||
+					(vCell.status & VoronoiGrid::VoronoiCell::Restricted))
+				continue;
+
+			double d = cell2Check.distanceTo(robot);
+			double dx = (cell2Check.x - robot.x) / d,
+					dy = (cell2Check.y - robot.y) / d;
+
+			score = count = 0;
+			for (double r = 0; r <= d; r += search.rayStep) {
+				Index2D rayCell(robot.x + dx*r, robot.y + dy*r);
+
+				if (!CELL_IS_VALID(rayCell, voronoi))
+					continue;
+
+				const VoronoiGrid::VoronoiCell& rCell = voronoi.getVoronoiCell(rayCell);
+				if ((rCell.status & VoronoiGrid::VoronoiCell::Wall) ||
+									(rCell.status & VoronoiGrid::VoronoiCell::Restricted)) {
+					score = 0; break;
+				}
+				double d = (rCell.distanceFromWall - restrictedC) / maxExpandC;
+				if (d > 1)
+					d = 1;
+				double cellScore;
+				if (rCell.status & VoronoiGrid::VoronoiCell::Skeleton) {
+					cellScore = 1.2 * d;
+				} else if (rCell.status & VoronoiGrid::VoronoiCell::Vacant) {
+					cellScore = 1;
+				} else if (rCell.status & VoronoiGrid::VoronoiCell::PatiallyRestricted) {
+					cellScore = 0.5 * d;
+				} else {
+					cellScore = d;
+				}
+
+				score += cellScore;
+				++count;
+			}
+
+			if (count == 0)
+				continue;
+
+			meanScore = score / count;
+
+			// adjust meanScore based on distance to goal
+
+			Index2D vectorCheck = cell2Check - robot;
+			double theta = atan2(currentCell.y - robot.y, currentCell.x - robot.x) -
+					atan2(cell2Check.y - robot.y, cell2Check.x - robot.x);
+			cosA = cos(theta);
+			vd2cosA = voronoiDistance*cosA*2;
+			double r = currentCell.distanceTo(cell2Check);
+
+			d = sqrt(vdSq + r*r - r*vd2cosA);
+			meanScore = (meanScore / exp2(2*d*search.searchDistance/voronoiDistance));
+
+			if (meanScore > maxScore) {
+				saferCell = cell2Check;
+				maxScore = meanScore;
+			}
+		}
+	}
+
+	return saferCell;
+}
+
+//void Explorer::findSaferTarget(double& voronoiAngle, double& voronoiDistance, const Pose& robot) {
+//	double preferredAngle = voronoiAngle, preferredDist = voronoiDistance;
+//	double score, maxScore = 0, meanScore, sint, cost, xf, yf, cosA;
+//
+//	double vdSq = voronoiDistance*voronoiDistance, vd2cosA;
+//
+//	int c, count, xi, yi;
+//	VoronoiCell *cell = NULL;
+//
+//	for (double theta = -angleAcceptDiff; theta <= angleAcceptDiff; theta += searchRes) {
+//		sint = sin(theta + voronoiAngle + localMap->robotPose.o.yaw),
+//		cost = cos(theta + voronoiAngle + localMap->robotPose.o.yaw),
+//		cosA = cos(theta);
+//
+//		vd2cosA = voronoiDistance*cosA*2;
+//
+//		score = count = 0;
+//
+//		for (double ray = searchStep; ray <= searchDistance; ray += searchStep) {
+//			GET_CELL_FOR_RAY(ray, c);
+//			if (c == -1 || cell->status == VoronoiCell::Occupied || cell->status == VoronoiCell::Obstacle) {
+//				break;
+//			}
+//			double d = (cell->voronoiDistance - localMap->restrictedC) / localMap->maxExpansionC;
+//			if (d > 1)
+//				d = 1;
+//			double cellScore;
+//			if (cell->status == VoronoiCell::Horizon) {
+//				cellScore = 1.2 * d;
+//			} else if (cell->status == VoronoiCell::Vacant) {
+//				cellScore = 1;
+//			} else {
+//				cellScore = d;
+//			}
+//
+//			score += cellScore;
+//			++count;
+//
+//			meanScore = score / count;
+//
+//			// adjust meanScore based on distance to goal
+//			d = sqrt(vdSq + ray*ray - ray*vd2cosA);
+//			meanScore = (meanScore / exp2(2*d*searchDistance/voronoiDistance));
+//
+//			if (meanScore > maxScore) {
+//				preferredAngle = theta + voronoiAngle; preferredDist = ray;
+//				maxScore = meanScore;
+//			}
+//		}
+//	}
+//
+//	NORMALISE_ANGLE(preferredAngle);
+//	voronoiAngle = preferredAngle; voronoiDistance = preferredDist;
+//}
 
 Pose Explorer::findWaypointTarget(const VoronoiGrid& voronoi, const Pose& robot) {
 	if (search.waypoints.size() == 0)

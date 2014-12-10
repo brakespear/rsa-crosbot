@@ -11,7 +11,9 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+find_package(SuiteSparse REQUIRED)
+#find_package(Newmat REQUIRED)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -91,7 +93,7 @@ catkin_package(
   INCLUDE_DIRS include
   LIBRARIES graphslam
   CATKIN_DEPENDS crosbot crosbot_map nav_msgs roscpp sensor_msgs tf
-#  DEPENDS system_lib
+  DEPENDS suitesparse-dev
 )
 
 ###########
@@ -103,6 +105,7 @@ catkin_package(
 # include_directories(include)
 include_directories(include
   ${catkin_INCLUDE_DIRS}
+#  /usr/include/suitesparse
 )
 
 ## Declare a cpp library
@@ -121,8 +124,9 @@ add_dependencies(graphslam ${PROJECT_NAME}_gencpp)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(crosbot_graphslam graphslam
-   ${catkin_LIBRARIES}
-   newmat
+   ${catkin_LIBRARIES} ${SuiteSparse_LIBRARIES}
+#   newmat
+#   cxsparse
 )
 
 target_link_libraries(graphslam

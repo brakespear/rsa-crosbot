@@ -15,7 +15,7 @@ namespace crosbot {
 
 #define DEFAULT_SKELETON_DISCOUNT		0.5
 #define DEFAULT_RESTRICTED_RISK			INFINITY
-#define DEFAULT_RISK_K					5 // 3
+#define DEFAULT_RISK_K					25 // 5 // 3
 
 typedef std::vector<Pose> Plan;
 typedef std::vector<Index2D> CellPath;
@@ -74,7 +74,7 @@ public:
 		k(DEFAULT_RISK_K), cull(0), maxExpandC(20), expandScale(10)
 	{}
 
-	CellPath getCellPath(VoronoiGridPtr grid, Index2D start, Index2D goal, ImagePtr);
+	virtual CellPath getCellPath(VoronoiGridPtr grid, Index2D start, Index2D goal, ImagePtr);
 };
 
 } // namespace crosbot

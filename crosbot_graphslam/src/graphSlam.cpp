@@ -17,8 +17,8 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("GlobalMapSize", GlobalMapSize, 50);
    paramNH.param<double>("CellSize", CellSize, 0.05);
    paramNH.param<int>("ImgTransmitTime", ImgTransmitTime, 2000000);
-   paramNH.param<double>("MinAddHeight", MinAddHeight, 1.2);
-   paramNH.param<double>("MaxAddHeight", MaxAddHeight, 3.0);
+   paramNH.param<double>("MinAddHeight", MinAddHeight, -1);
+   paramNH.param<double>("MaxAddHeight", MaxAddHeight, 2);
    paramNH.param<double>("LaserMinDist", LaserMinDist, 0.4);
    paramNH.param<double>("LaserMaxDist", LaserMaxDist, 10.0);
    paramNH.param<double>("LocalMapSize", LocalMapSize, 16);
@@ -31,9 +31,9 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("CorrelationThreshold", CorrelationThreshold, 3.4);
    //paramNH.param<double>("CorrelationThreshold", CorrelationThreshold, 3.6);
    paramNH.param<int>("MinGoodCount", MinGoodCount, 10);
-   paramNH.param<int>("FinalMinGoodCount", FinalMinGoodCount, 175);
+   //paramNH.param<int>("FinalMinGoodCount", FinalMinGoodCount, 175);
    //paramNH.param<int>("FinalMinGoodCount", FinalMinGoodCount, 225);
-   //paramNH.param<int>("FinalMinGoodCount", FinalMinGoodCount, 200);
+   paramNH.param<int>("FinalMinGoodCount", FinalMinGoodCount, 200);
    paramNH.param<int>("MaxIterations", MaxIterations, 50);
    paramNH.param<double>("MaxErrorTheta", MaxErrorTheta, 0.03);
    paramNH.param<double>("MaxErrorDisp", MaxErrorDisp, 0.0005);
@@ -43,8 +43,8 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("MaxThetaOptimise", MaxThetaOptimise, M_PI / 2.0);
    paramNH.param<int>("HistoryTime", HistoryTime, 1000000);
    paramNH.param<int>("MinObservationCount", MinObservationCount, 30);
-   paramNH.param<double>("InitHeight", InitHeight, 1.0);
    paramNH.param<bool>("LocalMapWarp", LocalMapWarp, false);
+   paramNH.param<double>("InitHeight", InitHeight, 0.0);
    paramNH.param<double>("FreeAreaThreshold", FreeAreaThreshold, 0.2);
    paramNH.param<bool>("UseTempLoopClosures", UseTempLoopClosures, true);
    paramNH.param<double>("FreeAreaDistanceThreshold", FreeAreaDistanceThreshold, 0.5);
@@ -53,7 +53,7 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("PerScanInfoScaleFactor", PerScanInfoScaleFactor, 5000);
    paramNH.param<double>("GradientDistanceThreshold", GradientDistanceThreshold, 0.2);
    paramNH.param<double>("LocalMapCovarianceThreshold", LocalMapCovarianceThreshold, 1.0);
-   paramNH.param<int>("NumOfOptimisationIts", NumOfOptimisationIts, 10);
+   paramNH.param<int>("MaxNumOfOptimisationIts", MaxNumOfOptimisationIts, 50);
    paramNH.param<double>("LargeMovementThreshold", LargeMovementThreshold, 0.5);
    paramNH.param<int>("OverlapThreshold", OverlapThreshold, 30);
    paramNH.param<double>("TempConstraintMovementXY", TempConstraintMovementXY, 0.5);
@@ -61,12 +61,16 @@ void GraphSlam::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("DistanceOverlapThreshold", DistanceOverlapThreshold, 8.0);
    paramNH.param<double>("LocalMapWarpThreshXY", LocalMapWarpThreshXY, 0.03);
    paramNH.param<double>("LocalMapWarpThreshTh", LocalMapWarpThreshTh, 0.01);
+   paramNH.param<double>("MaxOptMoveXY", MaxOptMoveXY, 0.001);
+   paramNH.param<double>("MaxOptMoveTh", MaxOptMoveTh, 0.0005);
+
+   paramNH.param<bool>("UseLeastSquaresOptimisation", UseLeastSquaresOptimisation, true);
 
    paramNH.param<int>("RGBDWidth", RGBDWidth, 640);
    paramNH.param<int>("RGBDHeight", RGBDHeight, 480);
    paramNH.param<int>("SkipVal", SkipVal, 2);
-   paramNH.param<double>("RGBDMinHeight", RGBDMinHeight, 0.1);
-   paramNH.param<double>("RGBDMaxHeight", RGBDMaxHeight, 2.0);
+   paramNH.param<double>("RGBDMinHeight", RGBDMinHeight, -1.0);
+   paramNH.param<double>("RGBDMaxHeight", RGBDMaxHeight, 4.0);
    paramNH.param<double>("RGBDMaxDistance", RGBDMaxDistance, 36.0);
    paramNH.param<double>("RGBDMinDistance", RGBDMinDistance, 0.3);
 
@@ -353,7 +357,7 @@ void GraphSlam::captureScan(const vector<uint8_t>& points, Pose correction) {
    newScan->scanIndex = getScanIndex(activeMapIndex);
    int i = 0;
    int skipSize = 32 * RGBDWidth;
-   cout << "*********** Capturing scan" << endl;
+//   cout << "*********** Capturing scan" << endl;
    for (row = 0; row < RGBDHeight; row+=step) {
       off = skipSize * row;
       for (col = 0; col < RGBDWidth; col+=step) {
@@ -364,7 +368,7 @@ void GraphSlam::captureScan(const vector<uint8_t>& points, Pose correction) {
          p.y = arr[1];
          p.z = arr[2];
 
-         if (!isnan(p.x)/* && !isnan(p.y) && !isnan(p.z)*/) {
+         if (!::isnan(p.x)/* && !::isnan(p.y) && !::isnan(p.z)*/) {
             newScan->points[i] = trans * p.toTF();
             double dist = newScan->points[i].x * newScan->points[i].x + newScan->points[i].y * newScan->points[i].y;
             if (dist > RGBDMinDistance && newScan->points[i].z > RGBDMinHeight && 

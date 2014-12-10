@@ -10,6 +10,9 @@
 
 #include <crosbot_graphslam/graphSlam.hpp>
 
+#include <suitesparse/cs.h>
+//#include <cs.h>
+
 #define NUM_ORIENTATION_BINS 64
 #define NUM_PROJECTION_BINS 100
 #define MAX_LOCAL_POINTS 2000
@@ -99,6 +102,7 @@ private:
       double warpPointsY[MAX_LOCAL_POINTS];
       double warpPointsZ[MAX_LOCAL_POINTS];
       int lastObserved[MAX_LOCAL_POINTS];
+      int minOptNode;
       int numWarpPoints;
       bool isFeatureless;
 
@@ -180,6 +184,7 @@ private:
    double previousScore;
    bool didOptimise;
    //bool tempO;
+   bool alreadyOutput;
 
    //debugging for timings
    ros::WallDuration totalTime;
@@ -208,6 +213,8 @@ private:
    double getMetricValue(double pointX, double pointY, double ogPointX, double ogPointY);
    //Multiply two 3x3 matrices
    void mult3x3Matrix(double a[3][3], double b[3][3], double res[3][3]);
+   //Transpose a matrix
+   void transpose3x3Matrix(double a[3][3], double res[3][3]);
    // Nasty hack function to make covariance matrices acceptable in the occassional 
    // case where not enough matching points were found when creating the 
    // information matrix
@@ -241,14 +248,19 @@ private:
    void calculateICPMatrix(int matchIndex, bool fullLoop, int currentMap);
    //Finalises the information matrix of a loop constraint
    void finaliseInformationMatrix();
+   
    //Calculates the global hessian matrix for the map optimisation
    void getGlobalHessianMatrix();
-   //Performs the optimisation of the graph
+   //Performs the optimisation of the graph using gradient descent
    //type of 0 is normal, 1 is just full loop closures, -1 is only since last
    //full loop closure
    void calculateOptimisationChange(int numIterations, int type);
    //Updates the global positions of all local maps
    void updateGlobalPositions();
+
+   //Optimises the graph using least squares
+   void optimiseGraph(int type);
+
    //Updates the global covariances of each local map and updates
    //the global positions of all laser points
    void updateGlobalMap();
