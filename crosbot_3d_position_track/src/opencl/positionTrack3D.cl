@@ -81,19 +81,27 @@ int getCellIndex(global oclPositionTrackConfig *config, int cellXY, int cellZ) {
 }*/
 
 //Each float3 of rotation is a row of the rotation matrix
-__kernel void transform3D(global oclDepthPoints *points, const int numPoints, float3 origin,
+__kernel void transform3D(global oclPositionTrackConfig *config,
+      global oclDepthPoints *points, const int numPoints, float3 origin,
       float3 rotation0, float3 rotation1, float3 rotation2) {
    int index = get_global_id(0);
 
    if (index < numPoints && !isnan(points->pointX[index])) {
       float3 point = (float3)(points->pointX[index], points->pointY[index], points->pointZ[index]);
-      float3 temp = point * rotation0;
-      points->pointX[index] = temp.x + temp.y + temp.z + origin.x;
-      temp = point * rotation1;
-      points->pointY[index] = temp.x + temp.y + temp.z + origin.y;
-      temp = point * rotation2;
-      points->pointZ[index] = temp.x + temp.y + temp.z + origin.z;
 
+      float dist = length(point);
+      if (dist > config->MaxDistance) {
+         points->pointX[index] = NAN;
+         points->pointY[index] = NAN;
+         points->pointZ[index] = NAN;
+      } else {
+         float3 temp = point * rotation0;
+         points->pointX[index] = temp.x + temp.y + temp.z + origin.x;
+         temp = point * rotation1;
+         points->pointY[index] = temp.x + temp.y + temp.z + origin.y;
+         temp = point * rotation2;
+         points->pointZ[index] = temp.x + temp.y + temp.z + origin.z;
+      }
    }
 }
 
@@ -105,6 +113,32 @@ __kernel void calculateNormals(global oclPositionTrackConfig *config, global ocl
 
       float2 p = (float2)(points->pointX[index], points->pointY[index]);
       map->cellXY[index] = calculateCellXY(config, p, cent);
+
+      int x = index % config->ScanWidth;
+      int y = index / config->ScanWidth;
+      int xPlusInd = index + 1;
+      int yPlusInd = index + config->ScanWidth;
+      if (x < config->ScanWidth - 1 && y < config->ScanHeight - 1 && 
+            !isnan(points->pointX[xPlusInd]) && !isnan(points->pointX[yPlusInd])) {
+         float3 crosA;
+         crosA.x = points->pointX[xPlusInd] - points->pointX[index];
+         crosA.y = points->pointY[xPlusInd] - points->pointY[index];
+         crosA.z = points->pointZ[xPlusInd] - points->pointZ[index];
+         float3 crosB;
+         crosB.x = points->pointX[yPlusInd] - points->pointX[index];
+         crosB.y = points->pointY[yPlusInd] - points->pointY[index];
+         crosB.z = points->pointZ[yPlusInd] - points->pointZ[index];
+         float3 res = cross(crosB, crosA);
+         crosA = fast_normalize(res);
+         normals->pointX[index] = crosA.x;
+         normals->pointY[index] = crosA.y;
+         normals->pointZ[index] = crosA.z;
+      } else {
+         normals->pointX[index] = NAN;
+         normals->pointY[index] = NAN;
+         normals->pointZ[index] = NAN;
+      }
+
    } else if (index < numPoints) {
       map->cellXY[index] = -1;
    }
@@ -124,12 +158,14 @@ __kernel void alignZ(global oclPositionTrackConfig *config, global oclDepthPoint
 
    distance[lIndex] = 0;
 
-   if (index < numPoints && !isnan(points->pointX[index])) {
+   float normThresh = config->NormThresh;
+
+   if (index < numPoints && !isnan(points->pointX[index]) && !isnan(normals->pointX[index])) {
       int diffZ;
       float zVal = points->pointZ[index] + zInc;
       int zCell = calculateCellZ(config, zVal, zCent, &diffZ);
       int xyCell = map->cellXY[index];
-      if (zCell >= 0 && xyCell >= 0) {
+      if (zCell >= 0 && xyCell >= 0 && fabs(normals->pointZ[index]) > normThresh) {
          int maxTravelPos = config->MaxSearchCells;
          int maxTravelNeg = config->MaxSearchCells;
          if (diffZ > 0 && config->NumCellsHeight/2 - 1 - diffZ < maxTravelPos) {
@@ -139,7 +175,7 @@ __kernel void alignZ(global oclPositionTrackConfig *config, global oclDepthPoint
          }
          int cellI = getCellIndex(config, xyCell, zCell);
          float minDist = INFINITY;
-         if (map->count[cellI] >= config->MinObsCount) {
+         if (map->count[cellI] >= config->MinObsCount && fabs(map->normZ[cellI]) > normThresh) {
             //float zCellVal = map->z[cellI] / (float)map->count[cellI];
             float zCellVal = map->z[cellI];
             minDist = zCellVal - zVal;
@@ -150,7 +186,7 @@ __kernel void alignZ(global oclPositionTrackConfig *config, global oclDepthPoint
          for (travel = 1; travel <= maxTravelPos; travel++) {
             int z = (zCell + travel) % config->NumCellsHeight;
             int cell = getCellIndex(config, xyCell, z);
-            if (map->count[cell] >= config->MinObsCount) {
+            if (map->count[cell] >= config->MinObsCount && fabs(map->normZ[cellI]) > normThresh) {
                //float zCellVal = map->z[cell] / (float)map->count[cell];
                float zCellVal = map->z[cell];
                if (zCellVal - zVal < fabs(minDist)) {
@@ -166,7 +202,7 @@ __kernel void alignZ(global oclPositionTrackConfig *config, global oclDepthPoint
                z += config->NumCellsHeight;
             }
             int cell = getCellIndex(config, xyCell, z);
-            if (map->count[cell] >= config->MinObsCount) {
+            if (map->count[cell] >= config->MinObsCount && fabs(map->normZ[cellI]) > normThresh) {
                //float zCellVal = map->z[cell] / (float) map->count[cell];
                float zCellVal = map->z[cell];
                if (zVal - zCellVal < fabs(minDist)) {
@@ -228,7 +264,7 @@ __kernel void addScan(global oclPositionTrackConfig *config, global oclDepthPoin
       const float zChange, const float zCent) {
    int index = get_global_id(0);
 
-   if (index < numPoints && !isnan(points->pointX[index])) {
+   if (index < numPoints && !isnan(points->pointX[index]) && !isnan(normals->pointX[index])) {
       int diffZ;
       int zCell = calculateCellZ(config, points->pointZ[index] + zChange, zCent, &diffZ);
       int xyCell = map->cellXY[index];
@@ -239,6 +275,9 @@ __kernel void addScan(global oclPositionTrackConfig *config, global oclDepthPoin
          
          if (retVal == 0) {
             atomicFloatAdd(&(map->z[cellI]), points->pointZ[index] + zChange);
+            map->normX[cellI] = normals->pointX[index];
+            map->normY[cellI] = normals->pointY[index];
+            map->normZ[cellI] = normals->pointZ[index];
          }
       }
    }

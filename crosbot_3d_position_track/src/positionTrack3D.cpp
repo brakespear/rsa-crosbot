@@ -55,7 +55,7 @@ void PositionTrack3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("MapHeight", MapHeight, 4.0);
    paramNH.param<double>("CellSize", CellSize, 0.05);
    paramNH.param<int>("MaxIterations", MaxIterations, 10);
-   paramNH.param<double>("MaxMove", MaxMove, 0.5);
+   paramNH.param<double>("MaxMove", MaxMove, 0.2);
    paramNH.param<double>("MoveThresh", MoveThresh, 0.01);
    paramNH.param<int>("MinCount", MinCount, 1000);
    paramNH.param<int>("MaxFail", MaxFail, 100);
@@ -63,6 +63,8 @@ void PositionTrack3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("MaxSearchCells", MaxSearchCells, 5);
    paramNH.param<double>("InitZ", InitZ, 0.5);
    paramNH.param<int>("MinObsCount", MinObsCount, 2);
+   paramNH.param<double>("NormThresh", NormThresh, 0.0);
+   paramNH.param<double>("MaxDistance", MaxDistance, 6.0);
    paramNH.param<bool>("CalculateFloorHeight", CalculateFloorHeight, true);
 
    NumCellsWidth = (MapWidth+0.00001) / CellSize;
@@ -103,6 +105,8 @@ void PositionTrack3D::initialiseFrame(DepthPointsPtr depthPoints, Pose sensorPos
    positionTrackConfig.NumCellsHeight = NumCellsHeight;
    positionTrackConfig.MaxSearchCells = MaxSearchCells;
    positionTrackConfig.MinObsCount = MinObsCount;
+   positionTrackConfig.NormThresh = NormThresh;
+   positionTrackConfig.MaxDistance = MaxDistance;
 
    clPositionTrackConfig = opencl_manager->deviceAlloc(sizeof(oclPositionTrackConfig),
          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &positionTrackConfig);
@@ -178,6 +182,24 @@ Pose PositionTrack3D::processFrame(DepthPointsPtr depthPoints, Pose sensorPose, 
    if (clFinish(opencl_manager->getCommandQueue()) != CL_SUCCESS) {
       cout << "Error normals" << endl;
    }
+
+   /*float *ps = (float *)malloc(sizeof(float) * numDepthPoints * 3);
+   float *ns = (float *)malloc(sizeof(float) * numDepthPoints * 3);
+   readBuffer(clPoints, CL_TRUE, 0, pointsSize, ps, 0, 0, 0, "cp points");
+   readBuffer(clNormals, CL_TRUE, 0, pointsSize, ns, 0, 0, 0, "cp normals");
+   cout << "outputting" << endl;
+   FILE *f = fopen("/home/adrianrobolab/curMap.pcd", "w");
+   fprintf(f, "VERSION .7\nFIELDS x y z normal_x normal_y normal_z\nSIZE 4 4 4 4 4 4 \nTYPE F F F F F F\nCOUNT 1 1 1 1 1 1\nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numDepthPoints, numDepthPoints);
+   for (int i = 0; i < numDepthPoints;i++) {
+      fprintf(f, "%f %f %f %f %f %f\n", ps[i], ps[i+numDepthPoints], ps[i + numDepthPoints * 2],
+            ns[i], ns[i + numDepthPoints], ns[i + numDepthPoints * 2]);
+   }
+   fclose(f);
+   cout << "done" << endl;
+   free(ps);
+   free(ns);*/
+
+
    //ros::WallTime t2 = ros::WallTime::now();
    //ros::WallDuration totalTime = t2 - t1;
    //cout << "Time to transform and normalise: " << totalTime.toSec() * 1000.0f << endl;
@@ -262,12 +284,13 @@ void PositionTrack3D::transform3D(Pose sensorPose, Pose icpPose) {
    clOrigin.z = origin[2];
    int globalSize = getGlobalWorkSize(numDepthPoints);
    int kernelI = TRANSFORM_3D;
-   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPoints);
-   opencl_task->setArg(1, kernelI, sizeof(int), &numDepthPoints);
-   opencl_task->setArg(2, kernelI, sizeof(ocl_float3), &clOrigin);
-   opencl_task->setArg(3, kernelI, sizeof(ocl_float3), &clBasis[0]);
-   opencl_task->setArg(4, kernelI, sizeof(ocl_float3), &clBasis[1]);
-   opencl_task->setArg(5, kernelI, sizeof(ocl_float3), &clBasis[2]);
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clPoints);
+   opencl_task->setArg(2, kernelI, sizeof(int), &numDepthPoints);
+   opencl_task->setArg(3, kernelI, sizeof(ocl_float3), &clOrigin);
+   opencl_task->setArg(4, kernelI, sizeof(ocl_float3), &clBasis[0]);
+   opencl_task->setArg(5, kernelI, sizeof(ocl_float3), &clBasis[1]);
+   opencl_task->setArg(6, kernelI, sizeof(ocl_float3), &clBasis[2]);
 
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 }
@@ -335,6 +358,7 @@ bool PositionTrack3D::alignZ(float *zChange) {
    } else {
       success = false;
       *zChange = 0;
+      cout << "Alignment failed " << commonInfo.numMatch << endl;
    }
    //cout << "Finished alignment" << endl;
 }

@@ -83,6 +83,11 @@ private:
    //Minimum number of observations of a cell required before being used
    //in matching
    int MinObsCount;
+   //Threshold that the normals map points and points from a new frame must 
+   //exceed before used in alignment. 0 will turn off using normals
+   double NormThresh;
+   //Maximum distance from the sensor a point can be to be used in alignment
+   double MaxDistance;
    //Estimate the height of the floor
    bool CalculateFloorHeight;
 
