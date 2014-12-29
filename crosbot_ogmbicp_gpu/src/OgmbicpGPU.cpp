@@ -472,7 +472,7 @@ int OgmbicpGPU::prepareLaserPoints(PointCloudPtr p, int numPoints, Pose sensorPo
          if (p->cloud[i].z < FloorHeight) {
             continue;
          }
-         if ((!isnan(floorHeight) && p->cloud[i].z <= floorHeight) /*|| (maxZ - minZ > 0.5 && p->cloud[i].z < minZ + 0.2)*/) {
+         if ((!std::isnan(floorHeight) && p->cloud[i].z <= floorHeight) /*|| (maxZ - minZ > 0.5 && p->cloud[i].z < minZ + 0.2)*/) {
             //removed++;
             continue;
          }

@@ -11,6 +11,7 @@
 #include <ros/ros.h>
 #include <crosbot/utils.hpp>
 #include <crosbot/data.hpp>
+#include <crosbot/thread.hpp>
 
 #include <crosbot_graphslam/localMap.hpp>
 #include <crosbot_3d_graphslam/local3DMap.hpp>

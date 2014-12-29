@@ -2,6 +2,10 @@
 #ifndef OPENCL_HPP_
 #define OPENCL_HPP_
 
+//This is a bad idea but....#YOLO
+//Undefining strict ansi before include cl.h means
+//opencl vector elements can be accessed by x,y,z,w.
+#undef __STRICT_ANSI__
 #include <string>
 #include <CL/cl.h>
 
