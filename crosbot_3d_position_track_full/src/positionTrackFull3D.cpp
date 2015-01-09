@@ -203,17 +203,20 @@ void PositionTrackFull3D::initialiseLocalMap() {
 
    oclLocalBlock localBlock;
    size_t localBlockSize = (sizeof(*(localBlock.distance)) +
-      sizeof(*(localBlock.weight)) + sizeof(*(localBlock.r)) * 4) 
+      sizeof(*(localBlock.weight)) + sizeof(*(localBlock.pI)) + sizeof(*(localBlock.r)) * 4) 
       * NumCellsTotal + sizeof(localBlock.blockIndex);
    clLocalMapCells = opencl_manager->deviceAlloc(localBlockSize * NumBlocksAllocated, 
          CL_MEM_READ_WRITE, NULL);
 
-   size_t commonSize = sizeof(ocl_int) * (3 + MaxNumActiveBlocks + NumBlocksAllocated);
+   size_t commonSize = sizeof(ocl_int) * (5 + MaxNumActiveBlocks + 2*NumBlocksAllocated);
    clLocalMapCommon = opencl_manager->deviceAlloc(commonSize,
          CL_MEM_READ_WRITE, NULL);
 
    oclLocalMapCommon com;
    numActiveBlocksOffset = (unsigned char *)&(com.numActiveBlocks) - (unsigned char *)&(com);
+   numBlocksToExtractOffset = (unsigned char *)&(com.numBlocksToExtract) - 
+      (unsigned char *)&(com);
+   numPointsOffset = (unsigned char *)&(com.numPoints) - (unsigned char *)&(com);
 
 }
 

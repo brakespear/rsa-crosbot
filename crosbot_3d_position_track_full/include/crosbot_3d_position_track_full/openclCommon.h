@@ -72,6 +72,7 @@ typedef struct {
 #ifdef CL_RUNTIME
    ocl_float distance[NUM_CELLS];
    ocl_float weight[NUM_CELLS];
+   ocl_int pI[NUM_CELLS];
    unsigned char r[NUM_CELLS];
    unsigned char g[NUM_CELLS];
    unsigned char b[NUM_CELLS];
@@ -79,6 +80,7 @@ typedef struct {
 #else
    ocl_float *distance;
    ocl_float *weight;
+   ocl_int *pI;
    unsigned char *r;
    unsigned char *g;
    unsigned char *b;
@@ -90,12 +92,16 @@ typedef struct {
    ocl_int highestBlockNum; //maxBlock needed
    ocl_int nextEmptyBlock;
    ocl_int numActiveBlocks;
+   ocl_int numBlocksToExtract;
+   ocl_int numPoints;
 #ifdef CL_RUNTIME
    ocl_int activeBlocks[MAX_NUM_ACTIVE_BLOCKS];
    ocl_int emptyBlocks[NUM_BLOCKS_ALLOCATED];
+   ocl_int blocksToExtract[NUM_BLOCKS_ALLOCATED];
 #else
    ocl_int *activeBlocks;
    ocl_int *emptyBlocks;
+   ocl_int *blocksToExtract;
 #endif
 } oclLocalMapCommon;
 

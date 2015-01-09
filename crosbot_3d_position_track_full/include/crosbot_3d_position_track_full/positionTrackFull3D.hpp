@@ -138,6 +138,8 @@ private:
    cl_mem clLocalMapCells;
    cl_mem clLocalMapCommon;
    size_t numActiveBlocksOffset;
+   size_t numBlockstoExtractOffset;
+   size_t numPointsOffset;
 
    //The current icp pose output by this node
    Pose icpFullPose;
