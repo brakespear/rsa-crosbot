@@ -42,6 +42,7 @@ typedef struct {
    ocl_float CellSize;
    ocl_int NumCellsTotal;
    ocl_int NumCellsWidth;
+   ocl_int NumBlocksAllocated;
    ocl_float TruncPos;
    ocl_float TruncNeg;
    ocl_float fx;
@@ -50,7 +51,52 @@ typedef struct {
    ocl_float cy;
    ocl_float tx;
    ocl_float ty;
+   ocl_int UseOccupancyForSurface;
+   ocl_float MaxDistance;
 } oclPositionTrackConfig;
 
+typedef struct {
+#ifdef CL_RUNTIME
+   unsigned char r[NUM_DEPTH_POINTS];
+   unsigned char g[NUM_DEPTH_POINTS];
+   unsigned char b[NUM_DEPTH_POINTS];
+#else
+   unsigned char *r;
+   unsigned char *g;
+   unsigned char *b;
+#endif
+} oclColourPoints;
+
+typedef struct {
+   int blockIndex;
+#ifdef CL_RUNTIME
+   ocl_float distance[NUM_CELLS];
+   ocl_float weight[NUM_CELLS];
+   unsigned char r[NUM_CELLS];
+   unsigned char g[NUM_CELLS];
+   unsigned char b[NUM_CELLS];
+   unsigned char occupied[NUM_CELLS];
+#else
+   ocl_float *distance;
+   ocl_float *weight;
+   unsigned char *r;
+   unsigned char *g;
+   unsigned char *b;
+   unsigned char *occupied;
+#endif
+} oclLocalBlock;
+
+typedef struct {
+   ocl_int highestBlockNum; //maxBlock needed
+   ocl_int nextEmptyBlock;
+   ocl_int numActiveBlocks;
+#ifdef CL_RUNTIME
+   ocl_int activeBlocks[MAX_NUM_ACTIVE_BLOCKS];
+   ocl_int emptyBlocks[NUM_BLOCKS_ALLOCATED];
+#else
+   ocl_int *activeBlocks;
+   ocl_int *emptyBlocks;
+#endif
+} oclLocalMapCommon;
 
 #endif

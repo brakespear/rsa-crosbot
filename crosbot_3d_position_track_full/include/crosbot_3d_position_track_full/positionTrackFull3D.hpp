@@ -76,6 +76,11 @@ private:
    //truncation distances for the tsdf
    double TruncNeg;
    double TruncPos;
+   //Only extract surface points of tsdf if the cell is occupied 
+   //by a depth reading
+   bool UseOccupancyForSurface;
+   //Max distance of a cell to the camera to be used in the tsdf
+   double MaxDistance;
 
    //GPU configs
    int LocalSize;
@@ -117,7 +122,6 @@ private:
    //The number of depth points in each frame
    int numDepthPoints;
 
-
    /*
     * GPU data structures
     */
@@ -127,10 +131,31 @@ private:
    float *depthFrame;
    cl_mem clDepthFrame;
    size_t sizeDepthPoints;
+   oclColourPoints *colourFrame;
+   cl_mem clColourFrame;
+   size_t sizeColourPoints;
+   cl_mem clLocalMapBlocks;
+   cl_mem clLocalMapCells;
+   cl_mem clLocalMapCommon;
+   size_t numActiveBlocksOffset;
+
+   //The current icp pose output by this node
+   Pose icpFullPose;
+   //Index of the cell in the local map where the robot currently is
+   ocl_int3 mapCentre;
+   //Current number of active blocks
+   int numActiveBlocks;
+
 
    void initialiseImages();
+   void initialiseLocalMap();
    void convertFrame(const sensor_msgs::ImageConstPtr& depthImage,
          const sensor_msgs::ImageConstPtr& rgbImage);
+
+   void clearLocalMap();
+   void checkBlocksExist(int numPoints, tf:Transform trans);
+   void addRequiredBlocks();
+   void addFrame(tf::Transform trans);
 
    /*
     * GPU helper methods

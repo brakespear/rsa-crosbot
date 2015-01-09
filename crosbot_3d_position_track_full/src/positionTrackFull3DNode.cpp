@@ -56,6 +56,11 @@ void PositionTrackFull3DNode::shutdown() {
 
 void PositionTrackFull3DNode::callbackKinect(const sensor_msgs::ImageConstPtr& depthImage, 
       const sensor_msgs::ImageConstPtr& rgbImage) {
+
+   if (!receivedCameraParams) {
+      return;
+   }
+
    Pose icpPose;
    Pose sensorPose;
    tf::StampedTransform kin2Base, base2Icp;

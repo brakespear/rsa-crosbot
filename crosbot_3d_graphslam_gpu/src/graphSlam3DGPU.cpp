@@ -449,7 +449,7 @@ void GraphSlam3DGPU::initialiseLocalMap() {
    clLocalMapCells = opencl_manager->deviceAlloc(localBlockSize * NumBlocksAllocated, 
          CL_MEM_READ_WRITE, NULL);
 
-   size_t commonSize = sizeof(ocl_int) * (3 + MaxNumActiveBlocks);
+   size_t commonSize = sizeof(ocl_int) * (4 + MaxNumActiveBlocks) + sizeof(ocl_float);
    clLocalMapCommon = opencl_manager->deviceAlloc(commonSize,
          CL_MEM_READ_WRITE, NULL);
 
