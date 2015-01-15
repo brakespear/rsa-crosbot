@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_msgs
   tf
+  crosbot_graphslam
   image_geometry
 )
 
@@ -86,7 +87,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES crosbot_3d_position_track_full
-  CATKIN_DEPENDS crosbot crosbot_gpu roscpp sensor_msgs std_msgs tf image_geometry
+  CATKIN_DEPENDS crosbot crosbot_gpu roscpp sensor_msgs std_msgs tf image_geometry crosbot_graphslam
 #  DEPENDS system_lib
 )
 

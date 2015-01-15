@@ -20,13 +20,23 @@ const string PositionTrackFull3D::kernel_names[] = {
    "clearLocalMap",
    "checkBlocksExist",
    "addRequiredBlocks",
-   "addFrame"
+   "addFrame",
+   "markForExtraction",
+   "markAllForExtraction",
+   "extractPoints",
+   "transformPoints",
+   "clearBlocks"
 };
 const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kernel_names[0]);
 #define CLEAR_LOCAL_MAP 0
 #define CHECK_BLOCKS_EXIST 1
-#define ADD_RREQUIRED_BLOCKS 2
+#define ADD_REQUIRED_BLOCKS 2
 #define ADD_FRAME 3
+#define MARK_FOR_EXTRACTION 4
+#define MARK_ALL_FOR_EXTRACTION 5
+#define EXTRACT_POINTS 6
+#define TRANSFORM_POINTS 7
+#define CLEAR_BLOCKS 8
 
 //The maximum number of points extracted from a block can be SLICE_MULT*the number of 
 //cells in a slice of a block
@@ -46,6 +56,10 @@ PositionTrackFull3D::PositionTrackFull3D() {
    mapCentre.y = 0;
    mapCentre.z = 0;
 
+   UseLocalMaps = false;
+   newLocalMapInfo = NULL;
+   currentLocalMapInfo = NULL;
+
 }
 
 void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
@@ -62,7 +76,7 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("TruncNeg", TruncNeg, 0.2);
    paramNH.param<double>("TruncPos", TruncPos, 0.3);
    paramNH.param<bool>("UseOccupancyForSurface", UseOccupancyForSurface, true);
-   paramNH.param<double>("MaxDistance", MaxDistancem 5.0);
+   paramNH.param<double>("MaxDistance", MaxDistance, 5.0);
 
    NumBlocksWidth = (LocalMapWidth + 0.00001) / BlockSize;
    NumBlocksHeight = (LocalMapHeight + 0.00001) / BlockSize;
@@ -76,6 +90,15 @@ void PositionTrackFull3D::start() {
 }
 
 PositionTrackFull3D::~PositionTrackFull3D() {
+   opencl_manager->deviceRelease(clPositionTrackConfig);
+   opencl_manager->deviceRelease(clDepthFrame);
+   opencl_manager->deviceRelease(clColourFrame);
+   opencl_manager->deviceRelease(clLocalMapBlocks);
+   opencl_manager->deviceRelease(clLocalMapCells);
+   opencl_manager->deviceRelease(clLocalMapCommon);
+   opencl_manager->deviceRelease(clPointCloud);
+   opencl_manager->deviceRelease(clColours);
+   opencl_manager->deviceRelease(clNormals);
    delete opencl_task;
    delete opencl_manager;
 }
@@ -106,11 +129,11 @@ void PositionTrackFull3D::initialiseFrame(const sensor_msgs::ImageConstPtr& dept
    positionTrackConfig.TruncPos = TruncPos;
    positionTrackConfig.TruncNeg = TruncNeg;
    positionTrackConfig.fx = fx;
-   positionTrackConfig.fx = fy;
-   positionTrackConfig.fx = cx;
-   positionTrackConfig.fx = cy;
-   positionTrackConfig.fx = tx;
-   positionTrackConfig.fx = ty;
+   positionTrackConfig.fy = fy;
+   positionTrackConfig.cx = cx;
+   positionTrackConfig.cy = cy;
+   positionTrackConfig.tx = tx;
+   positionTrackConfig.ty = ty;
    positionTrackConfig.UseOccupancyForSurface = UseOccupancyForSurface;
    positionTrackConfig.MaxDistance = MaxDistance;
 
@@ -146,7 +169,14 @@ void PositionTrackFull3D::initialiseFrame(const sensor_msgs::ImageConstPtr& dept
 
 Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthImage,
          const sensor_msgs::ImageConstPtr& rgbImage, Pose sensorPose, Pose icpPose, 
-         float *floorHeight) {
+         float *floorHeight, bool outputMapPoints, vector<uint8_t>& allPoints) {
+
+   bool outputLocalMap = false;
+   if (UseLocalMaps && currentLocalMapInfo != NULL && newLocalMapInfo != NULL &&
+         currentLocalMapInfo->index != newLocalMapInfo->index) {
+      outputLocalMap = true;
+   }      
+
    convertFrame(depthImage, rgbImage);
   
    //TODO: do this properly when have icp working
@@ -167,14 +197,81 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    if (numActiveBlocks > MaxNumActiveBlocks) {
       numActiveBlocks = MaxNumActiveBlocks;
    }
+   cout << "numActiveBlocks are: " << numActiveBlocks << endl;
    addRequiredBlocks();
    addFrame(offset);
 
+   readBuffer(clLocalMapCommon, CL_TRUE, highestBlockNumOffset,
+         sizeof(int), &highestBlockNum, 0, 0, 0, "Reading higest block num");
+
    //extract points
+   ocl_int3 newMapCentre;
+   newMapCentre.x = icpFullPose.position.x / BlockSize;
+   newMapCentre.y = icpFullPose.position.y / BlockSize;
+   newMapCentre.z = icpFullPose.position.z / BlockSize;
+
+   if (newMapCentre.x != mapCentre.x || newMapCentre.y != mapCentre.y ||
+         newMapCentre.z != mapCentre.z || outputLocalMap) {
+      markForExtraction(newMapCentre, outputLocalMap);
+      int numBlocksToExtract;
+      readBuffer(clLocalMapCommon, CL_TRUE, numBlocksToExtractOffset,
+            sizeof(int), &numBlocksToExtract, 0, 0, 0, "reading num of blocks to extract");
+      if (UseLocalMaps && numBlocksToExtract > 0) {
+         extractPoints(numBlocksToExtract, true);
+
+         int numPoints;
+         readBuffer(clLocalMapCommon, CL_TRUE, numPointsOffset,
+            sizeof(int), &numPoints, 0, 0, 0, "reading num of points extracted");
+
+         tf::Transform trans = currentLocalMapICPPose.toTF().inverse();
+         transformPoints(numPoints, true, trans);
+         addPointsToLocalMap(numPoints);
+      }
+   }
+
+   if (outputMapPoints) {
+      cout << "outputting map points now" << endl;
+      int temp = 0;
+      writeBuffer(clLocalMapCommon, CL_FALSE, numBlocksToExtractOffset, 
+            sizeof(int), &temp, 0, 0, 0, "reseting num blocks to extract offset");
+      writeBuffer(clLocalMapCommon, CL_FALSE, numPointsOffset, 
+            sizeof(int), &temp, 0, 0, 0, "reseting num points offset");
+
+      markAllForExtraction();
+      int numBlocksToExtract;
+      readBuffer(clLocalMapCommon, CL_TRUE, numBlocksToExtractOffset,
+            sizeof(int), &numBlocksToExtract, 0, 0, 0, "reading num of blocks to extract");
+      cout << numBlocksToExtract << " blocks to extract" << endl;
+      extractPoints(numBlocksToExtract, false);
+
+         
+      int numPoints;
+      readBuffer(clLocalMapCommon, CL_TRUE, numPointsOffset,
+         sizeof(int), &numPoints, 0, 0, 0, "reading num of points extracted");
+      cout << "Number of points that were extracted: " << numPoints << endl;
+
+      //Should the points be transformed to be relative to the robot?
+      tf::Transform trans = icpFullPose.toTF().inverse();
+      transformPoints(numPoints, false, trans);
+
+      outputAllPoints(numPoints, allPoints);               
+   }
    
-   mapCentre.x = icpFullPose.position.x / BlockSize;
-   mapCentre.y = icpFullPose.position.y / BlockSize;
-   mapCentre.z = icpFullPose.position.z / BlockSize;
+   if (newMapCentre.x != mapCentre.x || newMapCentre.y != mapCentre.y ||
+         newMapCentre.z != mapCentre.z) {
+      clearBlocks();
+   }
+
+   if (outputLocalMap) {
+      //transform to be relative to currentLocalMapICPPose
+      //copy extracted points
+      //add points and normals to currentLocalMapInfo
+
+      positionTrack3DNode->publishLocalMap(currentLocalMapInfo);
+      currentLocalMapInfo = newLocalMapInfo;
+      currentLocalMapICPPose = newLocalMapICPPose;
+   }
+   mapCentre = newMapCentre;
    
    //questions:
    //- how to extract points? - for graph slam and for next iteration of position tracking?
@@ -195,6 +292,14 @@ void PositionTrackFull3D::initialiseImages() {
    sizeColourPoints = sizeof(unsigned char) * numDepthPoints * 3;
    clColourFrame = opencl_manager->deviceAlloc(sizeColourPoints, CL_MEM_READ_WRITE, NULL);
 
+   int maxPointsPerBlock = SLICE_MULT * NumCellsWidth * NumCellsWidth;
+   int maxPoints = maxPointsPerBlock * NumBlocksAllocated; //numBlocks
+   clPointCloud = opencl_manager->deviceAlloc(sizeof(ocl_float) * maxPoints * 3, 
+         CL_MEM_READ_WRITE, NULL);
+   clColours = opencl_manager->deviceAlloc(sizeof(unsigned char) * maxPoints * 3,
+         CL_MEM_READ_WRITE, NULL);
+   clNormals = opencl_manager->deviceAlloc(sizeof(ocl_float) * maxPoints * 3,
+         CL_MEM_READ_WRITE, NULL);
 }
 
 void PositionTrackFull3D::initialiseLocalMap() {
@@ -204,11 +309,11 @@ void PositionTrackFull3D::initialiseLocalMap() {
    oclLocalBlock localBlock;
    size_t localBlockSize = (sizeof(*(localBlock.distance)) +
       sizeof(*(localBlock.weight)) + sizeof(*(localBlock.pI)) + sizeof(*(localBlock.r)) * 4) 
-      * NumCellsTotal + sizeof(localBlock.blockIndex);
+      * NumCellsTotal + sizeof(localBlock.blockIndex) + sizeof(localBlock.haveExtracted);
    clLocalMapCells = opencl_manager->deviceAlloc(localBlockSize * NumBlocksAllocated, 
          CL_MEM_READ_WRITE, NULL);
 
-   size_t commonSize = sizeof(ocl_int) * (5 + MaxNumActiveBlocks + 2*NumBlocksAllocated);
+   size_t commonSize = sizeof(ocl_int) * (5 + MaxNumActiveBlocks + 3*NumBlocksAllocated);
    clLocalMapCommon = opencl_manager->deviceAlloc(commonSize,
          CL_MEM_READ_WRITE, NULL);
 
@@ -217,6 +322,9 @@ void PositionTrackFull3D::initialiseLocalMap() {
    numBlocksToExtractOffset = (unsigned char *)&(com.numBlocksToExtract) - 
       (unsigned char *)&(com);
    numPointsOffset = (unsigned char *)&(com.numPoints) - (unsigned char *)&(com);
+   numBlocksToDeleteOffset = (unsigned char *)&(com.numBlocksToDelete) - 
+      (unsigned char *)&(com);
+   highestBlockNumOffset = (unsigned char *)&(com.highestBlockNum) - (unsigned char *)&(com);
 
 }
 
@@ -224,10 +332,22 @@ void PositionTrackFull3D::initialiseLocalMap() {
 //different width of rgb and depth images
 void PositionTrackFull3D::convertFrame(const sensor_msgs::ImageConstPtr& depthImage,
          const sensor_msgs::ImageConstPtr& rgbImage) {
-   if (depthImage->encoding != sensor_msgs::image_encodings::TYPE_16UC1) {
+   bool isDepthMM = false;
+   if (depthImage->encoding == sensor_msgs::image_encodings::TYPE_16UC1) {
+      isDepthMM = true;
+   } else if (depthImage->encoding == sensor_msgs::image_encodings::TYPE_32FC1) {
+      isDepthMM = false;
+   } else { 
       cout << "ERROR: unexpected encoding of depth image" << endl;
+      cout << depthImage->encoding << endl;
       return;
    }
+
+   /*if (depthImage->encoding != sensor_msgs::image_encodings::TYPE_16UC1) {
+      cout << "ERROR: unexpected encoding of depth image" << endl;
+      cout << depthImage->encoding << endl;
+      return;
+   }*/
    if (depthImage->header.frame_id != rgbImage->header.frame_id) {
       cout << "ERROR: depth and rgb images should be in the same frame!" << endl;
       return;
@@ -237,26 +357,49 @@ void PositionTrackFull3D::convertFrame(const sensor_msgs::ImageConstPtr& depthIm
       cout << "ERROR: width of rgb and depth images are different" << endl;
       return;
    }
-   if (rgbImage->encoding != sensor_msgs::image_encodings::RGB8) {
+   //Assume rgb8 encoding
+   int colourStep = 0;
+   int rOff = 0;
+   int gOff = 0;
+   int bOff = 0;
+   if (rgbImage->encoding == sensor_msgs::image_encodings::RGB8) {
+      colourStep = 3;
+      rOff = 0;
+      gOff = 1;
+      bOff = 2;
+   } else if (rgbImage->encoding == sensor_msgs::image_encodings::BGR8) {
+      colourStep = 3;
+      rOff = 2;
+      gOff = 1;
+      bOff = 0;
+   } else if (rgbImage->encoding == sensor_msgs::image_encodings::MONO8) {
+      colourStep = 1;
+      rOff = 0;
+      gOff = 0;
+      bOff = 0;
+   } else {
       cout << "ERROR: unexpected encoding of rgb image" << endl;
+      cout << rgbImage->encoding << endl;
       return;
    }
 
-   //Extract the depth data from the image message and convert it to
-   //metres in floats
-   const uint16_t *rawData = reinterpret_cast<const uint16_t *>(&depthImage->data[0]);
-   for (int i = 0; i < numDepthPoints; ++i) {
-      uint16_t p = rawData[i];
-      depthFrame[i] = (p == 0) ? NAN : (float)p * 0.001f;
+   if (isDepthMM) {
+      //Extract the depth data from the image message and convert it to
+      //metres in floats
+      const uint16_t *rawData = reinterpret_cast<const uint16_t *>(&depthImage->data[0]);
+      for (int i = 0; i < numDepthPoints; ++i) {
+         uint16_t p = rawData[i];
+         depthFrame[i] = (p == 0) ? NAN : (float)p * 0.001f;
+      }
+   } else {
+      const float *rawData = reinterpret_cast<const float *>(&depthImage->data[0]);
+      for (int i = 0; i < numDepthPoints; ++i) {
+         depthFrame[i] = rawData[i];
+      }
    }
    writeBuffer(clDepthFrame, CL_FALSE, 0, sizeDepthPoints, depthFrame, 0, 0, 0, 
          "Copying depth points to the GPU");
 
-   //Assume rgb8 encoding
-   int colourStep = 3;
-   int rOff = 0;
-   int gOff = 1;
-   int bOff = 2;
    //Extract the colour data from the image message
    int colourId = 0;
    for (int i = 0; i < numDepthPoints; ++i, colourId += colourStep) {
@@ -278,7 +421,7 @@ void PositionTrackFull3D::clearLocalMap() {
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 }
 
-void PositionTrackFull3D::checkBlocksExist(int numPoints, tf::transform trans) {
+void PositionTrackFull3D::checkBlocksExist(int numDepthPoints, tf::Transform trans) {
    tf::Matrix3x3 basis = trans.getBasis();
    tf::Vector3 origin = trans.getOrigin();
 
@@ -292,7 +435,7 @@ void PositionTrackFull3D::checkBlocksExist(int numPoints, tf::transform trans) {
    clOrigin.x = origin[0];
    clOrigin.y = origin[1];
    clOrigin.z = origin[2];
-   int globalSize = getGlobalWorkSize(numPoints);
+   int globalSize = getGlobalWorkSize(numDepthPoints);
    int kernelI = CHECK_BLOCKS_EXIST;
 
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
@@ -300,7 +443,7 @@ void PositionTrackFull3D::checkBlocksExist(int numPoints, tf::transform trans) {
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCommon);
    opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCells);
    opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrame);
-   opencl_task->setArg(5, kernelI, sizeof(int), &numPoints);
+   opencl_task->setArg(5, kernelI, sizeof(int), &numDepthPoints);
    opencl_task->setArg(6, kernelI, sizeof(ocl_int3), &mapCentre);
    opencl_task->setArg(7, kernelI, sizeof(ocl_float3), &clOrigin);
    opencl_task->setArg(8, kernelI, sizeof(ocl_float3), &clBasis[0]);
@@ -370,6 +513,200 @@ void PositionTrackFull3D::addFrame(tf::Transform trans) {
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 }
 
+void PositionTrackFull3D::markForExtraction(ocl_int3 newMapCentre, bool outputLocalMap) {
+   int kernelI = MARK_FOR_EXTRACTION;
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCells);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCommon);
+   opencl_task->setArg(4, kernelI, sizeof(ocl_int3), &mapCentre);
+   opencl_task->setArg(5, kernelI, sizeof(ocl_int3), &newMapCentre);
+   int isFullExtract = outputLocalMap;
+   opencl_task->setArg(6, kernelI, sizeof(int), &isFullExtract);
+   ocl_float3 position;
+   position.x = icpFullPose.position.x;
+   position.y = icpFullPose.position.y;
+   double yy, pp, rr;
+   icpFullPose.getYPR(yy, pp, rr);
+   position.z = yy;
+   opencl_task->setArg(7, kernelI, sizeof(cl_float3), &position);
+   
+   int globalSize = getGlobalWorkSize(highestBlockNum);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+}
+
+void PositionTrackFull3D::extractPoints(int numBlocksToExtract, bool extractNorms) {
+   int kernelI = EXTRACT_POINTS;
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCells);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCommon);
+   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clPointCloud);
+   opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clColours);
+   opencl_task->setArg(6, kernelI, sizeof(cl_mem), &clNormals);
+   opencl_task->setArg(7, kernelI, sizeof(ocl_int3), &mapCentre);
+   int exNorms = extractNorms;
+   opencl_task->setArg(8, kernelI, sizeof(int), &exNorms);
+
+   int numBlocksPerGroup = LocalSize / (NumCellsWidth * NumCellsWidth);
+   int numGroups = numBlocksToExtract / numBlocksPerGroup;
+   if (numBlocksToExtract % numBlocksPerGroup != 0) {
+      numGroups++;
+   }
+   int globalSize = numGroups * LocalSize;
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+
+}
+
+void PositionTrackFull3D::transformPoints(int numPoints, bool transformNorms,
+      tf::Transform trans) {
+   tf::Matrix3x3 basis = trans.getBasis();
+   tf::Vector3 origin = trans.getOrigin();
+
+   ocl_float3 clBasis[3];
+   ocl_float3 clOrigin;
+   for (int j = 0; j < 3; j++) {
+      clBasis[j].x = basis[j][0];
+      clBasis[j].y = basis[j][1];
+      clBasis[j].z = basis[j][2];
+   }
+   clOrigin.x = origin[0];
+   clOrigin.y = origin[1];
+   clOrigin.z = origin[2];
+   int globalSize = getGlobalWorkSize(numPoints);
+   int kernelI = TRANSFORM_POINTS;
+
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clLocalMapCommon);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clPointCloud);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clNormals);
+   int transNorms = transformNorms;
+   opencl_task->setArg(3, kernelI, sizeof(int), &transNorms);
+   opencl_task->setArg(4, kernelI, sizeof(int), &numPoints);
+   opencl_task->setArg(5, kernelI, sizeof(ocl_float3), &clOrigin);
+   opencl_task->setArg(6, kernelI, sizeof(ocl_float3), &clBasis[0]);
+   opencl_task->setArg(7, kernelI, sizeof(ocl_float3), &clBasis[1]);
+   opencl_task->setArg(8, kernelI, sizeof(ocl_float3), &clBasis[2]);
+
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+}
+
+void PositionTrackFull3D::addPointsToLocalMap(int numPoints) {
+   size_t pointsSize = sizeof(float) * numPoints * 3;
+   size_t coloursSize = sizeof(unsigned char) * numPoints * 3;
+   float *ps = (float *) malloc(pointsSize);
+   unsigned char *cols = (unsigned char *) malloc(coloursSize);
+   float *norms = (float *) malloc(pointsSize);
+   if (ps == NULL || cols == NULL || norms == NULL) {
+      cout << "ERROR: malloc for extracting points failed" << endl;
+   }
+   readBuffer(clPointCloud, CL_FALSE, 0, pointsSize, ps, 0, 0, 0, "Reading points");
+   readBuffer(clColours, CL_FALSE, 0, coloursSize, cols, 0, 0, 0, "Reading colours");
+   readBuffer(clNormals, CL_TRUE, 0, pointsSize, norms, 0, 0, 0, "Reading normals");
+
+   if (currentLocalMapInfo->cloud == NULL) {
+      currentLocalMapInfo->cloud = new PointCloud();
+      currentLocalMapInfo->normals = new PointCloud();
+   }
+   int curSize = currentLocalMapInfo->cloud->cloud.size();
+   currentLocalMapInfo->cloud->cloud.resize(curSize + numPoints);
+   currentLocalMapInfo->cloud->colours.resize(curSize + numPoints);
+   currentLocalMapInfo->normals->cloud.resize(curSize + numPoints);
+
+   int rIndex = 0;
+   int added = 0;
+   for (int i = 0; i < numPoints; i++, rIndex = rIndex + 3) {
+      Point p;
+      Colour c;
+      if (!isnan(ps[rIndex]) && !isnan(norms[rIndex])) {
+         p.x = ps[rIndex];
+         p.y = ps[rIndex + 1];
+         p.z = ps[rIndex + 2];
+         c.r = cols[rIndex];
+         c.g = cols[rIndex + 1];
+         c.b = cols[rIndex + 2];
+         currentLocalMapInfo->cloud->cloud[curSize + added] = p;
+         currentLocalMapInfo->cloud->colours[curSize + added] = c;
+
+         p.x = norms[rIndex];
+         p.y = norms[rIndex + 1];
+         p.z = norms[rIndex + 2];
+         currentLocalMapInfo->normals->cloud[curSize + added] = p;
+         added++;
+      }
+   }
+   currentLocalMapInfo->cloud->cloud.resize(curSize + added);
+   currentLocalMapInfo->cloud->colours.resize(curSize + added);
+   currentLocalMapInfo->normals->cloud.resize(curSize + added);
+   free(ps);
+   free(cols);
+   free(norms);
+}
+
+void PositionTrackFull3D::clearBlocks() {
+   int numBlocksToDelete;
+   readBuffer(clLocalMapCommon, CL_TRUE, numBlocksToDeleteOffset,
+         sizeof(int), &numBlocksToDelete, 0, 0, 0, "Reading num blocks to delete");
+
+   int kernelI = CLEAR_BLOCKS;
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCells);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCommon);
+   opencl_task->setArg(4, kernelI, sizeof(int), &numBlocksToDelete);
+
+   int globalSize = getGlobalWorkSize(numBlocksToDelete);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+}
+
+void PositionTrackFull3D::markAllForExtraction() {
+   int kernelI = MARK_ALL_FOR_EXTRACTION;
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapCells);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCommon);
+   int globalSize = getGlobalWorkSize(highestBlockNum);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+}
+
+void PositionTrackFull3D::outputAllPoints(int numPoints, vector<uint8_t>& allPoints) {
+   size_t pointsSize = sizeof(float) * numPoints * 3;
+   size_t coloursSize = sizeof(unsigned char) * numPoints * 3;
+   float *ps = (float *) malloc(pointsSize);
+   unsigned char *cols = (unsigned char *) malloc(coloursSize);
+   if (ps == NULL || cols == NULL) {
+      cout << "ERROR: malloc for extracting all points failed" << endl;
+   }
+   readBuffer(clPointCloud, CL_FALSE, 0, pointsSize, ps, 0, 0, 0, "Reading all points");
+   readBuffer(clColours, CL_TRUE, 0, coloursSize, cols, 0, 0, 0, "Reading all colours");
+
+   allPoints.resize(numPoints * 32);
+   int rIndex = 0;
+   int added = 0;
+   int curSize = 0;
+   for (int i = 0; i < numPoints; i++, rIndex = rIndex + 3, curSize += 32) {
+      if (!isnan(ps[rIndex])) {
+         float *arr = (float *) &(allPoints[curSize]);
+         arr[0] = ps[rIndex];
+         arr[1] = ps[rIndex + 1];
+         arr[2] = ps[rIndex + 2];
+         
+         arr[3] = 0;
+         arr[4] = 0;
+         arr[5] = 0;
+
+         allPoints[curSize + 16] = cols[rIndex];
+         allPoints[curSize + 17] = cols[rIndex + 1];
+         allPoints[curSize + 18] = cols[rIndex + 2];
+
+         added++;
+      }
+   }
+   allPoints.resize(added * 32);
+   free(ps);
+   free(cols);
+
+   positionTrack3DNode->publishAllPoints();
+}
+
 void PositionTrackFull3D::setCameraParams(double fx, double fy, double cx, double cy, double tx, double ty) {
 
    this->fx = fx;
@@ -378,6 +715,12 @@ void PositionTrackFull3D::setCameraParams(double fx, double fy, double cx, doubl
    this->cy = cy;
    this->tx = tx;
    this->ty = ty;
+   //cout << fx << " " << fy << " " << cx << " " << cy << " " << tx << " " << ty << endl;
+}
+
+void PositionTrackFull3D::newLocalMap(LocalMapInfoPtr localM) {
+   newLocalMapInfo = localM;
+   newLocalMapICPPose = icpFullPose;
 }
 
 inline int PositionTrackFull3D::getGlobalWorkSize(int numThreads) {

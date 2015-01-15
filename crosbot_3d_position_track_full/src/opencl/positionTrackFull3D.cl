@@ -33,6 +33,7 @@ __kernel void clearLocalMap(constant oclPositionTrackConfig *config, global int 
 
    for (int i = index; i < config->NumBlocksAllocated; i+= globalSize) {
       localMapCells[i].blockIndex = -1;
+      localMapCells[i].haveExtracted = 0;
       common->emptyBlocks[i] = i;
    }
 
@@ -40,6 +41,9 @@ __kernel void clearLocalMap(constant oclPositionTrackConfig *config, global int 
       common->highestBlockNum = 0;
       common->nextEmptyBlock = 0;
       common->numActiveBlocks = 0;
+      common->numBlocksToExtract = 0;
+      common->numPoints = 0;
+      common->numBlocksToDelete = 0;
    }
 }
 
@@ -75,12 +79,12 @@ float3 transformPoint(float3 point, const float3 origin, const float3 rotation0,
  * Finds the block of a local map that the point is found in
  * Returns the index
  */
-int getBlockIndex(constant oclGraphSlam3DConfig *config, float3 point, const int3 cent,
+int getBlockIndex(constant oclPositionTrackConfig *config, float3 point, const int3 cent,
       const int3 centMod) {
 
    int3 pointInd;
    pointInd.x = point.x / config->BlockSize;
-   pointInd.y = point.y / config->Blocksize;
+   pointInd.y = point.y / config->BlockSize;
    pointInd.z = point.z / config->BlockSize;
    pointInd -= cent;
 
@@ -112,8 +116,8 @@ int getBlockIndex(constant oclGraphSlam3DConfig *config, float3 point, const int
       } else if (pointInd.z >= config->NumBlocksHeight) {
          pointInd.z -= config->NumBlocksHeight;
       }
-      return z * config->NumBlocksWidth * config->NumBlocksWidth +
-         y * config->NumBlocksWidth + x;
+      return pointInd.z * config->NumBlocksWidth * config->NumBlocksWidth +
+         pointInd.y * config->NumBlocksWidth + pointInd.x;
    } else {
       return -1;
    }
@@ -122,7 +126,7 @@ int getBlockIndex(constant oclGraphSlam3DConfig *config, float3 point, const int
 /*
  * Gets the coordinates of the lowest corner of the block
  */
-float3 getBlockPosition(constant oclGraphSlam3DConfig *config, int index,
+float3 getBlockPosition(constant oclPositionTrackConfig *config, int index,
       const int3 cent, const int3 centMod) {
    int x = index % config->NumBlocksWidth;
    int y = (index / config->NumBlocksWidth) % config->NumBlocksWidth;
@@ -156,11 +160,11 @@ float3 getBlockPosition(constant oclGraphSlam3DConfig *config, int index,
 /*
  * Gets the coordinates of the lowest corner of the block point p resides in
  */
-float3 getBlockPositionFromPoint(constant oclGraphSlam3DConfig *config, float3 p) {
+float3 getBlockPositionFromPoint(constant oclPositionTrackConfig *config, float3 p) {
    return floor(p / config->BlockSize) * config->BlockSize;
 }
 
-int getCellIndex(constant oclGraphSlam3DConfig *config, float3 point) {
+int getCellIndex(constant oclPositionTrackConfig *config, float3 point) {
    float3 b = getBlockPositionFromPoint(config, point);
    float3 diff = point - b;
    int x = diff.x / config->CellSize;
@@ -173,7 +177,7 @@ int getCellIndex(constant oclGraphSlam3DConfig *config, float3 point) {
  * Returns the point at the centre of the cell, given the index of the cell
  * in the block (cIndex), and the index of the block (bIndex)
  */
-float3 getCellCentre(constant oclGraphSlam3DConfig *config, int cIndex, int bIndex,
+float3 getCellCentre(constant oclPositionTrackConfig *config, int cIndex, int bIndex,
       const int3 cent, const int3 centMod) {
    float3 p = getBlockPosition(config, bIndex, cent, centMod);
 
@@ -190,7 +194,7 @@ float3 getCellCentre(constant oclGraphSlam3DConfig *config, int cIndex, int bInd
 /*
  * Gets the index of the adjacent block in z.
  */ 
-int getBlockAdjZ(constant oclGraphSlam3DConfig *config, int index, int dir, int cent) {
+int getBlockAdjZ(constant oclPositionTrackConfig *config, int index, int dir, int cent) {
    if (index < 0) return -1;
    int zVal = index / (config->NumBlocksWidth * config->NumBlocksWidth);
    int indexRem = index - zVal;
@@ -200,7 +204,7 @@ int getBlockAdjZ(constant oclGraphSlam3DConfig *config, int index, int dir, int 
             (cent < off && zVal == cent + off)) {
          return -1;
       } else if (zVal == 0) {
-         return config->NumBlocksWidth * config->numBlocksWidth * (config->NumBlocksHeight - 1)
+         return config->NumBlocksWidth * config->NumBlocksWidth * (config->NumBlocksHeight - 1)
             + indexRem;
       } else {
          return index - (config->NumBlocksWidth * config->NumBlocksWidth);
@@ -219,7 +223,7 @@ int getBlockAdjZ(constant oclGraphSlam3DConfig *config, int index, int dir, int 
 /*
  * Gets the index of the adjacent block in x.
  */ 
-int getBlockAdjX(constant oclGraphSlam3DConfig *config, int index, int dir, int cent) {
+int getBlockAdjX(constant oclPositionTrackConfig *config, int index, int dir, int cent) {
    if (index < 0) return -1;
    int xVal = index % config->NumBlocksWidth;
    int indexRem = index - xVal;
@@ -247,7 +251,7 @@ int getBlockAdjX(constant oclGraphSlam3DConfig *config, int index, int dir, int 
 /*
  * Gets the index of the adjacent block in y.
  */ 
-int getBlockAdjY(constant oclGraphSlam3DConfig *config, int index, int dir, int cent) {
+int getBlockAdjY(constant oclPositionTrackConfig *config, int index, int dir, int cent) {
    if (index < 0) return -1;
    int yVal = (index / config->NumBlocksWidth) % config->NumBlocksWidth;
    int indexRem = index - yVal;
@@ -273,7 +277,7 @@ int getBlockAdjY(constant oclGraphSlam3DConfig *config, int index, int dir, int 
    }
 }
 
-void markBlockActive(constant oclGraphSlam3DConfig *config, global int *blocks,
+void markBlockActive(constant oclPositionTrackConfig *config, global int *blocks,
       global oclLocalMapCommon *common, int bIndex, int isOrig, int cIndex,
       global oclLocalBlock *localMapCells) {
    if (bIndex >= 0) {
@@ -331,7 +335,7 @@ __kernel void checkBlocksExist(constant oclPositionTrackConfig *config,
       int u = index % config->ImageWidth;
       int v = index / config->ImageWidth;
       float3 point = convertPixelToPoint(config, u, v, depthP[index]);
-      
+
       //Transform point from camera frame to icp frame
       float3 transP = transformPoint(point, origin, rotation0, rotation1, rotation2);
       int3 centMod;
@@ -375,7 +379,7 @@ __kernel void addRequiredBlocks(constant oclPositionTrackConfig *config,
          cellIndex = atomic_inc(&(common->nextEmptyBlock));
          if (cellIndex < config->NumBlocksAllocated) {
             cellIndex = common->emptyBlocks[cellIndex];
-            atomicFloatMax(&(common->highestBlockNum), cellIndex);
+            atomic_max(&(common->highestBlockNum), cellIndex);
             blocks[bIndex] = cellIndex;
             localMapCells[cellIndex].blockIndex = bIndex;
          } else {
@@ -492,15 +496,96 @@ __kernel void addFrame(constant oclPositionTrackConfig *config, global int *bloc
    }
 }
 
-//will need to do extract all debugging part totally separate from extract certain bits
-//also note that some cells will be reset but not extracted
+__kernel void markForExtraction(constant oclPositionTrackConfig *config, 
+      global int *blocks, global oclLocalBlock *localMapCells, 
+      global oclLocalMapCommon *common, const int3 oldCent, const int3 newCent,
+      const int isFullExtract, const float3 position) {
 
-//maybe have kernel that goes through blocks. if to clear, add to resetBlock array in common
-//if not marked as extracted and either it is to be cleared or behind robot (if extracting
-//for local map), add to blocksToExtractArray
+   int index = get_global_id(0);
+   int needExtract = 0;
+   int needDelete = 0;
 
+   int offXY = config->NumBlocksWidth / 2;
+   int offZ = config->NumBlocksHeight / 2;
+   int3 oldCentMod;
+   oldCentMod.x = oldCent.x % config->NumBlocksWidth;
+   oldCentMod.y = oldCent.y % config->NumBlocksWidth;
+   oldCentMod.z = oldCent.z % config->NumBlocksHeight;
 
-void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock *localMapCells,
+   if (index < common->highestBlockNum && localMapCells[index].blockIndex >= 0) {
+      int bIndex = localMapCells[index].blockIndex;
+      int x = bIndex % config->NumBlocksWidth;
+      int y = (bIndex / config->NumBlocksWidth) % config->NumBlocksWidth;
+      int z = bIndex / (config->NumBlocksWidth * config->NumBlocksWidth);
+
+      int3 diff = newCent - oldCent;
+
+      //Unwarp indexes
+      if (oldCentMod.x > offXY && x < oldCentMod.x - offXY) {
+         x += config->NumBlocksWidth;
+      } else if (oldCentMod.x < offXY && x >= oldCentMod.x + offXY) {
+         x -= config->NumBlocksWidth;
+      }
+      if (oldCentMod.y > offXY && y < oldCentMod.y - offXY) {
+         y += config->NumBlocksWidth;
+      } else if (oldCentMod.y < offXY && y >= oldCentMod.y + offXY) {
+         y -= config->NumBlocksWidth;
+      }
+      if (oldCentMod.z > offZ && z < oldCentMod.z - offZ) {
+         z += config->NumBlocksHeight;
+      } else if (oldCentMod.z < offZ && z >= oldCentMod.z + offZ) {
+         z -= config->NumBlocksHeight;
+      }
+
+      //Work out if indexes are border cases
+      if ((diff.x > 0 && x < oldCentMod.x + diff.x - offXY) ||
+          (diff.x < 0 && x >= oldCentMod.x + diff.x + offXY) ||
+          (diff.y > 0 && y < oldCentMod.y + diff.y - offXY) ||
+          (diff.y < 0 && y >= oldCentMod.y + diff.y + offXY) ||
+          (diff.z > 0 && z < oldCentMod.z + diff.z - offZ) ||
+          (diff.z < 0 && z >= oldCentMod.z + diff.z + offZ)) {
+         needDelete = 1;
+         if (localMapCells[index].haveExtracted == 0) {
+            needExtract = 1;
+         }
+      }
+      
+      if (isFullExtract && localMapCells[index].haveExtracted == 0) {
+         //work out if block is behind robot
+         float3 blockCent = getBlockPosition(config, bIndex, oldCent, oldCentMod) +
+            (float3)(config->BlockSize/2.0f);
+         float ang = atan2(blockCent.y - position.y, blockCent.x - position.x);
+         float diffAng = position.z - ang;
+         ANGNORM(diffAng);
+         if (fabs(diffAng) > M_PI/2.0f) {
+            needExtract = 1;
+         }
+      }
+   }
+
+   if (needExtract) {
+      int ret = atomic_inc(&(common->numBlocksToExtract));
+      common->blocksToExtract[ret] = index;
+      localMapCells[index].haveExtracted = 1;
+   }
+   if (needDelete) {
+      int ret = atomic_inc(&(common->numBlocksToDelete));
+      common->blocksToDelete[ret] = index;
+   }
+}
+
+__kernel void markAllForExtraction(constant oclPositionTrackConfig *config,
+      global oclLocalBlock *localMapCells, global oclLocalMapCommon *common) {
+
+   int index = get_global_id(0);
+
+   if (index < common->highestBlockNum && localMapCells[index].blockIndex >= 0) {
+      int ret = atomic_inc(&(common->numBlocksToExtract));
+      common->blocksToExtract[ret] = index;
+   }
+}
+
+void checkDirection(constant oclPositionTrackConfig *config, global oclLocalBlock *localMapCells,
       local float *x, local float *y, local float *z, local unsigned char *r, 
       local unsigned char *g, local unsigned char *b,
       local int *blockCount, int bIndex, int bLocalIndex, int blockOffset,
@@ -598,7 +683,7 @@ void checkDirection(constant oclGraphSlam3DConfig *config, global oclLocalBlock 
    }
 }
 
-float3 getNormal(constant oclGraphSlam3DConfig *config, global int *blocks, 
+float3 getNormal(constant oclPositionTrackConfig *config, global int *blocks, 
       global oclLocalBlock *localMapCells, float x, float y, float z,
       const int3 cent, const int3 centMod) {
 
@@ -606,9 +691,9 @@ float3 getNormal(constant oclGraphSlam3DConfig *config, global int *blocks,
    int blockI = getBlockIndex(config, p, cent, centMod);
    int cellI = getCellIndex(config, p);
       
-   int xI = cIndex % config->NumCellsWidth;
-   int yI = (cIndex / config->NumCellsWidth) % config->NumCellsWidth;
-   int zI = cIndex / (config->NumCellsWidth * config->NumCellsWidth);
+   int xI = cellI % config->NumCellsWidth;
+   int yI = (cellI / config->NumCellsWidth) % config->NumCellsWidth;
+   int zI = cellI / (config->NumCellsWidth * config->NumCellsWidth);
       
    if (blockI < 0 || blocks[blockI] < 0) {
       //This shouldn't happen
@@ -618,7 +703,7 @@ float3 getNormal(constant oclGraphSlam3DConfig *config, global int *blocks,
    float xH = NAN, xL = NAN, yH = NAN, yL = NAN, zL = NAN, zH = NAN;
 
    if (xI + 1 >= config->NumCellsWidth) {
-      int bI = getBlockAdjX(config, localMapCells[blocks[blockI]].blockIndex, 1, cent);
+      int bI = getBlockAdjX(config, localMapCells[blocks[blockI]].blockIndex, 1, cent.x);
       if (blockI >= 0 && blocks[blockI] >= 0) {
          xH = localMapCells[blocks[blockI]].distance[cellI - xI];
       }
@@ -626,7 +711,7 @@ float3 getNormal(constant oclGraphSlam3DConfig *config, global int *blocks,
       xH = localMapCells[blocks[blockI]].distance[cellI + 1];
    }
    if (xI - 1 < 0) {
-      int bI = getBlockAdjX(config, localMapCells[blocks[blockI]].blockIndex, -1, cent);
+      int bI = getBlockAdjX(config, localMapCells[blocks[blockI]].blockIndex, -1, cent.x);
       if (blockI >= 0 && blocks[blockI] >= 0) {
          xL = localMapCells[blocks[blockI]].distance[cellI + config->NumCellsWidth - 1];
       }
@@ -634,7 +719,7 @@ float3 getNormal(constant oclGraphSlam3DConfig *config, global int *blocks,
       xL = localMapCells[blocks[blockI]].distance[cellI - 1];
    }
    if (yI + 1 >= config->NumCellsWidth) {
-      int bI = getBlockAdjY(config, localMapCells[blocks[blockI]].blockIndex, 1, cent);
+      int bI = getBlockAdjY(config, localMapCells[blocks[blockI]].blockIndex, 1, cent.y);
       if (blockI >= 0 && blocks[blockI] >= 0) {
          yH = localMapCells[blocks[blockI]].distance[cellI - yI * config->NumCellsWidth];
       }
@@ -642,7 +727,7 @@ float3 getNormal(constant oclGraphSlam3DConfig *config, global int *blocks,
       yH = localMapCells[blocks[blockI]].distance[cellI + config->NumCellsWidth];
    }
    if (yI - 1 < 0) {
-      int bI = getBlockAdjY(config, localMapCells[blocks[blockI]].blockIndex, -1, cent);
+      int bI = getBlockAdjY(config, localMapCells[blocks[blockI]].blockIndex, -1, cent.y);
       if (blockI >= 0 && blocks[blockI] >= 0) {
          yL = localMapCells[blocks[blockI]].distance[cellI + config->NumCellsWidth * 
             (config->NumCellsWidth - 1)];
@@ -651,7 +736,7 @@ float3 getNormal(constant oclGraphSlam3DConfig *config, global int *blocks,
       yL = localMapCells[blocks[blockI]].distance[cellI - config->NumCellsWidth];
    }
    if (zI + 1 >= config->NumCellsWidth) {
-      int bI = getBlockAdjZ(config, localMapCells[blocks[blockI]].blockIndex, 1, cent);
+      int bI = getBlockAdjZ(config, localMapCells[blocks[blockI]].blockIndex, 1, cent.z);
       if (blockI >= 0 && blocks[blockI] >= 0) {
          zH = localMapCells[blocks[blockI]].distance[xI + yI * config->NumCellsWidth];
       }
@@ -660,7 +745,7 @@ float3 getNormal(constant oclGraphSlam3DConfig *config, global int *blocks,
          config->NumCellsWidth];
    }
    if (zI - 1 < 0) {
-      int bI = getBlockAdjZ(config, localMapCells[blocks[blockI]].blockIndex, -1, cent);
+      int bI = getBlockAdjZ(config, localMapCells[blocks[blockI]].blockIndex, -1, cent.z);
       if (blockI >= 0 && blocks[blockI] >= 0) {
          zL = localMapCells[blocks[blockI]].distance[cellI + config->NumCellsWidth * 
             config->NumCellsWidth * (config->NumCellsWidth - 1)];
@@ -678,7 +763,7 @@ float3 getNormal(constant oclGraphSlam3DConfig *config, global int *blocks,
    }
 }
 
-__kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *blocks,
+__kernel void extractPoints(constant oclPositionTrackConfig *config, global int *blocks,
       global oclLocalBlock *localMapCells, global oclLocalMapCommon *common,
       global float *ps, global unsigned char *cols, global float *normals,
       const int3 cent, const int extractNorms) {
@@ -720,7 +805,7 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
       r[blockOffset] = 0;
       g[blockOffset] = 0;
       b[blockOffset] = 0;
-      if (bIndexExract >= common->numBlocksToExtract) {
+      if (bIndexExtract >= common->numBlocksToExtract) {
          blockCount[bLocalIndex] = 0;
       }
    }
@@ -732,7 +817,7 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
    
    if (bLocalIndex < BLOCKS_PER_GROUP && bIndexExtract < common->numBlocksToExtract) {
       startI = cIndex;
-      bNextIndex = getBlockAdjZ(config, localMapCells[bIndex].blockIndex, 1, cent);
+      bNextIndex = getBlockAdjZ(config, localMapCells[bIndex].blockIndex, 1, cent.z);
       if (bNextIndex >= 0) {
          bNextIndex = blocks[bNextIndex];
       }
@@ -745,7 +830,7 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
       int zz = cIndex / config->NumCellsWidth;
       int yy = cIndex % config->NumCellsWidth;
       startI = zz * config->NumCellsWidth * config->NumCellsWidth + yy * config->NumCellsWidth;
-      bNextIndex = getBlockAdjX(config, localMapCells[bIndex].blockIndex, 1, cent);
+      bNextIndex = getBlockAdjX(config, localMapCells[bIndex].blockIndex, 1, cent.x);
       if (bNextIndex >= 0) {
          bNextIndex = blocks[bNextIndex];
       }
@@ -758,7 +843,7 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
       int xx = cIndex % config->NumCellsWidth;
       int zz = cIndex / config->NumCellsWidth;
       startI = zz * config->NumCellsWidth * config->NumCellsWidth + xx;
-      bNextIndex = getBlockAdjY(config, localMapCells[bIndex].blockIndex, 1, cent);
+      bNextIndex = getBlockAdjY(config, localMapCells[bIndex].blockIndex, 1, cent.y);
       if (bNextIndex >= 0) {
          bNextIndex = blocks[bNextIndex];
       }
@@ -796,6 +881,67 @@ __kernel void extractPoints(constant oclGraphSlam3DConfig *config, global int *b
           normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 1] = normal.y;
           normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 2] = normal.z;
        }
+   }
+}
+
+__kernel void transformPoints(global oclLocalMapCommon *common,
+      global float *ps, global float *normals, const int transformNormals,
+      const int numPoints, const float3 origin,
+      const float3 rotation0, const float3 rotation1, const float3 rotation2) {
+
+   int index = get_global_id(0);
+   
+   if (index == 0) {
+      common->numPoints = 0;
+   }
+
+   if (index < numPoints) {
+      float3 p = (float3)(ps[index * 3], ps[index * 3 + 1], ps[index * 3 + 2]);
+      p = transformPoint(p, origin, rotation0, rotation1, rotation2);
+      ps[index * 3] = p.x;
+      ps[index * 3 + 1] = p.y;
+      ps[index * 3 + 2] = p.z;
+      
+      if (transformNormals) {
+         p = (float3)(normals[index * 3], normals[index * 3 + 1], normals[index * 3 + 2]);
+         float3 zero = (float3)(0.0f, 0.0f, 0.0f);
+         p = transformPoint(p, zero, rotation0, rotation1, rotation2);
+         normals[index * 3] = p.x;
+         normals[index * 3 + 1] = p.y;
+         normals[index * 3 + 2] = p.z;
+      }
+   }
+}
+
+__kernel void clearBlocks(constant oclPositionTrackConfig *config, 
+      global int *blocks, global oclLocalBlock *localMapCells, 
+      global oclLocalMapCommon *common, const int numToDelete) {
+
+   int index = get_global_id(0);
+
+   if (index == 0) {
+      common->numBlocksToDelete = 0;
+   }
+
+   if (index < numToDelete) {
+      int bIndex = common->blocksToDelete[index];
+      int blockIndex = localMapCells[bIndex].blockIndex;
+      blocks[blockIndex] = -1;
+      int ret = atomic_dec(&(common->nextEmptyBlock));
+      common->emptyBlocks[ret - 1] = bIndex;
+
+      //reset everything in localMapCells[bIndex];
+      for (int i = 0; i < config->NumCellsTotal; i++) {
+         localMapCells[bIndex].distance[i] = NAN;
+         localMapCells[bIndex].weight[i] = 0;
+         localMapCells[bIndex].r[i] = 0;
+         localMapCells[bIndex].g[i] = 0;
+         localMapCells[bIndex].b[i] = 0;
+         localMapCells[bIndex].occupied[i] = 0;
+         localMapCells[bIndex].pI[i] = -1;
+      }
+      localMapCells[bIndex].blockIndex = -1;
+      localMapCells[bIndex].haveExtracted = 0;
    }
 }
 

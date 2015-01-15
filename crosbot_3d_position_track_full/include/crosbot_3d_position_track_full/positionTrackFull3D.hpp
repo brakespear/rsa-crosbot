@@ -11,13 +11,15 @@
 #include <ros/ros.h>
 #include <crosbot/utils.hpp>
 #include <crosbot/data.hpp>
-
+#include <crosbot_graphslam/localMap.hpp>
 #include <crosbot_gpu/openCL.hpp>
 #include <crosbot_3d_position_track_full/openclCommon.h>
+#include <crosbot_3d_position_track_full/positionTrackFull3DNode.hpp>
 
 using namespace std;
 using namespace crosbot;
 
+class PositionTrackFull3DNode;
 class PositionTrackFull3D {
 public:
 
@@ -49,12 +51,20 @@ public:
     */
    Pose processFrame(const sensor_msgs::ImageConstPtr& depthImage,
          const sensor_msgs::ImageConstPtr& rgbImage, Pose sensorPose, Pose icpPose, 
-         float *floorHeight);
+         float *floorHeight, bool outputMapPoints, vector<uint8_t>& allPoints);
 
    /*
     * Set the params of the registered depth camera
     */
    void setCameraParams(double fx, double fy, double cx, double cy, double tx, double ty);
+
+   /*
+    * Process a new local map
+    */
+   void newLocalMap(LocalMapInfoPtr localM);
+
+   PositionTrackFull3DNode *positionTrack3DNode;
+   bool UseLocalMaps;
 
 private:
    /*
@@ -138,8 +148,13 @@ private:
    cl_mem clLocalMapCells;
    cl_mem clLocalMapCommon;
    size_t numActiveBlocksOffset;
-   size_t numBlockstoExtractOffset;
+   size_t numBlocksToExtractOffset;
    size_t numPointsOffset;
+   size_t numBlocksToDeleteOffset;
+   size_t highestBlockNumOffset;
+   cl_mem clPointCloud;
+   cl_mem clColours;
+   cl_mem clNormals;
 
    //The current icp pose output by this node
    Pose icpFullPose;
@@ -147,7 +162,14 @@ private:
    ocl_int3 mapCentre;
    //Current number of active blocks
    int numActiveBlocks;
+   //Current highest block num
+   int highestBlockNum;
 
+   //local map infos
+   LocalMapInfoPtr newLocalMapInfo;
+   LocalMapInfoPtr currentLocalMapInfo;
+   Pose currentLocalMapICPPose;
+   Pose newLocalMapICPPose;
 
    void initialiseImages();
    void initialiseLocalMap();
@@ -155,9 +177,16 @@ private:
          const sensor_msgs::ImageConstPtr& rgbImage);
 
    void clearLocalMap();
-   void checkBlocksExist(int numPoints, tf:Transform trans);
+   void checkBlocksExist(int numDepthPoints, tf::Transform trans);
    void addRequiredBlocks();
    void addFrame(tf::Transform trans);
+   void markForExtraction(ocl_int3 newMapCentre, bool outputLocalMap);
+   void extractPoints(int numBlocksToExtract, bool extractNorms);
+   void transformPoints(int numPoints, bool transformNorms, tf::Transform trans);
+   void addPointsToLocalMap(int numPoints);
+   void clearBlocks();
+   void markAllForExtraction();
+   void outputAllPoints(int numPoints, vector<uint8_t>& allPoints);
 
    /*
     * GPU helper methods

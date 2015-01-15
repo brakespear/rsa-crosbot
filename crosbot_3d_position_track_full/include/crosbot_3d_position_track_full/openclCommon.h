@@ -69,6 +69,7 @@ typedef struct {
 
 typedef struct {
    int blockIndex;
+   int haveExtracted;
 #ifdef CL_RUNTIME
    ocl_float distance[NUM_CELLS];
    ocl_float weight[NUM_CELLS];
@@ -94,14 +95,17 @@ typedef struct {
    ocl_int numActiveBlocks;
    ocl_int numBlocksToExtract;
    ocl_int numPoints;
+   ocl_int numBlocksToDelete;
 #ifdef CL_RUNTIME
    ocl_int activeBlocks[MAX_NUM_ACTIVE_BLOCKS];
    ocl_int emptyBlocks[NUM_BLOCKS_ALLOCATED];
    ocl_int blocksToExtract[NUM_BLOCKS_ALLOCATED];
+   ocl_int blocksToDelete[NUM_BLOCKS_ALLOCATED];
 #else
    ocl_int *activeBlocks;
    ocl_int *emptyBlocks;
    ocl_int *blocksToExtract;
+   ocl_int *blocksToDelete;
 #endif
 } oclLocalMapCommon;
 

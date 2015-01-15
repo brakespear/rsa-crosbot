@@ -15,7 +15,7 @@
 		<remap from="image" to="/camera/rgb/image_color" />
    </node-->
 	
-	<node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp">
+	<!--node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp">
 		<param name="odom_frame" value="odom" />
 		<param name="base_frame" value="camera_stabilized" />
       <param name="icp_frame" value="icp_test" />
@@ -24,28 +24,34 @@
       <param name="CellSize" value="0.05" />
       <param name="LaserMinDist" value="0.1" />
       <param name="MaxAlignDistance" value="0.4" />
-      <!--param name="CellSearchDistance" value="5" /-->
       <param name="UseExternalZ" value="true" />
       <param name="InitHeight" value ="0.5" />
       <param name="MaxMoveXYZ" value ="0.5" />
       <param name="MaxMoveTh" value ="0.4" />
       <param name="MinGoodCount" value ="10" />
       <param name="LifeRatio" value ="3" />
-      <!--param name="MinCellCount" value ="6" /-->
       <param name="IgnoreZValues" value ="true" />
       <param name="UseSimpleH" value ="true" />
       <param name="MapSize" value ="14" />
       
       <param name="LaserSkip" value="2" />
-	</node>
+	</node-->
+	
+   <node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp">
+		<param name="odom_frame" value="odom" />
+		<param name="base_frame" value="base_footprint" />
+      <param name="icp_frame" value="icp_test" />
+   </node>
+
 
 	<node pkg="crosbot_3d_position_track_full" type="crosbot_3d_position_track_full" name="crosbot_3d_position_track_full" output="screen">
       <param name="icp_frame" value="icp_test" />
-      <param name="base_frame" value="camera_stabilized" />
-      <param name="rgb_sub" value="/camera/rgb/image_raw_drop" />
+      <!--param name="base_frame" value="camera_stabilized" /-->
+      <param name="base_frame" value="base_footprint" />
+      <!--param name="rgb_sub" value="/camera/rgb/image_raw_drop" /-->
+      <param name="rgb_sub" value="/camera/rgb/image_color_drop" />
       <param name="PublishTransform" value="true" />
       <param name="PublishMessage" value="true" />
-      <param name="SkipPoints" value="4" />
 	</node>
 
 	<!--node pkg="crosbot_graphslam" type="crosbot_graphslam" name="crosbot_graphslam">
