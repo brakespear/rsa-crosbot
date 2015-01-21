@@ -38,10 +38,6 @@ const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kerne
 #define TRANSFORM_POINTS 7
 #define CLEAR_BLOCKS 8
 
-//The maximum number of points extracted from a block can be SLICE_MULT*the number of 
-//cells in a slice of a block
-#define SLICE_MULT 2
-
 PositionTrackFull3D::PositionTrackFull3D() {
    opencl_manager = new OpenCLManager();
    opencl_task = new OpenCLTask(opencl_manager);
@@ -67,22 +63,30 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
 
    paramNH.param<int>("LocalSize", LocalSize, 256);
    //paramNH.param<int>("SkipPoints", SkipPoints, 1);
-   paramNH.param<double>("LocalMapWidth", LocalMapWidth, 12);
+   paramNH.param<double>("LocalMapWidth", LocalMapWidth, 8);
    paramNH.param<double>("LocalMapHeight", LocalMapHeight, 4);
    paramNH.param<int>("NumBlocksAllocated", NumBlocksAllocated, 10000);
    paramNH.param<int>("MaxNumActiveBlocks", MaxNumActiveBlocks, 2500);
-   paramNH.param<double>("CellSize", CellSize, 0.05);
+   paramNH.param<double>("CellSize", CellSize, 0.025);
    paramNH.param<double>("BlockSize", BlockSize, 0.2);
    paramNH.param<double>("TruncNeg", TruncNeg, 0.2);
    paramNH.param<double>("TruncPos", TruncPos, 0.3);
    paramNH.param<bool>("UseOccupancyForSurface", UseOccupancyForSurface, true);
-   paramNH.param<double>("MaxDistance", MaxDistance, 5.0);
+   paramNH.param<double>("MaxDistance", MaxDistance, 8.0);
+   //If have cell size of 0.0125, use SliceMult = 1, MaxPointsFrac = 2,
+   //NumBlocksAlloctacated = 5000.
+   //Otherwise can use NumBlocksAllocated = 10000, SliceMult = 2, MaxPointsFrac = 1
+   paramNH.param<int>("SliceMult", SliceMult, 2);
+   paramNH.param<int>("MaxPointsFrac", MaxPointsFrac, 1);
 
    NumBlocksWidth = (LocalMapWidth + 0.00001) / BlockSize;
    NumBlocksHeight = (LocalMapHeight + 0.00001) / BlockSize;
    NumBlocksTotal = NumBlocksWidth * NumBlocksWidth * NumBlocksHeight;
    NumCellsWidth = (BlockSize + 0.00001) / CellSize;
    NumCellsTotal = NumCellsWidth * NumCellsWidth * NumCellsWidth;
+   
+   int maxPointsPerBlock = SliceMult * NumCellsWidth * NumCellsWidth;
+   MaxPoints = maxPointsPerBlock * NumBlocksAllocated / MaxPointsFrac; //numBlocks
 
 }
 
@@ -136,6 +140,7 @@ void PositionTrackFull3D::initialiseFrame(const sensor_msgs::ImageConstPtr& dept
    positionTrackConfig.ty = ty;
    positionTrackConfig.UseOccupancyForSurface = UseOccupancyForSurface;
    positionTrackConfig.MaxDistance = MaxDistance;
+   positionTrackConfig.MaxPoints = MaxPoints;
 
    clPositionTrackConfig = opencl_manager->deviceAlloc(sizeof(oclPositionTrackConfig),
          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &positionTrackConfig);
@@ -149,7 +154,7 @@ void PositionTrackFull3D::initialiseFrame(const sensor_msgs::ImageConstPtr& dept
          " -D LOCAL_SIZE=" << LocalSize <<
          " -D NUM_CELLS=" << NumCellsTotal <<
          " -D MAX_NUM_ACTIVE_BLOCKS=" << MaxNumActiveBlocks << 
-         " -D MAX_POINTS_GROUP=" << LocalSize * SLICE_MULT <<
+         " -D MAX_POINTS_GROUP=" << LocalSize * SliceMult <<
          " -D BLOCKS_PER_GROUP=" << LocalSize / (NumCellsWidth * NumCellsWidth) <<
          " -D NUM_BLOCKS_ALLOCATED=" << NumBlocksAllocated;
    opencl_task->compileProgram(rootDir, file_names, num_files, kernel_names, num_kernels,
@@ -175,7 +180,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    if (UseLocalMaps && currentLocalMapInfo != NULL && newLocalMapInfo != NULL &&
          currentLocalMapInfo->index != newLocalMapInfo->index) {
       outputLocalMap = true;
-   }      
+   }     
 
    convertFrame(depthImage, rgbImage);
   
@@ -190,19 +195,22 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
    //add frame
    tf::Transform offset = icpFullPose.toTF() * sensorPose.toTF();
-
    checkBlocksExist(numDepthPoints, offset);
    readBuffer(clLocalMapCommon, CL_TRUE, numActiveBlocksOffset, 
          sizeof(int), &numActiveBlocks, 0, 0, 0, "Reading num active blocks");
    if (numActiveBlocks > MaxNumActiveBlocks) {
       numActiveBlocks = MaxNumActiveBlocks;
    }
-   cout << "numActiveBlocks are: " << numActiveBlocks << endl;
+   //cout << "numActiveBlocks are: " << numActiveBlocks << endl;
    addRequiredBlocks();
    addFrame(offset);
 
    readBuffer(clLocalMapCommon, CL_TRUE, highestBlockNumOffset,
-         sizeof(int), &highestBlockNum, 0, 0, 0, "Reading higest block num");
+         sizeof(int), &highestBlockNum, 0, 0, 0, "Reading highest block num");
+   //cout << "Highest block num is: " << highestBlockNum << " cent is: " << mapCentre.x <<
+   //  " " << mapCentre.y << " " << mapCentre.z << endl;
+   //cout << "pose is: " << icpPose.position.x << " " << icpPose.position.y << " " <<
+   //   icpPose.position.z << endl;
 
    //extract points
    ocl_int3 newMapCentre;
@@ -222,6 +230,9 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
          int numPoints;
          readBuffer(clLocalMapCommon, CL_TRUE, numPointsOffset,
             sizeof(int), &numPoints, 0, 0, 0, "reading num of points extracted");
+         if (numPoints > MaxPoints) {
+            numPoints = MaxPoints;
+         }
 
          tf::Transform trans = currentLocalMapICPPose.toTF().inverse();
          transformPoints(numPoints, true, trans);
@@ -242,17 +253,21 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
       readBuffer(clLocalMapCommon, CL_TRUE, numBlocksToExtractOffset,
             sizeof(int), &numBlocksToExtract, 0, 0, 0, "reading num of blocks to extract");
       cout << numBlocksToExtract << " blocks to extract" << endl;
+
       extractPoints(numBlocksToExtract, false);
 
          
       int numPoints;
       readBuffer(clLocalMapCommon, CL_TRUE, numPointsOffset,
          sizeof(int), &numPoints, 0, 0, 0, "reading num of points extracted");
-      cout << "Number of points that were extracted: " << numPoints << endl;
+      cout << "Number of points that were extracted: " << numPoints << " " << MaxPoints << endl;
+      if (numPoints > MaxPoints) {
+         numPoints = MaxPoints;
+      }
 
       //Should the points be transformed to be relative to the robot?
-      tf::Transform trans = icpFullPose.toTF().inverse();
-      transformPoints(numPoints, false, trans);
+      //tf::Transform trans = icpFullPose.toTF().inverse();
+      //transformPoints(numPoints, false, trans);
 
       outputAllPoints(numPoints, allPoints);               
    }
@@ -272,7 +287,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
       currentLocalMapICPPose = newLocalMapICPPose;
    }
    mapCentre = newMapCentre;
-   
+
    //questions:
    //- how to extract points? - for graph slam and for next iteration of position tracking?
    //- how to do the icp? directly use tdsf or use extracted points?
@@ -292,13 +307,11 @@ void PositionTrackFull3D::initialiseImages() {
    sizeColourPoints = sizeof(unsigned char) * numDepthPoints * 3;
    clColourFrame = opencl_manager->deviceAlloc(sizeColourPoints, CL_MEM_READ_WRITE, NULL);
 
-   int maxPointsPerBlock = SLICE_MULT * NumCellsWidth * NumCellsWidth;
-   int maxPoints = maxPointsPerBlock * NumBlocksAllocated; //numBlocks
-   clPointCloud = opencl_manager->deviceAlloc(sizeof(ocl_float) * maxPoints * 3, 
+   clPointCloud = opencl_manager->deviceAlloc(sizeof(ocl_float) * MaxPoints * 3, 
          CL_MEM_READ_WRITE, NULL);
-   clColours = opencl_manager->deviceAlloc(sizeof(unsigned char) * maxPoints * 3,
+   clColours = opencl_manager->deviceAlloc(sizeof(unsigned char) * MaxPoints * 3,
          CL_MEM_READ_WRITE, NULL);
-   clNormals = opencl_manager->deviceAlloc(sizeof(ocl_float) * maxPoints * 3,
+   clNormals = opencl_manager->deviceAlloc(sizeof(ocl_float) * MaxPoints * 3,
          CL_MEM_READ_WRITE, NULL);
 }
 
@@ -313,7 +326,7 @@ void PositionTrackFull3D::initialiseLocalMap() {
    clLocalMapCells = opencl_manager->deviceAlloc(localBlockSize * NumBlocksAllocated, 
          CL_MEM_READ_WRITE, NULL);
 
-   size_t commonSize = sizeof(ocl_int) * (5 + MaxNumActiveBlocks + 3*NumBlocksAllocated);
+   size_t commonSize = sizeof(ocl_int) * (6 + MaxNumActiveBlocks + 3*NumBlocksAllocated);
    clLocalMapCommon = opencl_manager->deviceAlloc(commonSize,
          CL_MEM_READ_WRITE, NULL);
 
@@ -403,9 +416,9 @@ void PositionTrackFull3D::convertFrame(const sensor_msgs::ImageConstPtr& depthIm
    //Extract the colour data from the image message
    int colourId = 0;
    for (int i = 0; i < numDepthPoints; ++i, colourId += colourStep) {
-      colourFrame->r[numDepthPoints] = rgbImage->data[colourId + rOff];
-      colourFrame->g[numDepthPoints] = rgbImage->data[colourId + gOff];
-      colourFrame->b[numDepthPoints] = rgbImage->data[colourId + bOff];
+      colourFrame->r[i] = rgbImage->data[colourId + rOff];
+      colourFrame->g[i] = rgbImage->data[colourId + gOff];
+      colourFrame->b[i] = rgbImage->data[colourId + bOff];
    }
    writeBuffer(clColourFrame, CL_FALSE, 0, sizeColourPoints, colourFrame->r, 0, 0, 0, 
          "Copying colour points to the GPU");
@@ -646,6 +659,7 @@ void PositionTrackFull3D::clearBlocks() {
    int numBlocksToDelete;
    readBuffer(clLocalMapCommon, CL_TRUE, numBlocksToDeleteOffset,
          sizeof(int), &numBlocksToDelete, 0, 0, 0, "Reading num blocks to delete");
+   cout << "Clearing part map. Deleting: " << numBlocksToDelete << " blocks" << endl;
 
    int kernelI = CLEAR_BLOCKS;
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
@@ -693,14 +707,16 @@ void PositionTrackFull3D::outputAllPoints(int numPoints, vector<uint8_t>& allPoi
          arr[4] = 0;
          arr[5] = 0;
 
-         allPoints[curSize + 16] = cols[rIndex];
+         allPoints[curSize + 16] = cols[rIndex + 2];
          allPoints[curSize + 17] = cols[rIndex + 1];
-         allPoints[curSize + 18] = cols[rIndex + 2];
+         allPoints[curSize + 18] = cols[rIndex];
 
          added++;
       }
    }
    allPoints.resize(added * 32);
+   cout << "Number of points published: " << added << endl;
+   cout << "centre: " << mapCentre.x << " " << mapCentre.y << " " << mapCentre.z << endl;
    free(ps);
    free(cols);
 

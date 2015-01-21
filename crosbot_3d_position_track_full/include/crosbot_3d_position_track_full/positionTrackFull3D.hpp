@@ -91,6 +91,15 @@ private:
    bool UseOccupancyForSurface;
    //Max distance of a cell to the camera to be used in the tsdf
    double MaxDistance;
+   //The maximum number of points that can be extracted from a block can be
+   //slice mult*number of cells in a 2D slice of the block. Normally 2, but
+   //can be decreased to 1 to allow higher res blocks without running out of
+   //memory
+   int SliceMult;
+   //Number of times the absolute maximum number of points that are 
+   //possible is reduced by. Normally 1, but can be increased to allow
+   //higher res blocks
+   int MaxPointsFrac;
 
    //GPU configs
    int LocalSize;
@@ -103,6 +112,8 @@ private:
    //Cell counts for each block
    int NumCellsTotal;
    int NumCellsWidth;
+   //Maximum number of points that can be extracted
+   int MaxPoints;
 
    //GPU fields
    OpenCLManager *opencl_manager;
