@@ -53,6 +53,7 @@ typedef struct {
    ocl_float ty;
    ocl_int UseOccupancyForSurface;
    ocl_float MaxDistance;
+   ocl_int MaxPoints;
 } oclPositionTrackConfig;
 
 typedef struct {

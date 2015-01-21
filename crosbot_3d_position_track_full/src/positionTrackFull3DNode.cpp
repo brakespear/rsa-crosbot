@@ -62,7 +62,7 @@ void PositionTrackFull3DNode::initialise(ros::NodeHandle& nh) {
    }
    if (OutputCurrentMap) {
       mapPointsPub = nh.advertise<sensor_msgs::PointCloud2>(map_points_pub, 1);
-      allPointsMsg.header.frame_id = base_frame;
+      allPointsMsg.header.frame_id = icp_frame;
       allPointsMsg.is_bigendian = false;
       allPointsMsg.is_dense = true;
       allPointsMsg.height = 1;

@@ -83,9 +83,12 @@ int getBlockIndex(constant oclPositionTrackConfig *config, float3 point, const i
       const int3 centMod) {
 
    int3 pointInd;
-   pointInd.x = point.x / config->BlockSize;
+   pointInd.x = floor(point.x / config->BlockSize);
+   pointInd.y = floor(point.y / config->BlockSize);
+   pointInd.z = floor(point.z / config->BlockSize);
+   /*pointInd.x = point.x / config->BlockSize;
    pointInd.y = point.y / config->BlockSize;
-   pointInd.z = point.z / config->BlockSize;
+   pointInd.z = point.z / config->BlockSize;*/
    pointInd -= cent;
 
    int offXY = config->NumBlocksWidth / 2;
@@ -197,7 +200,7 @@ float3 getCellCentre(constant oclPositionTrackConfig *config, int cIndex, int bI
 int getBlockAdjZ(constant oclPositionTrackConfig *config, int index, int dir, int cent) {
    if (index < 0) return -1;
    int zVal = index / (config->NumBlocksWidth * config->NumBlocksWidth);
-   int indexRem = index - zVal;
+   int indexRem = index - (zVal * config->NumBlocksWidth * config->NumBlocksWidth);
    int off = config->NumBlocksHeight / 2;
    if (dir < 0) {
       if ((cent >= off && zVal == cent - off) ||
@@ -254,7 +257,7 @@ int getBlockAdjX(constant oclPositionTrackConfig *config, int index, int dir, in
 int getBlockAdjY(constant oclPositionTrackConfig *config, int index, int dir, int cent) {
    if (index < 0) return -1;
    int yVal = (index / config->NumBlocksWidth) % config->NumBlocksWidth;
-   int indexRem = index - yVal;
+   int indexRem = index - (yVal * config->NumBlocksWidth);
    int off = config->NumBlocksWidth / 2;
    if (dir < 0) {
       if ((cent >= off && yVal == cent - off) ||
@@ -360,6 +363,19 @@ __kernel void checkBlocksExist(constant oclPositionTrackConfig *config,
          markBlockActive(config, blocks, common, adjZP, 0, cIndex, localMapCells);
          int adjZN = getBlockAdjZ(config, bIndex, -1, centMod.z);
          markBlockActive(config, blocks, common, adjZN, 0, cIndex, localMapCells);
+         
+         /*int adjXXP = getBlockAdjX(config, adjXP, 1, centMod.x);
+         markBlockActive(config, blocks, common, adjXXP, 0, cIndex, localMapCells);
+         int adjXXN = getBlockAdjX(config, adjXN, -1, centMod.x);
+         markBlockActive(config, blocks, common, adjXXN, 0, cIndex, localMapCells);
+         int adjYYP = getBlockAdjY(config, adjYP, 1, centMod.y);
+         markBlockActive(config, blocks, common, adjYYP, 0, cIndex, localMapCells);
+         int adjYYN = getBlockAdjY(config, adjYN, -1, centMod.y);
+         markBlockActive(config, blocks, common, adjYYN, 0, cIndex, localMapCells);
+         int adjZZP = getBlockAdjZ(config, adjZP, 1, centMod.z);
+         markBlockActive(config, blocks, common, adjZZP, 0, cIndex, localMapCells);
+         int adjZZN = getBlockAdjZ(config, adjZN, -1, centMod.z);
+         markBlockActive(config, blocks, common, adjZZN, 0, cIndex, localMapCells);*/
 
       }
    }
@@ -451,6 +467,7 @@ __kernel void addFrame(constant oclPositionTrackConfig *config, global int *bloc
       int v = (config->fy * cameraFramePoint.y + config->ty) / cameraFramePoint.z + config->cy;
       if (u >= 0 && u < config->ImageWidth && v >= 0 && v < config->ImageHeight) {
          int pointI = config->ImageWidth * v + u;
+         
          float depthVal = depthP[pointI];
          
          if (isnan(depthVal)) {
@@ -460,6 +477,8 @@ __kernel void addFrame(constant oclPositionTrackConfig *config, global int *bloc
             continue;
          }
          float tsdfVal = depthVal - cameraFramePoint.z;
+
+
          float weightVal = 1.0f/* / distPoint*/;
 
          if ((tsdfVal >= 0 /*&& tsdfVal < config->TruncPos*/) ||
@@ -477,15 +496,16 @@ __kernel void addFrame(constant oclPositionTrackConfig *config, global int *bloc
                float weightPrev = localMapCells[blockI].weight[cIndex];
                localMapCells[blockI].distance[cIndex] = (localMapCells[blockI].distance[cIndex] * weightPrev +
                      tsdfVal * weightVal) / (weightPrev + weightVal);
-               /*localMapCells[blockI].r[cIndex] = (unsigned char)((weightPrev * 
-                        (float)localMapCells[blockI].r[cIndex] +
-                     weightVal * (float)points->r[pointI]) / (weightVal + weightPrev));
-               localMapCells[blockI].g[cIndex] = (unsigned char)((weightPrev * 
-                        (float)localMapCells[blockI].g[cIndex] +
-                     weightVal * (float)points->g[pointI]) / (weightVal + weightPrev));
-               localMapCells[blockI].b[cIndex] = (unsigned char)((weightPrev * 
-                        (float)localMapCells[blockI].b[cIndex] +
-                     weightVal * (float)points->b[pointI]) / (weightVal + weightPrev));*/
+               //localMapCells[blockI].r[cIndex] = (unsigned char)((weightPrev * 
+               //         (float)localMapCells[blockI].r[cIndex] +
+               //      weightVal * (float)points->r[pointI]) / (weightVal + weightPrev));
+               //localMapCells[blockI].g[cIndex] = (unsigned char)((weightPrev * 
+               //         (float)localMapCells[blockI].g[cIndex] +
+               //      weightVal * (float)points->g[pointI]) / (weightVal + weightPrev));
+               //localMapCells[blockI].b[cIndex] = (unsigned char)((weightPrev * 
+               //         (float)localMapCells[blockI].b[cIndex] +
+               //      weightVal * (float)points->b[pointI]) / (weightVal + weightPrev));
+               
                localMapCells[blockI].r[cIndex] = colourP->r[pointI];
                localMapCells[blockI].g[cIndex] = colourP->g[pointI];
                localMapCells[blockI].b[cIndex] = colourP->b[pointI];
@@ -587,7 +607,7 @@ __kernel void markAllForExtraction(constant oclPositionTrackConfig *config,
 
 void checkDirection(constant oclPositionTrackConfig *config, global oclLocalBlock *localMapCells,
       local float *x, local float *y, local float *z, local unsigned char *r, 
-      local unsigned char *g, local unsigned char *b,
+      local unsigned char *g, local unsigned char *b, local short *fullIndex,
       local int *blockCount, int bIndex, int bLocalIndex, int blockOffset,
       int startI, int increment, int bNextIndex, const int3 cent, const int3 centMod,
       float incXV, float incYV, float incZV) {
@@ -604,7 +624,7 @@ void checkDirection(constant oclPositionTrackConfig *config, global oclLocalBloc
          cellNextVal = localMapCells[bIndex].distance[nextI];
          bni = bIndex;
          ni = nextI;
-      } else if (bNextIndex < 0 || bNextIndex > config->NumBlocksAllocated) {
+      } else if (bNextIndex < 0 /*|| bNextIndex > config->NumBlocksAllocated*/) {
          continue;
       } else {
       //if (incYV > 0.5) { continue; }
@@ -616,13 +636,14 @@ void checkDirection(constant oclPositionTrackConfig *config, global oclLocalBloc
       if (isnan(cellVal) || isnan(cellNextVal)) {
          continue;
       }
-      if (fabs(cellVal) > config->CellSize * 10 || fabs(cellNextVal) > config->CellSize * 10) {
+      /*if (fabs(cellVal) > config->CellSize * 10 || fabs(cellNextVal) > config->CellSize * 10) {
          continue;
-      }
-      if ((sign(cellVal) != sign(cellNextVal) || cellVal == 0) && 
-            localMapCells[bIndex].weight[i] > 5.0f && (config->UseOccupancyForSurface == 0 || 
+      }*/
+      if ((sign(cellVal) != sign(cellNextVal) || cellVal == 0) /*&& 
+            localMapCells[bIndex].weight[i] > 5.0f */&& (config->UseOccupancyForSurface == 0 || 
             localMapCells[bIndex].occupied[i] > 0 || localMapCells[bni].occupied[ni] > 0)) {
          //There is a crossing!
+
          float3 p = getCellCentre(config, i, localMapCells[bIndex].blockIndex, cent, centMod);
          float inc = fabs(cellVal / (cellNextVal - cellVal)) * config->CellSize;
          
@@ -667,11 +688,13 @@ void checkDirection(constant oclPositionTrackConfig *config, global oclLocalBloc
                g[blockOffset + retI] = localMapCells[bIndex].g[i];
                b[blockOffset + retI] = localMapCells[bIndex].b[i];
                localMapCells[bIndex].pI[i] = retI;
+               fullIndex[blockOffset + retI] = i;
             } else if (count + 1 < config->NumCellsWidth) {
                r[blockOffset + retI] = localMapCells[bIndex].r[nextI];
                g[blockOffset + retI] = localMapCells[bIndex].g[nextI];
                b[blockOffset + retI] = localMapCells[bIndex].b[nextI];
                localMapCells[bIndex].pI[nextI] = retI;
+               fullIndex[blockOffset + retI] = nextI;
             } else {
                r[blockOffset + retI] = localMapCells[bNextIndex].r[startI];
                g[blockOffset + retI] = localMapCells[bNextIndex].g[startI];
@@ -778,6 +801,7 @@ __kernel void extractPoints(constant oclPositionTrackConfig *config, global int 
    local unsigned char r[MAX_POINTS_GROUP];
    local unsigned char g[MAX_POINTS_GROUP];
    local unsigned char b[MAX_POINTS_GROUP];
+   local short fullIndex[MAX_POINTS_GROUP];
    local int blockCount[BLOCKS_PER_GROUP];
    local int blockOffsetComp[BLOCKS_PER_GROUP];
    local int startGIndex;
@@ -792,13 +816,13 @@ __kernel void extractPoints(constant oclPositionTrackConfig *config, global int 
    int bIndexExtract = BLOCKS_PER_GROUP * groupId + bLocalIndex;
    int cIndex = lIndex % sliceSize;
    int blockOffset = (MAX_POINTS_GROUP / BLOCKS_PER_GROUP) * bLocalIndex;
-   int bIndex = 0;
+   int bIndex = -1;
    if (bIndexExtract < common->numBlocksToExtract) {
       bIndex = common->blocksToExtract[bIndexExtract];
    }
 
    if (cIndex == 0 && bLocalIndex < BLOCKS_PER_GROUP) {
-      blockCount[bLocalIndex] = 1;
+      /*blockCount[bLocalIndex] = 1;
       x[blockOffset] = NAN;
       y[blockOffset] = NAN;
       z[blockOffset] = NAN;
@@ -807,8 +831,13 @@ __kernel void extractPoints(constant oclPositionTrackConfig *config, global int 
       b[blockOffset] = 0;
       if (bIndexExtract >= common->numBlocksToExtract) {
          blockCount[bLocalIndex] = 0;
-      }
+      }*/
+      blockCount[bLocalIndex] = 0;
    }
+   for (int i = lIndex; i < MAX_POINTS_GROUP; i+= LOCAL_SIZE) {
+      fullIndex[i] = -1;
+   }
+
    barrier(CLK_LOCAL_MEM_FENCE);
 
    int startI, bNextIndex, increment;
@@ -822,7 +851,7 @@ __kernel void extractPoints(constant oclPositionTrackConfig *config, global int 
          bNextIndex = blocks[bNextIndex];
       }
       increment = config->NumCellsWidth * config->NumCellsWidth;
-      checkDirection(config, localMapCells, x, y, z, r, g, b, blockCount, bIndex,
+      checkDirection(config, localMapCells, x, y, z, r, g, b, fullIndex, blockCount, bIndex,
             bLocalIndex, blockOffset, startI, increment, bNextIndex, cent, centMod, 0, 0, 1);
    }
    barrier(CLK_LOCAL_MEM_FENCE);
@@ -835,7 +864,7 @@ __kernel void extractPoints(constant oclPositionTrackConfig *config, global int 
          bNextIndex = blocks[bNextIndex];
       }
       increment = 1;
-      checkDirection(config, localMapCells, x, y, z, r, g, b, blockCount, bIndex,
+      checkDirection(config, localMapCells, x, y, z, r, g, b, fullIndex, blockCount, bIndex,
             bLocalIndex, blockOffset, startI, increment, bNextIndex, cent, centMod, 1, 0, 0);
    }
    barrier(CLK_LOCAL_MEM_FENCE);
@@ -848,7 +877,7 @@ __kernel void extractPoints(constant oclPositionTrackConfig *config, global int 
          bNextIndex = blocks[bNextIndex];
       }
       increment = config->NumCellsWidth;
-      checkDirection(config, localMapCells, x, y, z, r, g, b, blockCount, bIndex,
+      checkDirection(config, localMapCells, x, y, z, r, g, b, fullIndex, blockCount, bIndex,
             bLocalIndex, blockOffset, startI, increment, bNextIndex, cent, centMod, 0, 1, 0);
    }
 
@@ -866,21 +895,26 @@ __kernel void extractPoints(constant oclPositionTrackConfig *config, global int 
    }
    barrier(CLK_LOCAL_MEM_FENCE);
    for (int i = cIndex; bLocalIndex < BLOCKS_PER_GROUP && i < blockCount[bLocalIndex]; i+= sliceSize) {
-       ps[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3] = x[blockOffset + i];
-       ps[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 1] = y[blockOffset + i];
-       ps[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 2] = z[blockOffset + i];
-       cols[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3] = r[blockOffset + i];
-       cols[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 1] = g[blockOffset + i];
-       cols[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 2] = b[blockOffset + i];
+      if (startGIndex + blockOffsetComp[bLocalIndex] + i < config->MaxPoints) {
+         ps[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3] = x[blockOffset + i];
+         ps[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 1] = y[blockOffset + i];
+         ps[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 2] = z[blockOffset + i];
+         cols[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3] = r[blockOffset + i];
+         cols[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 1] = g[blockOffset + i];
+         cols[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 2] = b[blockOffset + i];
       
-       if (extractNorms) {
-          float3 normal = getNormal(config, blocks, localMapCells, 
-                x[blockOffset + i], y[blockOffset + i], z[blockOffset + i],
-                cent, centMod);
-          normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3] = normal.x;
-          normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 1] = normal.y;
-          normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 2] = normal.z;
-       }
+         if (extractNorms) {
+            float3 normal = getNormal(config, blocks, localMapCells, 
+                  x[blockOffset + i], y[blockOffset + i], z[blockOffset + i],
+                  cent, centMod);
+            normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3] = normal.x;
+            normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 1] = normal.y;
+            normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 2] = normal.z;
+         }
+      }
+      if (fullIndex[blockOffset + i] >= 0 && bIndex>= 0) {
+         localMapCells[bIndex].pI[fullIndex[blockOffset + i]] = -1;
+      }
    }
 }
 
@@ -895,7 +929,7 @@ __kernel void transformPoints(global oclLocalMapCommon *common,
       common->numPoints = 0;
    }
 
-   if (index < numPoints) {
+   if (index < numPoints && !isnan(ps[index * 3])) {
       float3 p = (float3)(ps[index * 3], ps[index * 3 + 1], ps[index * 3 + 2]);
       p = transformPoint(p, origin, rotation0, rotation1, rotation2);
       ps[index * 3] = p.x;
