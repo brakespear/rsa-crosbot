@@ -199,7 +199,12 @@ public:
    /*
     * Reads the orientation data from the imu
     */
-   void processImuOrientation(const geometry_msgs::Quaternion& quat); 
+   void processImuOrientation(const geometry_msgs::Quaternion& quat);
+
+   /*
+    * Resets the map
+    */
+   virtual void resetMap() = 0; 
 private:
    //double yawOffset;
 

@@ -29,6 +29,7 @@ public:
    void stop();
    void initialiseTrack(Pose sensorPose, PointCloudPtr cloud);
    void updateTrack(Pose sensorPose, PointCloudPtr cloud);
+   void resetMap();
 
    OgmbicpCPU();
    ~OgmbicpCPU();
@@ -51,6 +52,9 @@ private:
    ros::WallDuration totalTime;
    int numIterations;
    int avNumIts;
+
+   //Number of scans just to add to the map
+   int initScans;
 
    //Get the offset from an iteration of ogmbicp
    bool getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth);

@@ -14,6 +14,7 @@
 #include <tf/transform_broadcaster.h>
 #include <sensor_msgs/LaserScan.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <std_msgs/String.h>
 
 #include <crosbot/data.hpp>
 #include <crosbot/utils.hpp>
@@ -54,6 +55,8 @@ private:
    string local_map_image_pub, local_map_pub;
    string recent_scans_srv;
 
+   string reset_map_sub;
+
 
    /*
     * ROS connections
@@ -65,6 +68,8 @@ private:
    ros::Publisher imagePub;
    ros::Publisher localMapPub;
    ros::ServiceServer recentScansServer;
+
+   ros::Subscriber resetMapSubscriber;
 
    Ogmbicp &pos_tracker;
    //Is it the initial scan?
@@ -83,6 +88,11 @@ private:
     * Callback for the orientation from the IMU
     */
    void callbackOrientation(const geometry_msgs::Quaternion& quat);
+
+   /*
+    * Callback to reset the position tracker
+    */
+   void callbackResetMap(const std_msgs::String& name);
 
    /*
     * Gets a transform from a pose

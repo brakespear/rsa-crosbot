@@ -31,6 +31,7 @@ void OgmbicpNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("local_map_pub", local_map_pub, "localGrid");
    paramNH.param<std::string>("recent_scans_srv", recent_scans_srv, "icpRecentScans");
    paramNH.param<std::string>("orientation_sub", orientation_sub, "orientation");
+   paramNH.param<std::string>("reset_map_sub", reset_map_sub, "resetMap");
 
    pos_tracker.initialise(nh);
    pos_tracker.start();
@@ -40,6 +41,8 @@ void OgmbicpNode::initialise(ros::NodeHandle &nh) {
    imagePub = nh.advertise<sensor_msgs::Image>(local_map_image_pub, 1);
    localMapPub = nh.advertise<nav_msgs::OccupancyGrid>(local_map_pub, 1);
    recentScansServer = nh.advertiseService(recent_scans_srv, &OgmbicpNode::getRecentScans, this);
+
+   resetMapSubscriber = nh.subscribe(reset_map_sub, 1, &OgmbicpNode::callbackResetMap, this);
 
 }
 
@@ -153,6 +156,10 @@ void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan)
 
 void OgmbicpNode::callbackOrientation(const geometry_msgs::Quaternion& quat) {
    pos_tracker.processImuOrientation(quat);
+}
+
+void OgmbicpNode::callbackResetMap(const std_msgs::String& name) {
+   pos_tracker.resetMap();
 }
 
 geometry_msgs::TransformStamped OgmbicpNode::getTransform(const Pose& pose, std::string childFrame, 
