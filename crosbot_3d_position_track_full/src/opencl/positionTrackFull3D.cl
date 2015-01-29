@@ -408,6 +408,9 @@ __kernel void addRequiredBlocks(constant oclPositionTrackConfig *config,
          blocks[bIndex] = cellIndex;
       }
       common->activeBlocks[index] = cellIndex;
+      if (config->ReExtractBlocks && cellIndex >= 0) {
+         localMapCells[cellIndex].haveExtracted = 0;
+      }
    }
 }
 
@@ -477,9 +480,10 @@ __kernel void addFrame(constant oclPositionTrackConfig *config, global int *bloc
             continue;
          }
          float tsdfVal = depthVal - cameraFramePoint.z;
+         //tsdfVal *= -1;
 
 
-         float weightVal = 1.0f/* / distPoint*/;
+         float weightVal = 1.0f /* / cameraFramePoint.z*/;
 
          if ((tsdfVal >= 0 /*&& tsdfVal < config->TruncPos*/) ||
                (tsdfVal < 0 && tsdfVal * -1.0f < config->TruncNeg)) {
@@ -568,6 +572,7 @@ __kernel void markForExtraction(constant oclPositionTrackConfig *config,
          if (localMapCells[index].haveExtracted == 0) {
             needExtract = 1;
          }
+         //needExtract = 1;
       }
       
       if (isFullExtract && localMapCells[index].haveExtracted == 0) {
@@ -581,6 +586,9 @@ __kernel void markForExtraction(constant oclPositionTrackConfig *config,
             needExtract = 1;
          }
       }
+      //if (isFullExtract) {
+      //   needExtract = 1;
+      //}
    }
 
    if (needExtract) {

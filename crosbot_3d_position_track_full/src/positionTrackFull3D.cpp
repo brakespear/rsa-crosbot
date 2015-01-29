@@ -78,6 +78,7 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    //Otherwise can use NumBlocksAllocated = 10000, SliceMult = 2, MaxPointsFrac = 1
    paramNH.param<int>("SliceMult", SliceMult, 2);
    paramNH.param<int>("MaxPointsFrac", MaxPointsFrac, 1);
+   paramNH.param<bool>("ReExtractBlocks", ReExtractBlocks, false);
 
    NumBlocksWidth = (LocalMapWidth + 0.00001) / BlockSize;
    NumBlocksHeight = (LocalMapHeight + 0.00001) / BlockSize;
@@ -141,6 +142,7 @@ void PositionTrackFull3D::initialiseFrame(const sensor_msgs::ImageConstPtr& dept
    positionTrackConfig.UseOccupancyForSurface = UseOccupancyForSurface;
    positionTrackConfig.MaxDistance = MaxDistance;
    positionTrackConfig.MaxPoints = MaxPoints;
+   positionTrackConfig.ReExtractBlocks = ReExtractBlocks;
 
    clPositionTrackConfig = opencl_manager->deviceAlloc(sizeof(oclPositionTrackConfig),
          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &positionTrackConfig);
@@ -179,6 +181,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    bool outputLocalMap = false;
    if (UseLocalMaps && currentLocalMapInfo != NULL && newLocalMapInfo != NULL &&
          currentLocalMapInfo->index != newLocalMapInfo->index) {
+      cout << "Outputting the local map this iteration!!" << endl;
       outputLocalMap = true;
    }     
 
@@ -225,11 +228,14 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
       readBuffer(clLocalMapCommon, CL_TRUE, numBlocksToExtractOffset,
             sizeof(int), &numBlocksToExtract, 0, 0, 0, "reading num of blocks to extract");
       if (UseLocalMaps && numBlocksToExtract > 0) {
+         cout << "Saving points to the local map. Extracting " << numBlocksToExtract <<
+           " blocks" << endl;
          extractPoints(numBlocksToExtract, true);
 
          int numPoints;
          readBuffer(clLocalMapCommon, CL_TRUE, numPointsOffset,
             sizeof(int), &numPoints, 0, 0, 0, "reading num of points extracted");
+         cout << numPoints << " were extracted. max: " << MaxPoints << endl;
          if (numPoints > MaxPoints) {
             numPoints = MaxPoints;
          }
@@ -604,6 +610,10 @@ void PositionTrackFull3D::transformPoints(int numPoints, bool transformNorms,
 }
 
 void PositionTrackFull3D::addPointsToLocalMap(int numPoints) {
+   if (currentLocalMapInfo == NULL) {
+      //Haven't received the first local map yet, so ignore points
+      return;
+   }
    size_t pointsSize = sizeof(float) * numPoints * 3;
    size_t coloursSize = sizeof(unsigned char) * numPoints * 3;
    float *ps = (float *) malloc(pointsSize);
@@ -735,8 +745,14 @@ void PositionTrackFull3D::setCameraParams(double fx, double fy, double cx, doubl
 }
 
 void PositionTrackFull3D::newLocalMap(LocalMapInfoPtr localM) {
-   newLocalMapInfo = localM;
-   newLocalMapICPPose = icpFullPose;
+   cout << "Received info about new local map" << endl;
+   if (currentLocalMapInfo == NULL) {
+      currentLocalMapInfo = localM;
+      currentLocalMapICPPose = icpFullPose;
+   } else {
+      newLocalMapInfo = localM;
+      newLocalMapICPPose = icpFullPose;
+   }
 }
 
 inline int PositionTrackFull3D::getGlobalWorkSize(int numThreads) {

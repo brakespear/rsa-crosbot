@@ -100,6 +100,9 @@ private:
    //possible is reduced by. Normally 1, but can be increased to allow
    //higher res blocks
    int MaxPointsFrac;
+   //Extract blocks if they are seen again after they have been extracted into a
+   //previous local map
+   bool ReExtractBlocks;
 
    //GPU configs
    int LocalSize;
