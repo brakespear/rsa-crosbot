@@ -9,3 +9,7 @@
 # Catkin Ignore files for "blacklisting" packages
 CATKIN_IGNORE
 
+# Hidden files
+*.swp
+*.swo
+
