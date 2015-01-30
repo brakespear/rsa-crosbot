@@ -327,17 +327,14 @@ void markBlockActive(constant oclPositionTrackConfig *config, global int *blocks
  */
 __kernel void checkBlocksExist(constant oclPositionTrackConfig *config,
       global int *blocks, global oclLocalMapCommon *common,
-      global oclLocalBlock *localMapCells, global float *depthP,
+      global oclLocalBlock *localMapCells, global oclDepthPoints *points,
       const int numPoints, const int3 cent, const float3 origin,
       const float3 rotation0, const float3 rotation1, const float3 rotation2) {
 
    int index = get_global_id(0);
 
-   if (index < numPoints && !isnan(depthP[index])) {
-      //Convert depth to xyz
-      int u = index % config->ImageWidth;
-      int v = index / config->ImageWidth;
-      float3 point = convertPixelToPoint(config, u, v, depthP[index]);
+   if (index < numPoints && !isnan(points->x[index])) {
+      float3 point = (float3)(points->x[index], points->y[index], points->z[index]);
 
       //Transform point from camera frame to icp frame
       float3 transP = transformPoint(point, origin, rotation0, rotation1, rotation2);
@@ -715,13 +712,8 @@ void checkDirection(constant oclPositionTrackConfig *config, global oclLocalBloc
 }
 
 float3 getNormal(constant oclPositionTrackConfig *config, global int *blocks, 
-      global oclLocalBlock *localMapCells, float x, float y, float z,
-      const int3 cent, const int3 centMod) {
+      global oclLocalBlock *localMapCells, const int3 cent, int blockI, int cellI) {
 
-   float3 p = (float3)(x,y,z);
-   int blockI = getBlockIndex(config, p, cent, centMod);
-   int cellI = getCellIndex(config, p);
-      
    int xI = cellI % config->NumCellsWidth;
    int yI = (cellI / config->NumCellsWidth) % config->NumCellsWidth;
    int zI = cellI / (config->NumCellsWidth * config->NumCellsWidth);
@@ -912,9 +904,12 @@ __kernel void extractPoints(constant oclPositionTrackConfig *config, global int 
          cols[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 2] = b[blockOffset + i];
       
          if (extractNorms) {
+            float3 p = (float3)(x[blockOffset + i],y[blockOffset + i],z[blockOffset + i]);
+            int blockI = getBlockIndex(config, p, cent, centMod);
+            int cellI = getCellIndex(config, p);
+
             float3 normal = getNormal(config, blocks, localMapCells, 
-                  x[blockOffset + i], y[blockOffset + i], z[blockOffset + i],
-                  cent, centMod);
+                  cent, blockI, cellI);
             normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3] = normal.x;
             normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 1] = normal.y;
             normals[(startGIndex + blockOffsetComp[bLocalIndex] + i) * 3 + 2] = normal.z;
@@ -987,3 +982,92 @@ __kernel void clearBlocks(constant oclPositionTrackConfig *config,
    }
 }
 
+__kernel void calculateNormals(const oclPositionTrackConfig *config, 
+   global oclDepthPoints *points, global oclDepthPoints *normals,
+   global float *depthP, const int numPoints) {
+
+   int index = get_global_id(0);
+
+   if (index < numPoints && !isnan(depthP[index])) {
+      int u = index % config->ImageWidth;
+      int v = index / config->ImageWidth;
+      int xPlusInd = index + 1;
+      int yPlusInd = index + config->ScanWidth;
+      if (x < config->Imagewidth - 1 && y < config->ImageHeight - 1 &&
+            !isnan(depthP[xPlusInd]) && !isnan(depthP[yPlusInd])) {
+         
+         float3 point = convertPixelToPoint(config, u, v, depthP[index]);
+         float3 pointXPlus = convertPixelToPoint(config, u + 1, v, depthP[xPlusInd]);
+         float3 pointYPlus = convertPixelToPoint(config, u, v + 1, depthP[yPlusInd]);
+         float3 crosA;
+         crosA.x = pointXPlus.x - point.x;
+         crosA.y = pointXPlus.y - point.y;
+         crosA.z = pointXPlus.z - point.z;
+         float3 crosB;
+         crosB.x = pointYPlus.x - point.x;
+         crosB.y = pointYPlus.y - point.y;
+         crosB.z = pointYPlus.z - point.z;
+         float3 res = cross(crosB, crosA);
+         crosA = fast_normalize(res);
+
+         points->x[index] = point.x;
+         points->y[index] = point.y;
+         points->z[index] = point.z;
+         normals->x[index] = crosA.x;
+         normals->y[index] = crosA.y;
+         normals->z[index] = crosA.z;
+
+      } else {
+         points->x[index] = NAN;
+      }
+   } else if (index < numPoints) {
+      points->x[index] = NAN;
+   }
+}
+
+/*
+ * Perform fast ICP method on map points
+ */
+__kernel void fastICP(const oclPositionTrackConfig *config, global int *blocks,
+      global oclLocalBlock *localMapCells, global oclLocalMapCommon *common,
+      global oclDepthPoints *points, global oclDepthPoints *normals, const int numPoints,
+      const int3 cent, const float3 origin, const float3 rotation0, 
+      const float3 rotation1, const float3 rotation2) {
+
+   int gIndex = get_global_id(0);
+
+   if (gIndex < numPoints && !isnan(points->x[index])) {
+      int3 centMod;
+      centMod.x = cent.x % config->NumBlocksWidth;
+      centMod.y = cent.y % config->NumBlocksWidth;
+      centMod.z = cent.z % config->NumBlocksHeight;
+
+      float3 point = (float3)(points->x[index], points->y[index], points->z[index]);
+      float3 transP = transformPoint(point, origin, rotation0, rotation1, rotation2);
+      float3 zero = (float3) (0.0f, 0.0f, 0.0f);
+      float3 frameNormal = (float3)(normals->x[index], normals->y[index], normals->z[index]);
+      frameNormal = transformPoint(frameNormal, zero, rotation0, rotation1, rotation2);
+
+      int bIndex = getBlockIndex(config, transP, cent, centMod);
+      if (bIndex >= 0 && blocks[bIndex] >= 0) {
+         int bI = blocks[bIndex];
+         int cIndex = getCellIndex(config, transP);
+
+         float3 normal = getNormal(config, blocks, localMapCells, 
+                  cent, bIndex, cIndex);
+
+         //now:
+         //normal is N
+         //point is V
+         //need to find Vm - find centre of cell point is in. go distance in opposite
+         //direction to normal from centre of cell. This point is Vm
+
+         //localMapCells[bI].distance[cIndex]
+
+         //Then can solve equation
+         //Ten can work everything out
+
+      
+   }
+
+}

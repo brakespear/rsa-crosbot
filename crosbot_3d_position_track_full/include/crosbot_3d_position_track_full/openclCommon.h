@@ -59,6 +59,19 @@ typedef struct {
 
 typedef struct {
 #ifdef CL_RUNTIME
+   ocl_float x[NUM_DEPTH_POINTS];
+   ocl_float y[NUM_DEPTH_POINTS];
+   ocl_float z[NUM_DEPTH_POINTS];
+#else
+   ocl_float *x;
+   ocl_float *y;
+   ocl_float *z;
+#endif
+} oclDepthPoints;
+
+
+typedef struct {
+#ifdef CL_RUNTIME
    unsigned char r[NUM_DEPTH_POINTS];
    unsigned char g[NUM_DEPTH_POINTS];
    unsigned char b[NUM_DEPTH_POINTS];
