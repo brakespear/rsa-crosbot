@@ -733,6 +733,51 @@ void PositionTrackFull3D::outputAllPoints(int numPoints, vector<uint8_t>& allPoi
    positionTrack3DNode->publishAllPoints();
 }
 
+void PositionTrackFull3D::solveCholesky(float A[DOF][DOF], float b[DOF], float x[DOF]) {
+
+   int col, row, i;
+   float buf[DOF];
+   float sum;
+
+   //Claculate LDL^T factorisation of A
+   for (row = 0; row < DOF; row++) {
+      //Calculate L
+      for (col = 0; col < row; col++) {
+         sum = 0;
+         for (i = 0; i < col i++) {
+            sum += A[row][i] * A[col][i] * A[i][i];
+         }
+         A[row][col] = (1 / A[col][col]) * (A[row][col] - sum);
+      }
+
+      //Calculate D
+      for (i = row - 1; i >= 0; i--) {
+         A[row][row] -= (A[row][i] * A[row][i] * A[i][i]);
+      }
+   }
+
+   //Calculate Lz = b
+   for (row = 0; row < DOF; row++) {
+      buf[row] = b[row];
+      for (i = 0; i < row - 1; i++) {
+         buf[row] -= A[row][i] * buf[i];
+      }
+   }
+
+   //Calculate Dy = z
+   for (i = 0; i < DOF; i++) {
+      buf[i] = buf[i] / A[i][i];
+   }
+
+   //Calculate L^T x = y
+   for (row = DOF - 1; row >= 0; row--) {
+      x[row] = buf[row];
+      for (i = row + 1; i < DOFl i++) {
+         x[row] -= A[i][row] * x[i];
+      }
+   }
+}
+
 void PositionTrackFull3D::setCameraParams(double fx, double fy, double cx, double cy, double tx, double ty) {
 
    this->fx = fx;

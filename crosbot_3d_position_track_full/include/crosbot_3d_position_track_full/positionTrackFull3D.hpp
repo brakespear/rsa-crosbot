@@ -19,6 +19,8 @@
 using namespace std;
 using namespace crosbot;
 
+#define DOF 6
+
 class PositionTrackFull3DNode;
 class PositionTrackFull3D {
 public:
@@ -201,6 +203,9 @@ private:
    void clearBlocks();
    void markAllForExtraction();
    void outputAllPoints(int numPoints, vector<uint8_t>& allPoints);
+
+   //Solve Ax = b. Requires A to be symmetric. Only looks at bottom left of A
+   void solveCholesky(float A[DOF][DOF], float b[DOF], float x[DOF]);
 
    /*
     * GPU helper methods
