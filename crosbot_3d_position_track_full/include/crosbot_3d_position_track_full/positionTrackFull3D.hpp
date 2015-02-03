@@ -160,6 +160,9 @@ private:
    oclColourPoints *colourFrame;
    cl_mem clColourFrame;
    size_t sizeColourPoints;
+   cl_mem clDepthFrameXYZ;
+   cl_mem clNormalsFrame;
+   size_t sizeDepthFrameXYZ;
    cl_mem clLocalMapBlocks;
    cl_mem clLocalMapCells;
    cl_mem clLocalMapCommon;
@@ -168,6 +171,7 @@ private:
    size_t numPointsOffset;
    size_t numBlocksToDeleteOffset;
    size_t highestBlockNumOffset;
+   size_t icpResultsOffset;
    cl_mem clPointCloud;
    cl_mem clColours;
    cl_mem clNormals;
@@ -180,6 +184,8 @@ private:
    int numActiveBlocks;
    //Current highest block num
    int highestBlockNum;
+   //The ICP pose from the previous frame
+   tf::Transform oldICP;
 
    //local map infos
    LocalMapInfoPtr newLocalMapInfo;
@@ -203,6 +209,8 @@ private:
    void clearBlocks();
    void markAllForExtraction();
    void outputAllPoints(int numPoints, vector<uint8_t>& allPoints);
+   void calculateNormals();
+   void alignICP(tf::Transform sensorPose, tf::Transform newPose);
 
    //Solve Ax = b. Requires A to be symmetric. Only looks at bottom left of A
    void solveCholesky(float A[DOF][DOF], float b[DOF], float x[DOF]);

@@ -25,7 +25,9 @@ const string PositionTrackFull3D::kernel_names[] = {
    "markAllForExtraction",
    "extractPoints",
    "transformPoints",
-   "clearBlocks"
+   "clearBlocks",
+   "calculateNormals",
+   "fastICP"
 };
 const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kernel_names[0]);
 #define CLEAR_LOCAL_MAP 0
@@ -37,6 +39,8 @@ const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kerne
 #define EXTRACT_POINTS 6
 #define TRANSFORM_POINTS 7
 #define CLEAR_BLOCKS 8
+#define CALCULATE_NORMALS 9
+#define FAST_ICP 10
 
 PositionTrackFull3D::PositionTrackFull3D() {
    opencl_manager = new OpenCLManager();
@@ -69,8 +73,8 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("MaxNumActiveBlocks", MaxNumActiveBlocks, 2500);
    paramNH.param<double>("CellSize", CellSize, 0.025);
    paramNH.param<double>("BlockSize", BlockSize, 0.2);
-   paramNH.param<double>("TruncNeg", TruncNeg, 0.2);
-   paramNH.param<double>("TruncPos", TruncPos, 0.3);
+   paramNH.param<double>("TruncNeg", TruncNeg, 0.4);
+   paramNH.param<double>("TruncPos", TruncPos, 0.5);
    paramNH.param<bool>("UseOccupancyForSurface", UseOccupancyForSurface, true);
    paramNH.param<double>("MaxDistance", MaxDistance, 8.0);
    //If have cell size of 0.0125, use SliceMult = 1, MaxPointsFrac = 2,
@@ -172,6 +176,9 @@ void PositionTrackFull3D::initialiseFrame(const sensor_msgs::ImageConstPtr& dept
       rgbImage->width << " " << rgbImage->height << " " << rgbImage->header.frame_id << endl;
 
    cout << "Position track full 3D: finished compile" << endl;
+
+   oldICP = icpPose.toTF();
+   icpFullPose = icpPose;
 }
 
 Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthImage,
@@ -186,18 +193,21 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    }     
 
    convertFrame(depthImage, rgbImage);
-  
-   //TODO: do this properly when have icp working
-   icpFullPose = icpPose;
+
+   tf::Transform temp = icpFullPose.toTF() * oldICP.inverse();
+   oldICP = icpPose.toTF();
+   tf::Transform newFullPose = temp * oldICP;
+   icpFullPose = newFullPose;
 
    //preprocessing of points (only used for icp) - normals, filtering and different res's
-
+   calculateNormals();
 
    //icp itself
+   alignICP(sensorPose.toTF(), newFullPose);
    
 
    //add frame
-   tf::Transform offset = icpFullPose.toTF() * sensorPose.toTF();
+   tf::Transform offset = newFullPose * sensorPose.toTF();
    checkBlocksExist(numDepthPoints, offset);
    readBuffer(clLocalMapCommon, CL_TRUE, numActiveBlocksOffset, 
          sizeof(int), &numActiveBlocks, 0, 0, 0, "Reading num active blocks");
@@ -313,6 +323,10 @@ void PositionTrackFull3D::initialiseImages() {
    sizeColourPoints = sizeof(unsigned char) * numDepthPoints * 3;
    clColourFrame = opencl_manager->deviceAlloc(sizeColourPoints, CL_MEM_READ_WRITE, NULL);
 
+   sizeDepthFrameXYZ = sizeof(ocl_float) * numDepthPoints * 3;
+   clDepthFrameXYZ = opencl_manager->deviceAlloc(sizeDepthFrameXYZ, CL_MEM_READ_WRITE, NULL);
+   clNormalsFrame = opencl_manager->deviceAlloc(sizeDepthFrameXYZ, CL_MEM_READ_WRITE, NULL);
+
    clPointCloud = opencl_manager->deviceAlloc(sizeof(ocl_float) * MaxPoints * 3, 
          CL_MEM_READ_WRITE, NULL);
    clColours = opencl_manager->deviceAlloc(sizeof(unsigned char) * MaxPoints * 3,
@@ -332,7 +346,8 @@ void PositionTrackFull3D::initialiseLocalMap() {
    clLocalMapCells = opencl_manager->deviceAlloc(localBlockSize * NumBlocksAllocated, 
          CL_MEM_READ_WRITE, NULL);
 
-   size_t commonSize = sizeof(ocl_int) * (6 + MaxNumActiveBlocks + 3*NumBlocksAllocated);
+   size_t commonSize = sizeof(ocl_int) * (6 + MaxNumActiveBlocks + 3*NumBlocksAllocated) +
+      sizeof(ocl_float) * NUM_RESULTS;
    clLocalMapCommon = opencl_manager->deviceAlloc(commonSize,
          CL_MEM_READ_WRITE, NULL);
 
@@ -344,6 +359,7 @@ void PositionTrackFull3D::initialiseLocalMap() {
    numBlocksToDeleteOffset = (unsigned char *)&(com.numBlocksToDelete) - 
       (unsigned char *)&(com);
    highestBlockNumOffset = (unsigned char *)&(com.highestBlockNum) - (unsigned char *)&(com);
+   icpResultsOffset = (unsigned char *)&(com.icpResults) - (unsigned char *)&(com);
 
 }
 
@@ -461,7 +477,7 @@ void PositionTrackFull3D::checkBlocksExist(int numDepthPoints, tf::Transform tra
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCommon);
    opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCells);
-   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrame);
+   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
    opencl_task->setArg(5, kernelI, sizeof(int), &numDepthPoints);
    opencl_task->setArg(6, kernelI, sizeof(ocl_int3), &mapCentre);
    opencl_task->setArg(7, kernelI, sizeof(ocl_float3), &clOrigin);
@@ -733,18 +749,188 @@ void PositionTrackFull3D::outputAllPoints(int numPoints, vector<uint8_t>& allPoi
    positionTrack3DNode->publishAllPoints();
 }
 
+void PositionTrackFull3D::calculateNormals() {
+
+   int kernelI = CALCULATE_NORMALS;
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clNormalsFrame);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clDepthFrame);
+   opencl_task->setArg(4, kernelI, sizeof(int), &numDepthPoints);
+   int globalSize = getGlobalWorkSize(numDepthPoints);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+}
+
+void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPose) {
+
+   int kernelI = FAST_ICP;
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCells);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCommon);
+   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
+   opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clNormalsFrame);
+   opencl_task->setArg(6, kernelI, sizeof(int), &numDepthPoints);
+   opencl_task->setArg(7, kernelI, sizeof(ocl_int3), &mapCentre);
+   int globalSize = getGlobalWorkSize(numDepthPoints);
+
+   ocl_float zero[NUM_RESULTS];
+   memset(zero, 0, sizeof(ocl_float) * NUM_RESULTS);
+   ocl_float rawResults[NUM_RESULTS];
+
+   float A[DOF][DOF];
+   float b[DOF];
+   float x[DOF];
+
+   tf::Transform start = newPose * sensorPose;
+   tf::Transform curTrans = start;
+
+   Pose startPose = curTrans;
+   cout << "Start pose is: " << startPose.position.x << " " << startPose.position.y << " " <<
+         startPose.position.z << endl;
+
+   int i;
+   for (i = 0; i < 5; i++) {
+
+      writeBuffer(clLocalMapCommon, CL_FALSE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
+            zero, 0, 0, 0, "Zeroing the icp results array");
+      /*Pose curPose = curTrans;
+      cout << "Now pose is: " << curPose.position.x << " " << curPose.position.y << " " <<
+         curPose.position.z << endl;*/
+
+      tf::Matrix3x3 basis = curTrans.getBasis();
+      tf::Vector3 origin = curTrans.getOrigin();
+
+      ocl_float3 clBasis[3];
+      ocl_float3 clOrigin;
+      for (int j = 0; j < 3; j++) {
+         clBasis[j].x = basis[j][0];
+         clBasis[j].y = basis[j][1];
+         clBasis[j].z = basis[j][2];
+      }
+      clOrigin.x = origin[0];
+      clOrigin.y = origin[1];
+      clOrigin.z = origin[2];
+   
+      opencl_task->setArg(8, kernelI, sizeof(ocl_float3), &clOrigin);
+      opencl_task->setArg(9, kernelI, sizeof(ocl_float3), &clBasis[0]);
+      opencl_task->setArg(10, kernelI, sizeof(ocl_float3), &clBasis[1]);
+      opencl_task->setArg(11, kernelI, sizeof(ocl_float3), &clBasis[2]);
+
+      opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+   
+      readBuffer(clLocalMapCommon, CL_TRUE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
+            rawResults, 0, 0, 0, "Reading the icp results");
+
+      A[0][0] = rawResults[0];
+      A[1][0] = rawResults[1];
+      A[1][1] = rawResults[2];
+      A[2][0] = rawResults[3];
+      A[2][1] = rawResults[4];
+      A[2][2] = rawResults[5];
+      A[3][0] = rawResults[6];
+      A[3][1] = rawResults[7];
+      A[3][2] = rawResults[8];
+      A[3][3] = rawResults[9];
+      A[4][0] = rawResults[10];
+      A[4][1] = rawResults[11];
+      A[4][2] = rawResults[12];
+      A[4][3] = rawResults[13];
+      A[4][4] = rawResults[14];
+      A[5][0] = rawResults[15];
+      A[5][1] = rawResults[16];
+      A[5][2] = rawResults[17];
+      A[5][3] = rawResults[18];
+      A[5][4] = rawResults[19];
+      A[5][5] = rawResults[20];
+      b[0] = rawResults[21];
+      b[1] = rawResults[22];
+      b[2] = rawResults[23];
+      b[3] = rawResults[24];
+      b[4] = rawResults[25];
+      b[5] = rawResults[26];
+
+      /*cout << "Raw results: ";
+      for (int j = 0; j < 27; j++) {
+         cout << rawResults[j] << " ";
+      }
+      cout << endl;*/
+
+      cout << "Num points used: " << rawResults[28] << " average distance:" << rawResults[27]/rawResults[28] << endl; 
+
+      solveCholesky(A, b, x);
+
+      /*float check[6];
+      check[0] = rawResults[0] * x[0] + rawResults[1] * x[1] + rawResults[3] * x[2] +
+         rawResults[6] * x[3] + rawResults[10] * x[4] + rawResults[15] * x[5];
+      check[1] = rawResults[1] * x[0] + rawResults[2] * x[1] + rawResults[4] * x[2] +
+         rawResults[7] * x[3] + rawResults[11] * x[4] + rawResults[16] * x[5];
+      check[2] = rawResults[3] * x[0] + rawResults[4] * x[1] + rawResults[5] * x[2] +
+         rawResults[8] * x[3] + rawResults[12] * x[4] + rawResults[17] * x[5];
+      check[3] = rawResults[6] * x[0] + rawResults[7] * x[1] + rawResults[8] * x[2] +
+         rawResults[9] * x[3] + rawResults[13] * x[4] + rawResults[18] * x[5];
+      check[4] = rawResults[10] * x[0] + rawResults[11] * x[1] + rawResults[12] * x[2] +
+         rawResults[13] * x[3] + rawResults[14] * x[4] + rawResults[19] * x[5];
+      check[5] = rawResults[15] * x[0] + rawResults[16] * x[1] + rawResults[17] * x[2] +
+         rawResults[18] * x[3] + rawResults[19] * x[4] + rawResults[20] * x[5];
+      cout << "The results are: " << endl;
+      for (int j = 0; j < DOF; j++) {
+         cout << check[j] << " " << b[j] << endl;
+      }*/
+
+
+
+      bool valid = true;
+      for (int j = 0; j < DOF; j++) {
+         if (isnan(x[j])) {
+            valid = false;
+         }
+         x[j] /= (float)(i + 1);
+      }
+      if (!valid) {
+         cout << "Alignment failed" << endl;
+         break;
+      }
+
+      tf::Vector3 incVec(x[3], x[4], x[5]);
+      //tf::Matrix3x3 incMat(1, x[2], -x[1], -x[2], 1, x[0], x[1], -x[0], 1);
+      tf::Matrix3x3 incMat;
+      incMat.setEulerYPR(x[2], x[0], x[1]);
+      tf::Transform inc(incMat, incVec);
+      Pose incPose = inc;
+      double r,p,y;
+      incPose.getYPR(y,p,r);
+      cout << "Increment is: " << incPose.position.x << " " << incPose.position.y << " " <<
+         incPose.position.z << " " << y << " " << p << " " << r << endl;
+
+      cout << y << " " << p << " " << r << "  " << x[0] << " " << x[1] << " " << x[2] << endl;
+      //y = 0, p = 0, r = 0;
+      //incPose.setYPR(y,p,r);
+      incPose.position.x = 0;
+      incPose.position.y = 0;
+      incPose.position.z = 0;
+      inc = incPose.toTF();
+      curTrans = inc * curTrans;
+   }
+   Pose endPose = curTrans;
+   cout << "End pose is: " << endPose.position.x << " " << endPose.position.y << " " <<
+       endPose.position.z << endl;
+   icpFullPose = curTrans * sensorPose.inverse();
+
+}
+
 void PositionTrackFull3D::solveCholesky(float A[DOF][DOF], float b[DOF], float x[DOF]) {
 
    int col, row, i;
    float buf[DOF];
    float sum;
 
-   //Claculate LDL^T factorisation of A
+   //Calculate LDL^T factorisation of A
    for (row = 0; row < DOF; row++) {
       //Calculate L
       for (col = 0; col < row; col++) {
          sum = 0;
-         for (i = 0; i < col i++) {
+         for (i = 0; i < col; i++) {
             sum += A[row][i] * A[col][i] * A[i][i];
          }
          A[row][col] = (1 / A[col][col]) * (A[row][col] - sum);
@@ -759,7 +945,7 @@ void PositionTrackFull3D::solveCholesky(float A[DOF][DOF], float b[DOF], float x
    //Calculate Lz = b
    for (row = 0; row < DOF; row++) {
       buf[row] = b[row];
-      for (i = 0; i < row - 1; i++) {
+      for (i = 0; i < row; i++) {
          buf[row] -= A[row][i] * buf[i];
       }
    }
@@ -772,7 +958,7 @@ void PositionTrackFull3D::solveCholesky(float A[DOF][DOF], float b[DOF], float x
    //Calculate L^T x = y
    for (row = DOF - 1; row >= 0; row--) {
       x[row] = buf[row];
-      for (i = row + 1; i < DOFl i++) {
+      for (i = row + 1; i < DOF; i++) {
          x[row] -= A[i][row] * x[i];
       }
    }

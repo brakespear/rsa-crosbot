@@ -8,6 +8,8 @@
 #ifndef OPENCL_COMMON_H_
 #define OPENCL_COMMON_H_
 
+#define NUM_RESULTS 29
+
 //Vectors have different names in host code and kernel code. Kernel code
 //will be compiled with CL_RUNTIME flag set
 #ifdef CL_RUNTIME
@@ -111,6 +113,7 @@ typedef struct {
    ocl_int numBlocksToExtract;
    ocl_int numPoints;
    ocl_int numBlocksToDelete;
+   ocl_float icpResults[NUM_RESULTS];
 #ifdef CL_RUNTIME
    ocl_int activeBlocks[MAX_NUM_ACTIVE_BLOCKS];
    ocl_int emptyBlocks[NUM_BLOCKS_ALLOCATED];

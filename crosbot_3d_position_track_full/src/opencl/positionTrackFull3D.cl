@@ -726,51 +726,51 @@ float3 getNormal(constant oclPositionTrackConfig *config, global int *blocks,
    float xH = NAN, xL = NAN, yH = NAN, yL = NAN, zL = NAN, zH = NAN;
 
    if (xI + 1 >= config->NumCellsWidth) {
-      int bI = getBlockAdjX(config, localMapCells[blocks[blockI]].blockIndex, 1, cent.x);
-      if (blockI >= 0 && blocks[blockI] >= 0) {
-         xH = localMapCells[blocks[blockI]].distance[cellI - xI];
+      int bI = getBlockAdjX(config, blockI, 1, cent.x);
+      if (bI >= 0 && blocks[bI] >= 0) {
+         xH = localMapCells[blocks[bI]].distance[cellI - xI];
       }
    } else {
       xH = localMapCells[blocks[blockI]].distance[cellI + 1];
    }
    if (xI - 1 < 0) {
-      int bI = getBlockAdjX(config, localMapCells[blocks[blockI]].blockIndex, -1, cent.x);
-      if (blockI >= 0 && blocks[blockI] >= 0) {
-         xL = localMapCells[blocks[blockI]].distance[cellI + config->NumCellsWidth - 1];
+      int bI = getBlockAdjX(config, blockI, -1, cent.x);
+      if (bI >= 0 && blocks[bI] >= 0) {
+         xL = localMapCells[blocks[bI]].distance[cellI + config->NumCellsWidth - 1];
       }
    } else {
       xL = localMapCells[blocks[blockI]].distance[cellI - 1];
    }
    if (yI + 1 >= config->NumCellsWidth) {
-      int bI = getBlockAdjY(config, localMapCells[blocks[blockI]].blockIndex, 1, cent.y);
-      if (blockI >= 0 && blocks[blockI] >= 0) {
-         yH = localMapCells[blocks[blockI]].distance[cellI - yI * config->NumCellsWidth];
+      int bI = getBlockAdjY(config, blockI, 1, cent.y);
+      if (bI >= 0 && blocks[bI] >= 0) {
+         yH = localMapCells[blocks[bI]].distance[cellI - yI * config->NumCellsWidth];
       }
    } else {
       yH = localMapCells[blocks[blockI]].distance[cellI + config->NumCellsWidth];
    }
    if (yI - 1 < 0) {
-      int bI = getBlockAdjY(config, localMapCells[blocks[blockI]].blockIndex, -1, cent.y);
-      if (blockI >= 0 && blocks[blockI] >= 0) {
-         yL = localMapCells[blocks[blockI]].distance[cellI + config->NumCellsWidth * 
+      int bI = getBlockAdjY(config, blockI, -1, cent.y);
+      if (bI >= 0 && blocks[bI] >= 0) {
+         yL = localMapCells[blocks[bI]].distance[cellI + config->NumCellsWidth * 
             (config->NumCellsWidth - 1)];
       }
    } else {
       yL = localMapCells[blocks[blockI]].distance[cellI - config->NumCellsWidth];
    }
    if (zI + 1 >= config->NumCellsWidth) {
-      int bI = getBlockAdjZ(config, localMapCells[blocks[blockI]].blockIndex, 1, cent.z);
-      if (blockI >= 0 && blocks[blockI] >= 0) {
-         zH = localMapCells[blocks[blockI]].distance[xI + yI * config->NumCellsWidth];
+      int bI = getBlockAdjZ(config, blockI, 1, cent.z);
+      if (bI >= 0 && blocks[bI] >= 0) {
+         zH = localMapCells[blocks[bI]].distance[xI + yI * config->NumCellsWidth];
       }
    } else {
       zH = localMapCells[blocks[blockI]].distance[cellI + config->NumCellsWidth * 
          config->NumCellsWidth];
    }
    if (zI - 1 < 0) {
-      int bI = getBlockAdjZ(config, localMapCells[blocks[blockI]].blockIndex, -1, cent.z);
-      if (blockI >= 0 && blocks[blockI] >= 0) {
-         zL = localMapCells[blocks[blockI]].distance[cellI + config->NumCellsWidth * 
+      int bI = getBlockAdjZ(config, blockI, -1, cent.z);
+      if (bI >= 0 && blocks[bI] >= 0) {
+         zL = localMapCells[blocks[bI]].distance[cellI + config->NumCellsWidth * 
             config->NumCellsWidth * (config->NumCellsWidth - 1)];
       }
    } else {
@@ -982,7 +982,7 @@ __kernel void clearBlocks(constant oclPositionTrackConfig *config,
    }
 }
 
-__kernel void calculateNormals(const oclPositionTrackConfig *config, 
+__kernel void calculateNormals(constant oclPositionTrackConfig *config, 
    global oclDepthPoints *points, global oclDepthPoints *normals,
    global float *depthP, const int numPoints) {
 
@@ -992,8 +992,8 @@ __kernel void calculateNormals(const oclPositionTrackConfig *config,
       int u = index % config->ImageWidth;
       int v = index / config->ImageWidth;
       int xPlusInd = index + 1;
-      int yPlusInd = index + config->ScanWidth;
-      if (x < config->Imagewidth - 1 && y < config->ImageHeight - 1 &&
+      int yPlusInd = index + config->ImageWidth;
+      if (u < config->ImageWidth - 1 && v < config->ImageHeight - 1 &&
             !isnan(depthP[xPlusInd]) && !isnan(depthP[yPlusInd])) {
          
          float3 point = convertPixelToPoint(config, u, v, depthP[index]);
@@ -1028,46 +1028,135 @@ __kernel void calculateNormals(const oclPositionTrackConfig *config,
 /*
  * Perform fast ICP method on map points
  */
-__kernel void fastICP(const oclPositionTrackConfig *config, global int *blocks,
+__kernel void fastICP(constant oclPositionTrackConfig *config, global int *blocks,
       global oclLocalBlock *localMapCells, global oclLocalMapCommon *common,
       global oclDepthPoints *points, global oclDepthPoints *normals, const int numPoints,
       const int3 cent, const float3 origin, const float3 rotation0, 
       const float3 rotation1, const float3 rotation2) {
 
    int gIndex = get_global_id(0);
+   int lIndex = get_local_id(0);
+   int wIndex = lIndex % WARP_SIZE;
 
-   if (gIndex < numPoints && !isnan(points->x[index])) {
+   local float results[WARP_SIZE][NUM_RESULTS];
+   local int goodCount[WARP_SIZE];
+   int i;
+
+   if (lIndex < WARP_SIZE) {
+      for (i = 0; i < NUM_RESULTS; i++) {
+         results[lIndex][i] = 0.0f;
+      }
+      goodCount[lIndex] = 0;
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+
+   if (gIndex < numPoints && !isnan(points->x[gIndex])) {
       int3 centMod;
       centMod.x = cent.x % config->NumBlocksWidth;
       centMod.y = cent.y % config->NumBlocksWidth;
       centMod.z = cent.z % config->NumBlocksHeight;
 
-      float3 point = (float3)(points->x[index], points->y[index], points->z[index]);
+      float3 point = (float3)(points->x[gIndex], points->y[gIndex], points->z[gIndex]);
       float3 transP = transformPoint(point, origin, rotation0, rotation1, rotation2);
       float3 zero = (float3) (0.0f, 0.0f, 0.0f);
-      float3 frameNormal = (float3)(normals->x[index], normals->y[index], normals->z[index]);
+      float3 frameNormal = (float3)(normals->x[gIndex], normals->y[gIndex], normals->z[gIndex]);
       frameNormal = transformPoint(frameNormal, zero, rotation0, rotation1, rotation2);
+      frameNormal = normalize(frameNormal);
 
       int bIndex = getBlockIndex(config, transP, cent, centMod);
+
       if (bIndex >= 0 && blocks[bIndex] >= 0) {
          int bI = blocks[bIndex];
          int cIndex = getCellIndex(config, transP);
 
          float3 normal = getNormal(config, blocks, localMapCells, 
                   cent, bIndex, cIndex);
+         if (!isnan(normal.x) && !isnan(localMapCells[bI].distance[cIndex])) {
 
-         //now:
-         //normal is N
-         //point is V
-         //need to find Vm - find centre of cell point is in. go distance in opposite
-         //direction to normal from centre of cell. This point is Vm
+            float3 vm = point - (normal * localMapCells[bI].distance[cIndex]);
 
-         //localMapCells[bI].distance[cIndex]
 
-         //Then can solve equation
-         //Ten can work everything out
+            if (fabs(localMapCells[bI].distance[cIndex]) < 0.2f &&
+                  frameNormal.x * normal.x + frameNormal.y * normal.y +
+                  frameNormal.z * normal.z > 0.75f) {
 
-      
+
+            float a = normal.y * point.z - normal.z * point.y;
+            float b = -normal.x * point.z + normal.z * point.x;
+            float c = normal.x * point.y - normal.y * point.x;
+            float d = normal.x;
+            float e = normal.y;
+            float f = normal.z;
+            float normScale = normal.x * (vm.x - point.x) + 
+                              normal.y * (vm.y - point.y) +
+                              normal.z * (vm.z - point.z);
+
+            atomicFloatAddLocal(&(results[wIndex][0]), a*a);
+            atomicFloatAddLocal(&(results[wIndex][1]), a*b);
+            atomicFloatAddLocal(&(results[wIndex][2]), b*b);
+            atomicFloatAddLocal(&(results[wIndex][3]), a*c);
+            atomicFloatAddLocal(&(results[wIndex][4]), c*b);
+            atomicFloatAddLocal(&(results[wIndex][5]), c*c);
+            atomicFloatAddLocal(&(results[wIndex][6]), a*d);
+            atomicFloatAddLocal(&(results[wIndex][7]), d*b);
+            atomicFloatAddLocal(&(results[wIndex][8]), d*c);
+            atomicFloatAddLocal(&(results[wIndex][9]), d*d);
+            atomicFloatAddLocal(&(results[wIndex][10]), a*e);
+            atomicFloatAddLocal(&(results[wIndex][11]), b*e);
+            atomicFloatAddLocal(&(results[wIndex][12]), c*e);
+            atomicFloatAddLocal(&(results[wIndex][13]), d*e);
+            atomicFloatAddLocal(&(results[wIndex][14]), e*e);
+            atomicFloatAddLocal(&(results[wIndex][15]), a*f);
+            atomicFloatAddLocal(&(results[wIndex][16]), b*f);
+            atomicFloatAddLocal(&(results[wIndex][17]), c*f);
+            atomicFloatAddLocal(&(results[wIndex][18]), d*f);
+            atomicFloatAddLocal(&(results[wIndex][19]), e*f);
+            atomicFloatAddLocal(&(results[wIndex][20]), f*f);
+            atomicFloatAddLocal(&(results[wIndex][21]), normScale * a);
+            atomicFloatAddLocal(&(results[wIndex][22]), normScale * b);
+            atomicFloatAddLocal(&(results[wIndex][23]), normScale * c);
+            atomicFloatAddLocal(&(results[wIndex][24]), normScale * d);
+            atomicFloatAddLocal(&(results[wIndex][25]), normScale * e);
+            atomicFloatAddLocal(&(results[wIndex][26]), normScale * f);
+
+            atomic_inc(&(goodCount[wIndex]));
+            atomicFloatAddLocal(&(results[wIndex][27]), localMapCells[bI].distance[cIndex]);
+            }
+
+         }
+      }
    }
-
+   barrier(CLK_LOCAL_MEM_FENCE);
+   if (lIndex < 16 && WARP_SIZE==32) {
+      for(i = 0; i < NUM_RESULTS; i++) {
+         results[lIndex][i] += results[lIndex + 16][i];
+      }
+      goodCount[lIndex] += goodCount[lIndex + 16];
+   }
+   if (lIndex < 8) {
+      for(i = 0; i < NUM_RESULTS; i++) {
+         results[lIndex][i] += results[lIndex + 8][i];
+      }
+      goodCount[lIndex] += goodCount[lIndex + 8];
+   }
+   if (lIndex < 4) {
+      for(i = 0; i < NUM_RESULTS; i++) {
+         results[lIndex][i] += results[lIndex + 4][i];
+      }
+      goodCount[lIndex] += goodCount[lIndex + 4];
+   }
+   if (lIndex < 2) {
+      for(i = 0; i < NUM_RESULTS; i++) {
+         results[lIndex][i] += results[lIndex + 2][i];
+      }
+      goodCount[lIndex] += goodCount[lIndex + 2];
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+   if (lIndex < NUM_RESULTS) {
+      atomicFloatAdd(&(common->icpResults[lIndex]), results[0][lIndex] + results[1][lIndex]);
+   }
+   if (lIndex == 0) {
+   //   atomic_add(&(common->goodCount), goodCount[0] + goodCount[1]);
+      atomicFloatAdd(&(common->icpResults[28]), goodCount[0] + goodCount[1]);
+   }
 }
