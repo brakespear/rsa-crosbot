@@ -988,7 +988,7 @@ __kernel void bilateralFilter(constant oclPositionTrackConfig *config,
    int index = get_global_id(0);
 
    int windowSize = 3;
-   float scale = 3;
+   float scale = 9.0f; //it is really scale^2
 
    if (index < numPoints) {
       int u = index % config->ImageWidth;
@@ -1117,6 +1117,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
             float3 vm = point - (normal * localMapCells[bI].distance[cIndex]);
 
             //Things to try:
+            //First try to different order of a,b,c to see if it makes a difference
             //Look up point vm and check to see if distance is less
             //Use normal from point vm area
             //Only use is point vm is occupied??
@@ -1134,6 +1135,9 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
             float a = normal.y * point.z - normal.z * point.y;
             float b = -normal.x * point.z + normal.z * point.x;
             float c = normal.x * point.y - normal.y * point.x;
+            /*float a = normal.z * point.y - normal.y * point.z;
+            float b = normal.x * point.z - normal.z * point.x;
+            float c = normal.y * point.x - normal.x * point.y;*/
             float d = normal.x;
             float e = normal.y;
             float f = normal.z;
