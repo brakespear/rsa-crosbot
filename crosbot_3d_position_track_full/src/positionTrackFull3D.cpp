@@ -969,7 +969,7 @@ void PositionTrackFull3D::solveCholesky(float A[DOF][DOF], float b[DOF], float x
 }
 
 void PositionTrackFull3D::bilateralFilter() {
-   int kernelI = CALCULATE_NORMALS;
+   int kernelI = BILATERAL_FILTER;
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clDepthFrame);
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clFiltDepthFrame);
