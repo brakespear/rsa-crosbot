@@ -156,6 +156,7 @@ private:
    cl_mem clPositionTrackConfig;
    float *depthFrame;
    cl_mem clDepthFrame;
+   cl_mem clFiltDepthFrame;
    size_t sizeDepthPoints;
    oclColourPoints *colourFrame;
    cl_mem clColourFrame;
@@ -211,6 +212,7 @@ private:
    void outputAllPoints(int numPoints, vector<uint8_t>& allPoints);
    void calculateNormals();
    void alignICP(tf::Transform sensorPose, tf::Transform newPose);
+   void bilateralFilter();
 
    //Solve Ax = b. Requires A to be symmetric. Only looks at bottom left of A
    void solveCholesky(float A[DOF][DOF], float b[DOF], float x[DOF]);

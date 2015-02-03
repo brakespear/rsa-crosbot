@@ -27,7 +27,8 @@ const string PositionTrackFull3D::kernel_names[] = {
    "transformPoints",
    "clearBlocks",
    "calculateNormals",
-   "fastICP"
+   "fastICP",
+   "bilateralFilter"
 };
 const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kernel_names[0]);
 #define CLEAR_LOCAL_MAP 0
@@ -41,6 +42,7 @@ const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kerne
 #define CLEAR_BLOCKS 8
 #define CALCULATE_NORMALS 9
 #define FAST_ICP 10
+#define BILATERAL_FILTER 11
 
 PositionTrackFull3D::PositionTrackFull3D() {
    opencl_manager = new OpenCLManager();
@@ -200,6 +202,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    icpFullPose = newFullPose;
 
    //preprocessing of points (only used for icp) - normals, filtering and different res's
+   bilateralFilter();
    calculateNormals();
 
    //icp itself
@@ -315,6 +318,7 @@ void PositionTrackFull3D::initialiseImages() {
    depthFrame = new float[imageWidth * imageHeight];
    sizeDepthPoints = sizeof(ocl_float) * numDepthPoints;
    clDepthFrame = opencl_manager->deviceAlloc(sizeDepthPoints, CL_MEM_READ_WRITE, NULL);
+   clFiltDepthFrame = opencl_manager->deviceAlloc(sizeDepthPoints, CL_MEM_READ_WRITE, NULL);
 
    colourFrame = new oclColourPoints;
    colourFrame->r = new unsigned char[numDepthPoints * 3];
@@ -755,7 +759,7 @@ void PositionTrackFull3D::calculateNormals() {
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clNormalsFrame);
-   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clDepthFrame);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clFiltDepthFrame);
    opencl_task->setArg(4, kernelI, sizeof(int), &numDepthPoints);
    int globalSize = getGlobalWorkSize(numDepthPoints);
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
@@ -893,9 +897,9 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
       }
 
       tf::Vector3 incVec(x[3], x[4], x[5]);
-      //tf::Matrix3x3 incMat(1, x[2], -x[1], -x[2], 1, x[0], x[1], -x[0], 1);
-      tf::Matrix3x3 incMat;
-      incMat.setEulerYPR(x[2], x[0], x[1]);
+      tf::Matrix3x3 incMat(1, x[2], -x[1], -x[2], 1, x[0], x[1], -x[0], 1);
+      //tf::Matrix3x3 incMat;
+      //incMat.setEulerYPR(x[2], x[0], x[1]);
       tf::Transform inc(incMat, incVec);
       Pose incPose = inc;
       double r,p,y;
@@ -906,10 +910,10 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
       cout << y << " " << p << " " << r << "  " << x[0] << " " << x[1] << " " << x[2] << endl;
       //y = 0, p = 0, r = 0;
       //incPose.setYPR(y,p,r);
-      incPose.position.x = 0;
-      incPose.position.y = 0;
-      incPose.position.z = 0;
-      inc = incPose.toTF();
+      //incPose.position.x = 0;
+      //incPose.position.y = 0;
+      //incPose.position.z = 0;
+      //inc = incPose.toTF();
       curTrans = inc * curTrans;
    }
    Pose endPose = curTrans;
@@ -962,6 +966,17 @@ void PositionTrackFull3D::solveCholesky(float A[DOF][DOF], float b[DOF], float x
          x[row] -= A[i][row] * x[i];
       }
    }
+}
+
+void PositionTrackFull3D::bilateralFilter() {
+   int kernelI = CALCULATE_NORMALS;
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clDepthFrame);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clFiltDepthFrame);
+   opencl_task->setArg(3, kernelI, sizeof(int), &numDepthPoints);
+   int globalSize = getGlobalWorkSize(numDepthPoints);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+
 }
 
 void PositionTrackFull3D::setCameraParams(double fx, double fy, double cx, double cy, double tx, double ty) {

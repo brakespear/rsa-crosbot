@@ -982,6 +982,47 @@ __kernel void clearBlocks(constant oclPositionTrackConfig *config,
    }
 }
 
+__kernel void bilateralFilter(constant oclPositionTrackConfig *config,
+      global float *depthP, gloat float *depthOut, const int numPoints) {
+
+   int index = get_global_id(0);
+
+   int windowSize = 3;
+   float scale = 3;
+
+   if (index < numPoints) {
+      int u = index % config->ImageWidth;
+      int v = index / config->ImageWidth;
+      if (isnan(depthP[index]) || u - windowSize < 0 || u + windowSize >= config->ImageWidth ||
+            v - windowSize < 0 || v + windowSize >= config->ImageHeight) {
+         depthOut = NAN;
+      } else {
+         int i,j;
+         float sumWeight = 0.0f;
+         float depth = 0.0f;
+         int valid = 1;
+         for (j = v - windowSize; j <= v + windowSize && valid == 1; j++) {
+            for (i = u - windowSize; i <= u + windowSize && valid == 1; i++) {
+               int iC = j * config->ImageWidth + i;
+               if (isnan(depthP[iC])) {
+                  valid = 0;
+               } else {
+                  float diff = depthP[index] - depthP[iC];
+                  float weight = exp(-(((u-i)*(u-i)+(v-j)*(v-j))/scale)-((diff * diff)/scale));
+                  sumWeight += weight;
+                  depth += depthP[iC] * weight;
+               }
+            }
+         }
+         if (valid == 1) {
+            depthOut[index] = depth /= sumWeight;
+         } else {
+            depthOut[index] = NAN;
+         }
+      }
+   }
+}
+
 __kernel void calculateNormals(constant oclPositionTrackConfig *config, 
    global oclDepthPoints *points, global oclDepthPoints *normals,
    global float *depthP, const int numPoints) {
@@ -1074,6 +1115,15 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
          if (!isnan(normal.x) && !isnan(localMapCells[bI].distance[cIndex])) {
 
             float3 vm = point - (normal * localMapCells[bI].distance[cIndex]);
+
+            //Things to try:
+            //Look up point vm and check to see if distance is less
+            //Use normal from point vm area
+            //Only use is point vm is occupied??
+            //On CPU side:
+            //Limit to one iteration for now??
+            //Limit if stops converging (error grows bigger)
+            //Work out how if error between point and plane is < 0.2, how I am getting such large movements????
 
 
             if (fabs(localMapCells[bI].distance[cIndex]) < 0.2f &&
