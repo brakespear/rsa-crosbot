@@ -361,7 +361,7 @@ __kernel void checkBlocksExist(constant oclPositionTrackConfig *config,
          int adjZN = getBlockAdjZ(config, bIndex, -1, centMod.z);
          markBlockActive(config, blocks, common, adjZN, 0, cIndex, localMapCells);
          
-         /*int adjXXP = getBlockAdjX(config, adjXP, 1, centMod.x);
+         int adjXXP = getBlockAdjX(config, adjXP, 1, centMod.x);
          markBlockActive(config, blocks, common, adjXXP, 0, cIndex, localMapCells);
          int adjXXN = getBlockAdjX(config, adjXN, -1, centMod.x);
          markBlockActive(config, blocks, common, adjXXN, 0, cIndex, localMapCells);
@@ -372,7 +372,7 @@ __kernel void checkBlocksExist(constant oclPositionTrackConfig *config,
          int adjZZP = getBlockAdjZ(config, adjZP, 1, centMod.z);
          markBlockActive(config, blocks, common, adjZZP, 0, cIndex, localMapCells);
          int adjZZN = getBlockAdjZ(config, adjZN, -1, centMod.z);
-         markBlockActive(config, blocks, common, adjZZN, 0, cIndex, localMapCells);*/
+         markBlockActive(config, blocks, common, adjZZN, 0, cIndex, localMapCells);
 
       }
    }
@@ -983,19 +983,19 @@ __kernel void clearBlocks(constant oclPositionTrackConfig *config,
 }
 
 __kernel void bilateralFilter(constant oclPositionTrackConfig *config,
-      global float *depthP, gloat float *depthOut, const int numPoints) {
+      global float *depthP, global float *depthOut, const int numPoints) {
 
    int index = get_global_id(0);
 
-   int windowSize = 3;
-   float scale = 9.0f; //it is really scale^2
+   int windowSize = 4;
+   float scale = 5.0f; //it is really scale^2
 
    if (index < numPoints) {
       int u = index % config->ImageWidth;
       int v = index / config->ImageWidth;
       if (isnan(depthP[index]) || u - windowSize < 0 || u + windowSize >= config->ImageWidth ||
             v - windowSize < 0 || v + windowSize >= config->ImageHeight) {
-         depthOut = NAN;
+         depthOut[index] = NAN;
       } else {
          int i,j;
          float sumWeight = 0.0f;
@@ -1114,17 +1114,50 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
                   cent, bIndex, cIndex);
          if (!isnan(normal.x) && !isnan(localMapCells[bI].distance[cIndex])) {
 
-            float3 vm = point - (normal * localMapCells[bI].distance[cIndex]);
+            float3 vm = transP - (normal * localMapCells[bI].distance[cIndex]);
 
-            //Things to try:
-            //First try to different order of a,b,c to see if it makes a difference
-            //Look up point vm and check to see if distance is less
-            //Use normal from point vm area
-            //Only use is point vm is occupied??
-            //On CPU side:
-            //Limit to one iteration for now??
-            //Limit if stops converging (error grows bigger)
-            //Work out how if error between point and plane is < 0.2, how I am getting such large movements????
+            int bIndexNew = getBlockIndex(config, vm, cent, centMod);
+            if (bIndexNew >= 0 && blocks[bIndexNew] >= 0) {
+               int cIndexNew = getCellIndex(config, vm);
+               int bINew = blocks[bIndex];
+               normal = getNormal(config, blocks, localMapCells, cent, bIndexNew, cIndexNew);
+               if (!isnan(normal.x) /*&& fabs(localMapCells[bI].distance[cIndex]) > 
+                     fabs(localMapCells[bINew].distance[cIndexNew]) &&
+                     localMapCells[bINew].occupied[cIndexNew] > 0*/) {
+            
+
+            //test code
+            /*float3 vector = normalize(transP - origin);
+            float3 startPos = transP - vector * 0.3f;
+            int sign = 0;
+            for (i = 0; i < 14; i++, startPos += 0.05f * vector) {
+               int bb = getBlockIndex(config, startPos, cent, centMod);
+               if (bb >= 0 && blocks[bb] >= 0) {
+                  int cc = getCellIndex(config, startPos);
+                  float dist = localMapCells[blocks[bb]].distance[cc];
+                  if (isnan(dist)) {
+                     continue;
+                  }
+                  if (sign == 0 && dist > 0) {
+                     sign = 1;
+                  } else if (sign == 0) {
+                     sign = -1;
+                  } else if (sign > 0 && dist < 0) {
+                     break;
+                  } else if (sign < 0 && dist > 0) {
+                     break;
+                  }
+
+               } else {
+                  continue;
+               }
+            }
+            if (i < 14) {
+               int bb = getBlockIndex(config, startPos, cent, centMod);
+               int cc = getCellIndex(config, startPos);
+               normal = getNormal(config, blocks, localMapCells, cent, bb, cc);
+               vm = startPos;
+            }*/
 
 
             if (fabs(localMapCells[bI].distance[cIndex]) < 0.2f &&
@@ -1132,18 +1165,18 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
                   frameNormal.z * normal.z > 0.75f) {
 
 
-            float a = normal.y * point.z - normal.z * point.y;
-            float b = -normal.x * point.z + normal.z * point.x;
-            float c = normal.x * point.y - normal.y * point.x;
-            /*float a = normal.z * point.y - normal.y * point.z;
-            float b = normal.x * point.z - normal.z * point.x;
-            float c = normal.y * point.x - normal.x * point.y;*/
+            /*float a = normal.y * transP.z - normal.z * transP.y;
+            float b = -normal.x * transP.z + normal.z * transP.x;
+            float c = normal.x * transP.y - normal.y * transP.x;*/
+            float a = normal.z * transP.y - normal.y * transP.z;
+            float b = normal.x * transP.z - normal.z * transP.x;
+            float c = normal.y * transP.x - normal.x * transP.y;
             float d = normal.x;
             float e = normal.y;
             float f = normal.z;
-            float normScale = normal.x * (vm.x - point.x) + 
-                              normal.y * (vm.y - point.y) +
-                              normal.z * (vm.z - point.z);
+            float normScale = normal.x * (vm.x - transP.x) + 
+                              normal.y * (vm.y - transP.y) +
+                              normal.z * (vm.z - transP.z);
 
             atomicFloatAddLocal(&(results[wIndex][0]), a*a);
             atomicFloatAddLocal(&(results[wIndex][1]), a*b);
@@ -1175,6 +1208,8 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
 
             atomic_inc(&(goodCount[wIndex]));
             atomicFloatAddLocal(&(results[wIndex][27]), localMapCells[bI].distance[cIndex]);
+            }
+            }
             }
 
          }

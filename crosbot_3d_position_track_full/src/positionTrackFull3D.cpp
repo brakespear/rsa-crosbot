@@ -200,6 +200,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    oldICP = icpPose.toTF();
    tf::Transform newFullPose = temp * oldICP;
    icpFullPose = newFullPose;
+   //tf::Transform newFullPose = icpFullPose.toTF();
 
    //preprocessing of points (only used for icp) - normals, filtering and different res's
    bilateralFilter();
@@ -759,6 +760,7 @@ void PositionTrackFull3D::calculateNormals() {
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clNormalsFrame);
+   //opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clDepthFrame);
    opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clFiltDepthFrame);
    opencl_task->setArg(4, kernelI, sizeof(int), &numDepthPoints);
    int globalSize = getGlobalWorkSize(numDepthPoints);
@@ -790,11 +792,14 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
    tf::Transform curTrans = start;
 
    Pose startPose = curTrans;
+   double y,p,r;
+   startPose.getYPR(y,p,r);
+
    cout << "Start pose is: " << startPose.position.x << " " << startPose.position.y << " " <<
-         startPose.position.z << endl;
+         startPose.position.z << " " << y << " " << p << " " << r << endl;
 
    int i;
-   for (i = 0; i < 5; i++) {
+   for (i = 0; i < 10; i++) {
 
       writeBuffer(clLocalMapCommon, CL_FALSE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
             zero, 0, 0, 0, "Zeroing the icp results array");
@@ -882,14 +887,18 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
          cout << check[j] << " " << b[j] << endl;
       }*/
 
-
+      /*cout << "Results: ";
+      for (int j = 0; j < DOF; j++) {
+         cout << x[j] << " ";
+      }
+      cout << endl;*/
 
       bool valid = true;
       for (int j = 0; j < DOF; j++) {
          if (isnan(x[j])) {
             valid = false;
          }
-         x[j] /= (float)(i + 1);
+         //x[j] /= (float)(i + 1);
       }
       if (!valid) {
          cout << "Alignment failed" << endl;
@@ -897,18 +906,20 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
       }
 
       tf::Vector3 incVec(x[3], x[4], x[5]);
-      tf::Matrix3x3 incMat(1, x[2], -x[1], -x[2], 1, x[0], x[1], -x[0], 1);
+      //tf::Matrix3x3 incMat(1, x[2], -x[1], -x[2], 1, x[0], x[1], -x[0], 1);
+      tf::Matrix3x3 incMat(1, -x[2], x[1], x[2], 1, -x[0], -x[1], x[0], 1);
       //tf::Matrix3x3 incMat;
-      //incMat.setEulerYPR(x[2], x[0], x[1]);
+      //incMat.setEulerYPR(x[2], x[1], x[0]);
       tf::Transform inc(incMat, incVec);
       Pose incPose = inc;
-      double r,p,y;
+      //double r,p,y;
       incPose.getYPR(y,p,r);
-      cout << "Increment is: " << incPose.position.x << " " << incPose.position.y << " " <<
+      cout << rawResults[27]/rawResults[28] << " Increment is: " << incPose.position.x << " " << incPose.position.y << " " <<
          incPose.position.z << " " << y << " " << p << " " << r << endl;
 
-      cout << y << " " << p << " " << r << "  " << x[0] << " " << x[1] << " " << x[2] << endl;
+      //cout << y << " " << p << " " << r << "  " << x[0] << " " << x[1] << " " << x[2] << endl;
       //y = 0, p = 0, r = 0;
+      //y = 0;
       //incPose.setYPR(y,p,r);
       //incPose.position.x = 0;
       //incPose.position.y = 0;
@@ -917,8 +928,9 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
       curTrans = inc * curTrans;
    }
    Pose endPose = curTrans;
+   endPose.getYPR(y,p,r);
    cout << "End pose is: " << endPose.position.x << " " << endPose.position.y << " " <<
-       endPose.position.z << endl;
+       endPose.position.z << " " << y << " " << p << " " << r << endl;
    icpFullPose = curTrans * sensorPose.inverse();
 
 }
