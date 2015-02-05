@@ -327,14 +327,18 @@ void markBlockActive(constant oclPositionTrackConfig *config, global int *blocks
  */
 __kernel void checkBlocksExist(constant oclPositionTrackConfig *config,
       global int *blocks, global oclLocalMapCommon *common,
-      global oclLocalBlock *localMapCells, global oclDepthPoints *points,
+      global oclLocalBlock *localMapCells, global float *depthP,
       const int numPoints, const int3 cent, const float3 origin,
       const float3 rotation0, const float3 rotation1, const float3 rotation2) {
 
    int index = get_global_id(0);
 
-   if (index < numPoints && !isnan(points->x[index])) {
-      float3 point = (float3)(points->x[index], points->y[index], points->z[index]);
+   if (index < numPoints && !isnan(depthP[index])) {
+      int u = index % config->ImageWidth;
+      int v = index / config->ImageWidth;
+         
+      float3 point = convertPixelToPoint(config, u, v, depthP[index]);
+      //float3 point = (float3)(points->x[index], points->y[index], points->z[index]);
 
       //Transform point from camera frame to icp frame
       float3 transP = transformPoint(point, origin, rotation0, rotation1, rotation2);
@@ -361,7 +365,7 @@ __kernel void checkBlocksExist(constant oclPositionTrackConfig *config,
          int adjZN = getBlockAdjZ(config, bIndex, -1, centMod.z);
          markBlockActive(config, blocks, common, adjZN, 0, cIndex, localMapCells);
          
-         int adjXXP = getBlockAdjX(config, adjXP, 1, centMod.x);
+         /*int adjXXP = getBlockAdjX(config, adjXP, 1, centMod.x);
          markBlockActive(config, blocks, common, adjXXP, 0, cIndex, localMapCells);
          int adjXXN = getBlockAdjX(config, adjXN, -1, centMod.x);
          markBlockActive(config, blocks, common, adjXXN, 0, cIndex, localMapCells);
@@ -372,7 +376,7 @@ __kernel void checkBlocksExist(constant oclPositionTrackConfig *config,
          int adjZZP = getBlockAdjZ(config, adjZP, 1, centMod.z);
          markBlockActive(config, blocks, common, adjZZP, 0, cIndex, localMapCells);
          int adjZZN = getBlockAdjZ(config, adjZN, -1, centMod.z);
-         markBlockActive(config, blocks, common, adjZZN, 0, cIndex, localMapCells);
+         markBlockActive(config, blocks, common, adjZZN, 0, cIndex, localMapCells);*/
 
       }
    }
@@ -417,7 +421,7 @@ __kernel void addRequiredBlocks(constant oclPositionTrackConfig *config,
  */
 __kernel void addFrame(constant oclPositionTrackConfig *config, global int *blocks,
       global oclLocalBlock *localMapCells, global oclLocalMapCommon *common, 
-      global float *depthP, global oclColourPoints *colourP, 
+      global float *depthP, global oclColourPoints *colourP, global oclDepthPoints *normals,
       const int numActiveBlocks, const int3 cent,
       const float3 origin, const float3 rotation0, 
       const float3 rotation1, const float3 rotation2) {
@@ -470,7 +474,7 @@ __kernel void addFrame(constant oclPositionTrackConfig *config, global int *bloc
          
          float depthVal = depthP[pointI];
          
-         if (isnan(depthVal)) {
+         if (isnan(depthVal) || isnan(normals->x[pointI])) {
             continue;
          }
          if (cameraFramePoint.z > config->MaxDistance) {
@@ -480,7 +484,11 @@ __kernel void addFrame(constant oclPositionTrackConfig *config, global int *bloc
          //tsdfVal *= -1;
 
 
-         float weightVal = 1.0f /* / cameraFramePoint.z*/;
+         float weightVal = 1.0f  / cameraFramePoint.z;
+         //float3 normalP = (float3)(normals->x[pointI], normals->y[pointI], normals->z[pointI]);
+         //float3 ray = (float3)((u - config->cx - config->tx) / config->fx,
+         //      (v - config->cy - config->ty) / config->fy, 1.0f);
+         //float weightVal = fabs(dot(normalP, fast_normalize(ray))) / cameraFramePoint.z;
 
          if ((tsdfVal >= 0 /*&& tsdfVal < config->TruncPos*/) ||
                (tsdfVal < 0 && tsdfVal * -1.0f < config->TruncNeg)) {
@@ -497,19 +505,20 @@ __kernel void addFrame(constant oclPositionTrackConfig *config, global int *bloc
                float weightPrev = localMapCells[blockI].weight[cIndex];
                localMapCells[blockI].distance[cIndex] = (localMapCells[blockI].distance[cIndex] * weightPrev +
                      tsdfVal * weightVal) / (weightPrev + weightVal);
-               //localMapCells[blockI].r[cIndex] = (unsigned char)((weightPrev * 
-               //         (float)localMapCells[blockI].r[cIndex] +
-               //      weightVal * (float)points->r[pointI]) / (weightVal + weightPrev));
-               //localMapCells[blockI].g[cIndex] = (unsigned char)((weightPrev * 
-               //         (float)localMapCells[blockI].g[cIndex] +
-               //      weightVal * (float)points->g[pointI]) / (weightVal + weightPrev));
-               //localMapCells[blockI].b[cIndex] = (unsigned char)((weightPrev * 
-               //         (float)localMapCells[blockI].b[cIndex] +
-               //      weightVal * (float)points->b[pointI]) / (weightVal + weightPrev));
                
-               localMapCells[blockI].r[cIndex] = colourP->r[pointI];
+               localMapCells[blockI].r[cIndex] = (unsigned char)((weightPrev * 
+                        (float)localMapCells[blockI].r[cIndex] +
+                     weightVal * (float)colourP->r[pointI]) / (weightVal + weightPrev));
+               localMapCells[blockI].g[cIndex] = (unsigned char)((weightPrev * 
+                        (float)localMapCells[blockI].g[cIndex] +
+                     weightVal * (float)colourP->g[pointI]) / (weightVal + weightPrev));
+               localMapCells[blockI].b[cIndex] = (unsigned char)((weightPrev * 
+                        (float)localMapCells[blockI].b[cIndex] +
+                     weightVal * (float)colourP->b[pointI]) / (weightVal + weightPrev));
+               
+               /*localMapCells[blockI].r[cIndex] = colourP->r[pointI];
                localMapCells[blockI].g[cIndex] = colourP->g[pointI];
-               localMapCells[blockI].b[cIndex] = colourP->b[pointI];
+               localMapCells[blockI].b[cIndex] = colourP->b[pointI];*/
                localMapCells[blockI].weight[cIndex] += weightVal;
             } 
          }

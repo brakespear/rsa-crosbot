@@ -62,7 +62,7 @@ void PositionTrackFull3DNode::initialise(ros::NodeHandle& nh) {
    }
    if (OutputCurrentMap) {
       mapPointsPub = nh.advertise<sensor_msgs::PointCloud2>(map_points_pub, 1);
-      allPointsMsg.header.frame_id = icp_frame;
+      allPointsMsg.header.frame_id = icp_frame_z;
       allPointsMsg.is_bigendian = false;
       allPointsMsg.is_dense = true;
       allPointsMsg.height = 1;
@@ -180,6 +180,7 @@ void PositionTrackFull3DNode::publishLocalMap(LocalMapInfoPtr localMap) {
 }
 
 void PositionTrackFull3DNode::publishAllPoints() {
+   cout << "********publishing points***************" << endl;
    allPointsMsg.header.stamp = ros::Time::now();
    allPointsMsg.row_step = allPointsMsg.data.size();
    allPointsMsg.width = allPointsMsg.row_step / allPointsMsg.point_step;

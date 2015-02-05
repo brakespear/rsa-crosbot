@@ -75,8 +75,8 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("MaxNumActiveBlocks", MaxNumActiveBlocks, 2500);
    paramNH.param<double>("CellSize", CellSize, 0.025);
    paramNH.param<double>("BlockSize", BlockSize, 0.2);
-   paramNH.param<double>("TruncNeg", TruncNeg, 0.4);
-   paramNH.param<double>("TruncPos", TruncPos, 0.5);
+   paramNH.param<double>("TruncNeg", TruncNeg, 0.2);
+   paramNH.param<double>("TruncPos", TruncPos, 0.3);
    paramNH.param<bool>("UseOccupancyForSurface", UseOccupancyForSurface, true);
    paramNH.param<double>("MaxDistance", MaxDistance, 8.0);
    //If have cell size of 0.0125, use SliceMult = 1, MaxPointsFrac = 2,
@@ -196,14 +196,14 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
    convertFrame(depthImage, rgbImage);
 
-   tf::Transform temp = icpFullPose.toTF() * oldICP.inverse();
+   /*tf::Transform temp = icpFullPose.toTF() * oldICP.inverse();
    oldICP = icpPose.toTF();
    tf::Transform newFullPose = temp * oldICP;
-   icpFullPose = newFullPose;
-   //tf::Transform newFullPose = icpFullPose.toTF();
+   icpFullPose = newFullPose;*/
+   tf::Transform newFullPose = icpFullPose.toTF();
 
    //preprocessing of points (only used for icp) - normals, filtering and different res's
-   bilateralFilter();
+   //bilateralFilter();
    calculateNormals();
 
    //icp itself
@@ -482,7 +482,7 @@ void PositionTrackFull3D::checkBlocksExist(int numDepthPoints, tf::Transform tra
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCommon);
    opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCells);
-   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
+   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrame);
    opencl_task->setArg(5, kernelI, sizeof(int), &numDepthPoints);
    opencl_task->setArg(6, kernelI, sizeof(ocl_int3), &mapCentre);
    opencl_task->setArg(7, kernelI, sizeof(ocl_float3), &clOrigin);
@@ -529,12 +529,13 @@ void PositionTrackFull3D::addFrame(tf::Transform trans) {
    opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCommon);
    opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrame);
    opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clColourFrame);
-   opencl_task->setArg(6, kernelI, sizeof(int), &numActiveBlocks);
-   opencl_task->setArg(7, kernelI, sizeof(ocl_int3), &mapCentre);
-   opencl_task->setArg(8, kernelI, sizeof(ocl_float3), &clOrigin);
-   opencl_task->setArg(9, kernelI, sizeof(ocl_float3), &clBasis[0]);
-   opencl_task->setArg(10, kernelI, sizeof(ocl_float3), &clBasis[1]);
-   opencl_task->setArg(11, kernelI, sizeof(ocl_float3), &clBasis[2]);
+   opencl_task->setArg(6, kernelI, sizeof(cl_mem), &clNormalsFrame);
+   opencl_task->setArg(7, kernelI, sizeof(int), &numActiveBlocks);
+   opencl_task->setArg(8, kernelI, sizeof(ocl_int3), &mapCentre);
+   opencl_task->setArg(9, kernelI, sizeof(ocl_float3), &clOrigin);
+   opencl_task->setArg(10, kernelI, sizeof(ocl_float3), &clBasis[0]);
+   opencl_task->setArg(11, kernelI, sizeof(ocl_float3), &clBasis[1]);
+   opencl_task->setArg(12, kernelI, sizeof(ocl_float3), &clBasis[2]);
 
    //If there are more cells in a block than threads in a group,
    //have one block per group. Otherwise have multiple blocks
@@ -760,8 +761,8 @@ void PositionTrackFull3D::calculateNormals() {
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clNormalsFrame);
-   //opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clDepthFrame);
-   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clFiltDepthFrame);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clDepthFrame);
+   //opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clFiltDepthFrame);
    opencl_task->setArg(4, kernelI, sizeof(int), &numDepthPoints);
    int globalSize = getGlobalWorkSize(numDepthPoints);
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
@@ -999,6 +1000,12 @@ void PositionTrackFull3D::setCameraParams(double fx, double fy, double cx, doubl
    this->cy = cy;
    this->tx = tx;
    this->ty = ty;
+   /*this->fx = 517.3;
+   this->fy = 516.5;
+   this->cx = 318.6;
+   this->cy = 255.3;
+   this->tx = tx;
+   this->ty = ty;*/
    //cout << fx << " " << fy << " " << cx << " " << cy << " " << tx << " " << ty << endl;
 }
 
