@@ -365,7 +365,7 @@ __kernel void checkBlocksExist(constant oclPositionTrackConfig *config,
          int adjZN = getBlockAdjZ(config, bIndex, -1, centMod.z);
          markBlockActive(config, blocks, common, adjZN, 0, cIndex, localMapCells);
          
-         /*int adjXXP = getBlockAdjX(config, adjXP, 1, centMod.x);
+         int adjXXP = getBlockAdjX(config, adjXP, 1, centMod.x);
          markBlockActive(config, blocks, common, adjXXP, 0, cIndex, localMapCells);
          int adjXXN = getBlockAdjX(config, adjXN, -1, centMod.x);
          markBlockActive(config, blocks, common, adjXXN, 0, cIndex, localMapCells);
@@ -376,7 +376,7 @@ __kernel void checkBlocksExist(constant oclPositionTrackConfig *config,
          int adjZZP = getBlockAdjZ(config, adjZP, 1, centMod.z);
          markBlockActive(config, blocks, common, adjZZP, 0, cIndex, localMapCells);
          int adjZZN = getBlockAdjZ(config, adjZN, -1, centMod.z);
-         markBlockActive(config, blocks, common, adjZZN, 0, cIndex, localMapCells);*/
+         markBlockActive(config, blocks, common, adjZZN, 0, cIndex, localMapCells);
 
       }
    }
@@ -791,7 +791,9 @@ float3 getNormal(constant oclPositionTrackConfig *config, global int *blocks,
       return (float3)(NAN,NAN,NAN);
    } else {
       float3 normal = (float3)(xH - xL, yH - yL, zH - zL);
-      return normalize(normal);
+      
+      return normal;
+      //return fast_normalize(normal);
    }
 }
 
@@ -1080,13 +1082,16 @@ __kernel void calculateNormals(constant oclPositionTrackConfig *config,
  */
 __kernel void fastICP(constant oclPositionTrackConfig *config, global int *blocks,
       global oclLocalBlock *localMapCells, global oclLocalMapCommon *common,
-      global oclDepthPoints *points, global oclDepthPoints *normals, const int numPoints,
+      global oclDepthPoints *points, global oclDepthPoints *normals, 
+      global float *tempStore, const int numPoints, const int numGroups,
       const int3 cent, const float3 origin, const float3 rotation0, 
       const float3 rotation1, const float3 rotation2) {
 
    int gIndex = get_global_id(0);
    int lIndex = get_local_id(0);
    int wIndex = lIndex % WARP_SIZE;
+
+   int groupNum = get_group_id(0);
 
    local float results[WARP_SIZE][NUM_RESULTS];
    local int goodCount[WARP_SIZE];
@@ -1111,7 +1116,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
       float3 zero = (float3) (0.0f, 0.0f, 0.0f);
       float3 frameNormal = (float3)(normals->x[gIndex], normals->y[gIndex], normals->z[gIndex]);
       frameNormal = transformPoint(frameNormal, zero, rotation0, rotation1, rotation2);
-      frameNormal = normalize(frameNormal);
+      frameNormal = fast_normalize(frameNormal);
 
       int bIndex = getBlockIndex(config, transP, cent, centMod);
 
@@ -1121,7 +1126,14 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
 
          float3 normal = getNormal(config, blocks, localMapCells, 
                   cent, bIndex, cIndex);
-         if (!isnan(normal.x) && !isnan(localMapCells[bI].distance[cIndex])) {
+         float length = normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
+         /*if (length > 0.05f && length < 1.0f) {
+            length = sqrt((float)9);
+         }*/
+         length = sqrt((float)9);
+         normal /= length;
+         //normal = fast_normalize(normal);
+         if (0 && !isnan(normal.x) && !isnan(localMapCells[bI].distance[cIndex])) {
 
             float3 vm = transP - (normal * localMapCells[bI].distance[cIndex]);
 
@@ -1129,10 +1141,11 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
             if (bIndexNew >= 0 && blocks[bIndexNew] >= 0) {
                int cIndexNew = getCellIndex(config, vm);
                int bINew = blocks[bIndex];
-               normal = getNormal(config, blocks, localMapCells, cent, bIndexNew, cIndexNew);
+               //normal = getNormal(config, blocks, localMapCells, cent, bIndexNew, cIndexNew);
                if (!isnan(normal.x) /*&& fabs(localMapCells[bI].distance[cIndex]) > 
                      fabs(localMapCells[bINew].distance[cIndexNew]) &&
                      localMapCells[bINew].occupied[cIndexNew] > 0*/) {
+                  //vm = vm - (normal * localMapCells[bINew].distance[cIndexNew]);
             
 
             //test code
@@ -1187,7 +1200,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
                               normal.y * (vm.y - transP.y) +
                               normal.z * (vm.z - transP.z);
 
-            atomicFloatAddLocal(&(results[wIndex][0]), a*a);
+            /*atomicFloatAddLocal(&(results[wIndex][0]), a*a);
             atomicFloatAddLocal(&(results[wIndex][1]), a*b);
             atomicFloatAddLocal(&(results[wIndex][2]), b*b);
             atomicFloatAddLocal(&(results[wIndex][3]), a*c);
@@ -1216,7 +1229,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
             atomicFloatAddLocal(&(results[wIndex][26]), normScale * f);
 
             atomic_inc(&(goodCount[wIndex]));
-            atomicFloatAddLocal(&(results[wIndex][27]), localMapCells[bI].distance[cIndex]);
+            atomicFloatAddLocal(&(results[wIndex][27]), localMapCells[bI].distance[cIndex]);*/
             }
             }
             }
@@ -1224,7 +1237,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
          }
       }
    }
-   barrier(CLK_LOCAL_MEM_FENCE);
+   /*barrier(CLK_LOCAL_MEM_FENCE);
    if (lIndex < 16 && WARP_SIZE==32) {
       for(i = 0; i < NUM_RESULTS; i++) {
          results[lIndex][i] += results[lIndex + 16][i];
@@ -1251,10 +1264,35 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
    }
    barrier(CLK_LOCAL_MEM_FENCE);
    if (lIndex < NUM_RESULTS) {
+      tempStore[groupNum + lIndex * numGroups] = results[0][lIndex] + results[1][lIndex];
+   }
+   if (lIndex == 0) {
+      tempStore[groupNum + 28 * numGroups] = goodCount[0] + goodCount[1];
+   }*/
+
+   /*if (lIndex < NUM_RESULTS) {
       atomicFloatAdd(&(common->icpResults[lIndex]), results[0][lIndex] + results[1][lIndex]);
    }
    if (lIndex == 0) {
    //   atomic_add(&(common->goodCount), goodCount[0] + goodCount[1]);
       atomicFloatAdd(&(common->icpResults[28]), goodCount[0] + goodCount[1]);
-   }
+   }*/
 }
+
+kernel void combineICPResults(global oclLocalMapCommon *common, global float *tempStore,
+      const int numGroups) {
+   int index = get_global_id(0);
+
+   //int numGroups = LOCAL_SIZE / NUM_RESULTS;
+
+   if (index < NUM_RESULTS) {
+      float res = 0;
+      int start = numGroups * index;
+      int i;
+      for (i = 0; i < numGroups; i++, start++) {
+         res += tempStore[start];
+      }
+      common->icpResults[index] = res;
+   }   
+}
+      

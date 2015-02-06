@@ -194,6 +194,7 @@ private:
    Pose currentLocalMapICPPose;
    Pose newLocalMapICPPose;
 
+   void setupGPU();
    void initialiseImages();
    void initialiseLocalMap();
    void convertFrame(const sensor_msgs::ImageConstPtr& depthImage,
@@ -213,6 +214,7 @@ private:
    void calculateNormals();
    void alignICP(tf::Transform sensorPose, tf::Transform newPose);
    void bilateralFilter();
+   void combineICPResults(int numGroups);
 
    //Solve Ax = b. Requires A to be symmetric. Only looks at bottom left of A
    void solveCholesky(float A[DOF][DOF], float b[DOF], float x[DOF]);

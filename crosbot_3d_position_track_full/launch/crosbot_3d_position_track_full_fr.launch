@@ -29,6 +29,8 @@
 	<node pkg="crosbot_3d_position_track_full" type="crosbot_3d_position_track_full" name="crosbot_3d_position_track_full" output="screen">
       <param name="icp_frame" value="/world" />
       <param name="base_frame" value="kinect" />
+      <param name="ImageWidth" value="640" />
+      <param name="ImageHeight" value="480" />
       <param name="rgb_sub" value="/camera/rgb/image_color" />
       <param name="depth_sub" value="/camera/depth/image" />
       <param name="PublishTransform" value="true" />
@@ -37,7 +39,7 @@
       <param name="LocalMapHeight" value="4" />
       <param name="CellSize" value="0.0125" />
       <param name="NumBlocksAllocated" value="5000" />
-      <param name="MaxPointsFrac" value="3" />
+      <param name="MaxPointsFrac" value="4" />
       <param name="SliceMult" value="1" />
 	</node>
 
