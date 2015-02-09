@@ -29,7 +29,9 @@ const string PositionTrackFull3D::kernel_names[] = {
    "calculateNormals",
    "fastICP",
    "bilateralFilter",
-   "combineICPResults"
+   "combineICPResults",
+   "scaleICP",
+   "combineScaleICPResults"
 };
 const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kernel_names[0]);
 #define CLEAR_LOCAL_MAP 0
@@ -45,6 +47,8 @@ const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kerne
 #define FAST_ICP 10
 #define BILATERAL_FILTER 11
 #define COMBINE_ICP_RESULTS 12
+#define SCALE_ICP 13
+#define COMBINE_SCALE_ICP_RESULTS 14
 
 PositionTrackFull3D::PositionTrackFull3D() {
    opencl_manager = new OpenCLManager();
@@ -220,6 +224,14 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    tf::Transform newFullPose = temp * oldICP;
    icpFullPose = newFullPose;*/
    tf::Transform newFullPose = icpFullPose.toTF();
+
+   double y,p,r;
+   icpPose.getYPR(y,p,r);
+   cout << "icpPose: " << icpPose.position.x << " " << icpPose.position.y << " " <<
+      icpPose.position.z << " : " << y << " " << p << " " << r << endl;
+   icpFullPose.getYPR(y,p,r);
+   cout << "fullIcpPose: " << icpFullPose.position.x << " " << icpFullPose.position.y << " " <<
+      icpFullPose.position.z << " " << y << " " << p << " " << r << endl;
 
    //preprocessing of points (only used for icp) - normals, filtering and different res's
    //bilateralFilter();
@@ -401,7 +413,7 @@ void PositionTrackFull3D::initialiseLocalMap() {
          CL_MEM_READ_WRITE, NULL);
 
    size_t commonSize = sizeof(ocl_int) * (6 + MaxNumActiveBlocks + 3*NumBlocksAllocated) +
-      sizeof(ocl_float) * NUM_RESULTS;
+      sizeof(ocl_float) * (NUM_RESULTS + 6);
    clLocalMapCommon = opencl_manager->deviceAlloc(commonSize,
          CL_MEM_READ_WRITE, NULL);
 
@@ -824,6 +836,7 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
 
    int globalSize = getGlobalWorkSize(numDepthPoints);
    int numGroups = globalSize / LocalSize;
+
    int kernelI = FAST_ICP;
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
@@ -846,6 +859,12 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
 
    tf::Transform start = newPose * sensorPose;
    tf::Transform curTrans = start;
+   
+   scaleICP(numGroups, curTrans);
+   readBuffer(clLocalMapCommon, CL_TRUE, icpResultsOffset + sizeof(float) * NUM_RESULTS, sizeof(ocl_float) * 6, 
+            rawResults, 0, 0, 0, "Reading the icp scale results");
+   cout << "Scale is: " << rawResults[0] << " " << rawResults[1] << " " << rawResults[2] << " " <<
+      rawResults[3] << " " << rawResults[4] << " " << rawResults[5] << endl;
 
    Pose startPose = curTrans;
    double y,p,r;
@@ -857,8 +876,8 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
    int i;
    for (i = 0; i < 5; i++) {
 
-      writeBuffer(clLocalMapCommon, CL_FALSE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
-            zero, 0, 0, 0, "Zeroing the icp results array");
+      //writeBuffer(clLocalMapCommon, CL_FALSE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
+      //      zero, 0, 0, 0, "Zeroing the icp results array");
       /*Pose curPose = curTrans;
       cout << "Now pose is: " << curPose.position.x << " " << curPose.position.y << " " <<
          curPose.position.z << endl;*/
@@ -916,11 +935,11 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
       b[4] = rawResults[25];
       b[5] = rawResults[26];
 
-      /*cout << "Raw results: ";
+      cout << "Raw results: ";
       for (int j = 0; j < 27; j++) {
          cout << rawResults[j] << " ";
       }
-      cout << endl;*/
+      cout << endl;
 
       //cout << "Num points used: " << rawResults[28] << " average distance:" << rawResults[27]/rawResults[28] << endl; 
 
@@ -1055,6 +1074,35 @@ void PositionTrackFull3D::combineICPResults(int numGroups) {
    opencl_task->setArg(2, kernelI, sizeof(int), &numGroups);
    opencl_task->queueKernel(kernelI, 1, LocalSize, LocalSize, 0, NULL, NULL, false);
 
+}
+
+void PositionTrackFull3D::scaleICP(int numGroups, tf::Transform trans) {
+   tf::Matrix3x3 basis = trans.getBasis();
+
+   ocl_float3 clBasis[3];
+   for (int j = 0; j < 3; j++) {
+      clBasis[j].x = basis[j][0];
+      clBasis[j].y = basis[j][1];
+      clBasis[j].z = basis[j][2];
+   }
+   int globalSize = getGlobalWorkSize(numDepthPoints);
+   int kernelI = SCALE_ICP;
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapCommon);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clNormalsFrame);
+   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clPointCloud); //tempStore
+   opencl_task->setArg(5, kernelI, sizeof(int), &numDepthPoints);
+   opencl_task->setArg(6, kernelI, sizeof(int), &numGroups);
+   opencl_task->setArg(7, kernelI, sizeof(ocl_float3), &clBasis[0]);
+   opencl_task->setArg(8, kernelI, sizeof(ocl_float3), &clBasis[1]);
+   opencl_task->setArg(9, kernelI, sizeof(ocl_float3), &clBasis[2]);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+   kernelI = COMBINE_SCALE_ICP_RESULTS;
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clLocalMapCommon);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clPointCloud); //tempStore
+   opencl_task->setArg(2, kernelI, sizeof(int), &numGroups);
+   opencl_task->queueKernel(kernelI, 1, LocalSize, LocalSize, 0, NULL, NULL, false);
 }
 
 void PositionTrackFull3D::setCameraParams(double fx, double fy, double cx, double cy, double tx, double ty) {

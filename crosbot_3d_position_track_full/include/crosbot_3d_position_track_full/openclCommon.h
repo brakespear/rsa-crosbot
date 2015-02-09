@@ -114,6 +114,7 @@ typedef struct {
    ocl_int numPoints;
    ocl_int numBlocksToDelete;
    ocl_float icpResults[NUM_RESULTS];
+   ocl_float icpScale[6];
 #ifdef CL_RUNTIME
    ocl_int activeBlocks[MAX_NUM_ACTIVE_BLOCKS];
    ocl_int emptyBlocks[NUM_BLOCKS_ALLOCATED];

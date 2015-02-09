@@ -215,6 +215,7 @@ private:
    void alignICP(tf::Transform sensorPose, tf::Transform newPose);
    void bilateralFilter();
    void combineICPResults(int numGroups);
+   void scaleICP(int numGroups, tf::Transform trans);
 
    //Solve Ax = b. Requires A to be symmetric. Only looks at bottom left of A
    void solveCholesky(float A[DOF][DOF], float b[DOF], float x[DOF]);

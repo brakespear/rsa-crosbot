@@ -45,6 +45,10 @@ __kernel void clearLocalMap(constant oclPositionTrackConfig *config, global int 
       common->numPoints = 0;
       common->numBlocksToDelete = 0;
    }
+
+   if (index < 6) {
+      common->icpScale[index] = 1.0f;
+   }
 }
 
 /*
@@ -1207,12 +1211,70 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
             /*float a = normal.y * transP.z - normal.z * transP.y;
             float b = -normal.x * transP.z + normal.z * transP.x;
             float c = normal.x * transP.y - normal.y * transP.x;*/
-            float a = normal.z * transP.y - normal.y * transP.z;
+            
+            /*float a = normal.z * transP.y - normal.y * transP.z;
             float b = normal.x * transP.z - normal.z * transP.x;
             float c = normal.y * transP.x - normal.x * transP.y;
             float d = normal.x;
             float e = normal.y;
-            float f = normal.z;
+            float f = normal.z;*/
+
+            /*float a = (normal.z * transP.y - normal.y * transP.z) * common->icpScale[0];
+            float b = (normal.x * transP.z - normal.z * transP.x) * common->icpScale[1];
+            float c = (normal.y * transP.x - normal.x * transP.y) * common->icpScale[2];
+            float d = normal.x * common->icpScale[3];
+            float e = normal.y * common->icpScale[4];
+            float f = normal.z * common->icpScale[5];*/
+
+            float at = normal.z * transP.y - normal.y * transP.z;
+            float bt = normal.x * transP.z - normal.z * transP.x;
+            float ct = normal.y * transP.x - normal.x * transP.y;
+            float dt = normal.x;
+            float et = normal.y;
+            float ft = normal.z;
+
+            float a = at * common->icpScale[0] * common->icpScale[0] +
+                      bt * common->icpScale[0] * common->icpScale[1] +
+                      ct * common->icpScale[0] * common->icpScale[2] +
+                      dt * common->icpScale[0] * common->icpScale[3] +
+                      et * common->icpScale[0] * common->icpScale[4] +
+                      ft * common->icpScale[0] * common->icpScale[5];
+            float b = at * common->icpScale[1] * common->icpScale[0] +
+                      bt * common->icpScale[1] * common->icpScale[1] +
+                      ct * common->icpScale[1] * common->icpScale[2] +
+                      dt * common->icpScale[1] * common->icpScale[3] +
+                      et * common->icpScale[1] * common->icpScale[4] +
+                      ft * common->icpScale[1] * common->icpScale[5];
+            float c = at * common->icpScale[2] * common->icpScale[0] +
+                      bt * common->icpScale[2] * common->icpScale[1] +
+                      ct * common->icpScale[2] * common->icpScale[2] +
+                      dt * common->icpScale[2] * common->icpScale[3] +
+                      et * common->icpScale[2] * common->icpScale[4] +
+                      ft * common->icpScale[2] * common->icpScale[5];
+            float d = at * common->icpScale[3] * common->icpScale[0] +
+                      bt * common->icpScale[3] * common->icpScale[1] +
+                      ct * common->icpScale[3] * common->icpScale[2] +
+                      dt * common->icpScale[3] * common->icpScale[3] +
+                      et * common->icpScale[3] * common->icpScale[4] +
+                      ft * common->icpScale[3] * common->icpScale[5];
+            float e = at * common->icpScale[4] * common->icpScale[0] +
+                      bt * common->icpScale[4] * common->icpScale[1] +
+                      ct * common->icpScale[4] * common->icpScale[2] +
+                      dt * common->icpScale[4] * common->icpScale[3] +
+                      et * common->icpScale[4] * common->icpScale[4] +
+                      ft * common->icpScale[4] * common->icpScale[5];
+            float f = at * common->icpScale[5] * common->icpScale[0] +
+                      bt * common->icpScale[5] * common->icpScale[1] +
+                      ct * common->icpScale[5] * common->icpScale[2] +
+                      dt * common->icpScale[5] * common->icpScale[3] +
+                      et * common->icpScale[5] * common->icpScale[4] +
+                      ft * common->icpScale[5] * common->icpScale[5];
+             
+                     
+
+
+
+
             float normScale = normal.x * (vm.x - transP.x) + 
                               normal.y * (vm.y - transP.y) +
                               normal.z * (vm.z - transP.z);
@@ -1312,4 +1374,101 @@ kernel void combineICPResults(global oclLocalMapCommon *common, global float *te
       common->icpResults[index] = res;
    }   
 }
-      
+
+kernel void scaleICP(constant oclPositionTrackConfig *config,
+      global oclLocalMapCommon *common, global oclDepthPoints *points,
+      global oclDepthPoints *normals, global float *tempStore, 
+      const int numPoints, const int numGroups, const float3 rotation0, 
+      const float3 rotation1, const float3 rotation2) {
+
+   int gIndex = get_global_id(0);
+   int lIndex = get_local_id(0);
+   int wIndex = lIndex % WARP_SIZE;
+
+   int groupNum = get_group_id(0);
+
+   local float results[WARP_SIZE][6];
+
+   int i;
+   if (lIndex < WARP_SIZE) {
+      for (i = 0; i < 6; i++) {
+         results[lIndex][i] = 0.0f;
+      }
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+
+   if (gIndex < numPoints && !isnan(points->x[gIndex]) && !isnan(normals->x[gIndex])) {
+      float3 zero = (float3) (0.0f, 0.0f, 0.0f);
+      float3 frameNormal = (float3)(normals->x[gIndex], normals->y[gIndex], normals->z[gIndex]);
+      frameNormal = transformPoint(frameNormal, zero, rotation0, rotation1, rotation2);
+      frameNormal = fabs(fast_normalize(frameNormal));
+
+      atomicFloatAddLocal(&(results[wIndex][0]), frameNormal.y + frameNormal.z);
+      atomicFloatAddLocal(&(results[wIndex][1]), frameNormal.x + frameNormal.z); 
+      atomicFloatAddLocal(&(results[wIndex][2]), frameNormal.x+ frameNormal.y);
+      atomicFloatAddLocal(&(results[wIndex][3]), frameNormal.x);
+      atomicFloatAddLocal(&(results[wIndex][4]), frameNormal.y); 
+      atomicFloatAddLocal(&(results[wIndex][5]), frameNormal.z);
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+   if (lIndex < 16 ) {
+      for(i = 0; i < 6; i++) {
+         results[lIndex][i] += results[lIndex + 16][i];
+      }
+   }
+   if (lIndex < 8) {
+      for(i = 0; i < 6; i++) {
+         results[lIndex][i] += results[lIndex + 8][i];
+      }
+   }
+   if (lIndex < 4) {
+      for(i = 0; i < 6; i++) {
+         results[lIndex][i] += results[lIndex + 4][i];
+      }
+   }
+   if (lIndex < 2) {
+      for(i = 0; i < 6; i++) {
+         results[lIndex][i] += results[lIndex + 2][i];
+      }
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+   if (lIndex < 6) {
+      tempStore[groupNum + lIndex * numGroups] = results[0][lIndex] + results[1][lIndex];
+   }
+}
+
+kernel void combineScaleICPResults(global oclLocalMapCommon *common, global float *tempStore,
+      const int numGroups) {
+   int index = get_global_id(0);
+
+   //int numGroups = LOCAL_SIZE / NUM_RESULTS;
+
+   local float results[6];
+
+   if (index < 6) {
+      float res = 0;
+      int start = numGroups * index;
+      int i;
+      for (i = 0; i < numGroups; i++, start++) {
+         res += tempStore[start];
+      }
+      results[index] = res;
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+   int i;
+   float max = 0.0f;
+   for (i = 0; i < 6; i++) {
+      if (results[i] > max) {
+         max = results[i];
+      }
+   }
+   common->icpScale[index] = results[index] / max;
+   if (index >= 3) {
+      common->icpScale[index] = 0.001f;
+   } else {
+      common->icpScale[index] = 1.0f;
+   }
+}
+
+
+
