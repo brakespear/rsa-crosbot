@@ -516,9 +516,9 @@ __kernel void addFrame(constant oclPositionTrackConfig *config, global int *bloc
                         (float)localMapCells[blockI].b[cIndex] +
                      weightVal * (float)colourP->b[pointI]) / (weightVal + weightPrev));
                
-               /*localMapCells[blockI].r[cIndex] = colourP->r[pointI];
-               localMapCells[blockI].g[cIndex] = colourP->g[pointI];
-               localMapCells[blockI].b[cIndex] = colourP->b[pointI];*/
+               //localMapCells[blockI].r[cIndex] = colourP->r[pointI];
+               //localMapCells[blockI].g[cIndex] = colourP->g[pointI];
+               //localMapCells[blockI].b[cIndex] = colourP->b[pointI];
                localMapCells[blockI].weight[cIndex] += weightVal;
             } 
          }
@@ -529,7 +529,7 @@ __kernel void addFrame(constant oclPositionTrackConfig *config, global int *bloc
 __kernel void markForExtraction(constant oclPositionTrackConfig *config, 
       global int *blocks, global oclLocalBlock *localMapCells, 
       global oclLocalMapCommon *common, const int3 oldCent, const int3 newCent,
-      const int isFullExtract, const float3 position) {
+      int isFullExtract, const float3 position) {
 
    int index = get_global_id(0);
    int needExtract = 0;
@@ -792,8 +792,8 @@ float3 getNormal(constant oclPositionTrackConfig *config, global int *blocks,
    } else {
       float3 normal = (float3)(xH - xL, yH - yL, zH - zL);
       
-      return normal;
-      //return fast_normalize(normal);
+      //return normal;
+      return fast_normalize(normal);
    }
 }
 
@@ -1105,6 +1105,16 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
    }
    barrier(CLK_LOCAL_MEM_FENCE);
 
+   /*int r = gIndex / config->ImageWidth;
+   int c = gIndex % config->ImageWidth;
+   r *= 2;
+   c *= 2;
+   if (c >= config->ImageWidth) {
+      gIndex = numPoints + 1;
+   } else {
+      gIndex = r * config->ImageWidth + c;
+   }*/
+
    if (gIndex < numPoints && !isnan(points->x[gIndex])) {
       int3 centMod;
       centMod.x = cent.x % config->NumBlocksWidth;
@@ -1126,14 +1136,11 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
 
          float3 normal = getNormal(config, blocks, localMapCells, 
                   cent, bIndex, cIndex);
-         float length = normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
-         /*if (length > 0.05f && length < 1.0f) {
-            length = sqrt((float)9);
-         }*/
+         /*float length = normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
          length = sqrt((float)9);
          normal /= length;
-         //normal = fast_normalize(normal);
-         if (0 && !isnan(normal.x) && !isnan(localMapCells[bI].distance[cIndex])) {
+         //normal = fast_normalize(normal);*/
+         if (!isnan(normal.x) && !isnan(localMapCells[bI].distance[cIndex])) {
 
             float3 vm = transP - (normal * localMapCells[bI].distance[cIndex]);
 
@@ -1141,18 +1148,29 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
             if (bIndexNew >= 0 && blocks[bIndexNew] >= 0) {
                int cIndexNew = getCellIndex(config, vm);
                int bINew = blocks[bIndex];
-               //normal = getNormal(config, blocks, localMapCells, cent, bIndexNew, cIndexNew);
-               if (!isnan(normal.x) /*&& fabs(localMapCells[bI].distance[cIndex]) > 
-                     fabs(localMapCells[bINew].distance[cIndexNew]) &&
-                     localMapCells[bINew].occupied[cIndexNew] > 0*/) {
+
+               float3 newNormal = getNormal(config, blocks, localMapCells, cent, bIndexNew, cIndexNew);
+
+               if (fabs(localMapCells[bINew].distance[cIndexNew]) <
+                     fabs(localMapCells[bI].distance[cIndex]) &&
+                     fabs(localMapCells[bINew].distance[cIndexNew]) < 0.025f &&
+                     //fabs(localMapCells[bI].distance[cIndex]) < 0.3f &&
+                     dot(frameNormal, newNormal) > 0.8f) {
+
+
+            //   normal = getNormal(config, blocks, localMapCells, cent, bIndexNew, cIndexNew);
+            //   if (!isnan(normal.x) /*&& fabs(localMapCells[bI].distance[cIndex]) > 
+            //         fabs(localMapCells[bINew].distance[cIndexNew]) &&
+            //         localMapCells[bINew].occupied[cIndexNew] > 0*/) {
                   //vm = vm - (normal * localMapCells[bINew].distance[cIndexNew]);
             
 
             //test code
             /*float3 vector = normalize(transP - origin);
-            float3 startPos = transP - vector * 0.3f;
+            float3 startPos = transP - vector * 0.2f;
             int sign = 0;
-            for (i = 0; i < 14; i++, startPos += 0.05f * vector) {
+            int found = 0;
+            for (i = 0; i < 32 && found == 0; i++, startPos += 0.0125f * vector) {
                int bb = getBlockIndex(config, startPos, cent, centMod);
                if (bb >= 0 && blocks[bb] >= 0) {
                   int cc = getCellIndex(config, startPos);
@@ -1165,26 +1183,25 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
                   } else if (sign == 0) {
                      sign = -1;
                   } else if (sign > 0 && dist < 0) {
+                     found = 1;
                      break;
                   } else if (sign < 0 && dist > 0) {
+                     found = 1;
                      break;
                   }
 
-               } else {
-                  continue;
-               }
+               } 
             }
-            if (i < 14) {
+            if (found == 1) {
                int bb = getBlockIndex(config, startPos, cent, centMod);
                int cc = getCellIndex(config, startPos);
                normal = getNormal(config, blocks, localMapCells, cent, bb, cc);
-               vm = startPos;
-            }*/
+               vm = startPos;*/
 
 
-            if (fabs(localMapCells[bI].distance[cIndex]) < 0.2f &&
-                  frameNormal.x * normal.x + frameNormal.y * normal.y +
-                  frameNormal.z * normal.z > 0.75f) {
+            //if (1/*fabs(localMapCells[bI].distance[cIndex]) < 0.2f &&
+            //      frameNormal.x * normal.x + frameNormal.y * normal.y +
+            //      frameNormal.z * normal.z > 0.75f*/) {
 
 
             /*float a = normal.y * transP.z - normal.z * transP.y;
@@ -1200,7 +1217,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
                               normal.y * (vm.y - transP.y) +
                               normal.z * (vm.z - transP.z);
 
-            /*atomicFloatAddLocal(&(results[wIndex][0]), a*a);
+            atomicFloatAddLocal(&(results[wIndex][0]), a*a);
             atomicFloatAddLocal(&(results[wIndex][1]), a*b);
             atomicFloatAddLocal(&(results[wIndex][2]), b*b);
             atomicFloatAddLocal(&(results[wIndex][3]), a*c);
@@ -1229,16 +1246,16 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
             atomicFloatAddLocal(&(results[wIndex][26]), normScale * f);
 
             atomic_inc(&(goodCount[wIndex]));
-            atomicFloatAddLocal(&(results[wIndex][27]), localMapCells[bI].distance[cIndex]);*/
-            }
+            atomicFloatAddLocal(&(results[wIndex][27]), localMapCells[bI].distance[cIndex]);
+            //}
             }
             }
 
          }
       }
    }
-   /*barrier(CLK_LOCAL_MEM_FENCE);
-   if (lIndex < 16 && WARP_SIZE==32) {
+   barrier(CLK_LOCAL_MEM_FENCE);
+   if (lIndex < 16 /*&& WARP_SIZE==32*/) {
       for(i = 0; i < NUM_RESULTS; i++) {
          results[lIndex][i] += results[lIndex + 16][i];
       }
@@ -1268,7 +1285,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
    }
    if (lIndex == 0) {
       tempStore[groupNum + 28 * numGroups] = goodCount[0] + goodCount[1];
-   }*/
+   }
 
    /*if (lIndex < NUM_RESULTS) {
       atomicFloatAdd(&(common->icpResults[lIndex]), results[0][lIndex] + results[1][lIndex]);

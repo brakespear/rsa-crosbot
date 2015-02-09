@@ -239,11 +239,25 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    checkBlocksExist(numDepthPoints, offset);
    readBuffer(clLocalMapCommon, CL_TRUE, numActiveBlocksOffset, 
          sizeof(int), &numActiveBlocks, 0, 0, 0, "Reading num active blocks");
+   //cout << "Number of blocks are: " << numActiveBlocks << endl;
    if (numActiveBlocks > MaxNumActiveBlocks) {
       numActiveBlocks = MaxNumActiveBlocks;
    }
+
+   t2 = ros::WallTime::now();
+   totalTime = t2 - t1;
+   cout << "Time of half adding points: " << totalTime.toSec() * 1000.0f << endl;
+   t1 = ros::WallTime::now();
+
    //cout << "numActiveBlocks are: " << numActiveBlocks << endl;
    addRequiredBlocks();
+
+   clFinish(opencl_manager->getCommandQueue());
+   t2 = ros::WallTime::now();
+   totalTime = t2 - t1;
+   cout << "Time of adding blocks: " << totalTime.toSec() * 1000.0f << endl;
+   t1 = ros::WallTime::now();
+
    addFrame(offset);
 
    
@@ -727,6 +741,9 @@ void PositionTrackFull3D::clearBlocks() {
    readBuffer(clLocalMapCommon, CL_TRUE, numBlocksToDeleteOffset,
          sizeof(int), &numBlocksToDelete, 0, 0, 0, "Reading num blocks to delete");
    cout << "Clearing part map. Deleting: " << numBlocksToDelete << " blocks" << endl;
+   if (numBlocksToDelete == 0) {
+      return;
+   }
 
    int kernelI = CLEAR_BLOCKS;
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
@@ -838,7 +855,7 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
          startPose.position.z << " " << y << " " << p << " " << r << endl;
 
    int i;
-   for (i = 0; i < 1; i++) {
+   for (i = 0; i < 10; i++) {
 
       writeBuffer(clLocalMapCommon, CL_FALSE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
             zero, 0, 0, 0, "Zeroing the icp results array");
@@ -866,7 +883,7 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
       opencl_task->setArg(13, kernelI, sizeof(ocl_float3), &clBasis[2]);
 
       opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
-      //combineICPResults(numGroups);
+      combineICPResults(numGroups);
    
       readBuffer(clLocalMapCommon, CL_TRUE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
             rawResults, 0, 0, 0, "Reading the icp results");
@@ -958,7 +975,7 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
          << y << " " << p << " " << r << " : " << rawResults[28] << " " << 
          rawResults[27]/rawResults[28] << endl;
 
-      cout << y << " " << p << " " << r << "  " << x[0] << " " << x[1] << " " << x[2] << endl;
+      //cout << y << " " << p << " " << r << "  " << x[0] << " " << x[1] << " " << x[2] << endl;
       //y = 0, p = 0, r = 0;
       //y = 0;
       //incPose.setYPR(y,p,r);
