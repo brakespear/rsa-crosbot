@@ -838,7 +838,7 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
          startPose.position.z << " " << y << " " << p << " " << r << endl;
 
    int i;
-   for (i = 0; i < 1; i++) {
+   for (i = 0; i < 5; i++) {
 
       writeBuffer(clLocalMapCommon, CL_FALSE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
             zero, 0, 0, 0, "Zeroing the icp results array");
@@ -866,7 +866,7 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
       opencl_task->setArg(13, kernelI, sizeof(ocl_float3), &clBasis[2]);
 
       opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
-      //combineICPResults(numGroups);
+      combineICPResults(numGroups);
    
       readBuffer(clLocalMapCommon, CL_TRUE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
             rawResults, 0, 0, 0, "Reading the icp results");

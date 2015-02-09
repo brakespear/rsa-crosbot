@@ -792,8 +792,8 @@ float3 getNormal(constant oclPositionTrackConfig *config, global int *blocks,
    } else {
       float3 normal = (float3)(xH - xL, yH - yL, zH - zL);
       
-      return normal;
-      //return fast_normalize(normal);
+      //return normal;
+      return fast_normalize(normal);
    }
 }
 
@@ -1105,6 +1105,16 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
    }
    barrier(CLK_LOCAL_MEM_FENCE);
 
+   /*int r = gIndex / config->ImageWidth;
+   int c = gIndex % config->ImageWidth;
+   r *= 2;
+   c *= 2;
+   if (c >= config->ImageWidth) {
+      gIndex = numPoints + 1;
+   } else {
+      gIndex = r * config->ImageWidth + c;
+   }*/
+
    if (gIndex < numPoints && !isnan(points->x[gIndex])) {
       int3 centMod;
       centMod.x = cent.x % config->NumBlocksWidth;
@@ -1126,14 +1136,11 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
 
          float3 normal = getNormal(config, blocks, localMapCells, 
                   cent, bIndex, cIndex);
-         float length = normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
-         /*if (length > 0.05f && length < 1.0f) {
-            length = sqrt((float)9);
-         }*/
+         /*float length = normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
          length = sqrt((float)9);
          normal /= length;
-         //normal = fast_normalize(normal);
-         if (0 && !isnan(normal.x) && !isnan(localMapCells[bI].distance[cIndex])) {
+         //normal = fast_normalize(normal);*/
+         if (!isnan(normal.x) && !isnan(localMapCells[bI].distance[cIndex])) {
 
             float3 vm = transP - (normal * localMapCells[bI].distance[cIndex]);
 
@@ -1141,7 +1148,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
             if (bIndexNew >= 0 && blocks[bIndexNew] >= 0) {
                int cIndexNew = getCellIndex(config, vm);
                int bINew = blocks[bIndex];
-               //normal = getNormal(config, blocks, localMapCells, cent, bIndexNew, cIndexNew);
+               normal = getNormal(config, blocks, localMapCells, cent, bIndexNew, cIndexNew);
                if (!isnan(normal.x) /*&& fabs(localMapCells[bI].distance[cIndex]) > 
                      fabs(localMapCells[bINew].distance[cIndexNew]) &&
                      localMapCells[bINew].occupied[cIndexNew] > 0*/) {
@@ -1200,7 +1207,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
                               normal.y * (vm.y - transP.y) +
                               normal.z * (vm.z - transP.z);
 
-            /*atomicFloatAddLocal(&(results[wIndex][0]), a*a);
+            atomicFloatAddLocal(&(results[wIndex][0]), a*a);
             atomicFloatAddLocal(&(results[wIndex][1]), a*b);
             atomicFloatAddLocal(&(results[wIndex][2]), b*b);
             atomicFloatAddLocal(&(results[wIndex][3]), a*c);
@@ -1229,7 +1236,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
             atomicFloatAddLocal(&(results[wIndex][26]), normScale * f);
 
             atomic_inc(&(goodCount[wIndex]));
-            atomicFloatAddLocal(&(results[wIndex][27]), localMapCells[bI].distance[cIndex]);*/
+            atomicFloatAddLocal(&(results[wIndex][27]), localMapCells[bI].distance[cIndex]);
             }
             }
             }
@@ -1237,7 +1244,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
          }
       }
    }
-   /*barrier(CLK_LOCAL_MEM_FENCE);
+   barrier(CLK_LOCAL_MEM_FENCE);
    if (lIndex < 16 && WARP_SIZE==32) {
       for(i = 0; i < NUM_RESULTS; i++) {
          results[lIndex][i] += results[lIndex + 16][i];
@@ -1268,7 +1275,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
    }
    if (lIndex == 0) {
       tempStore[groupNum + 28 * numGroups] = goodCount[0] + goodCount[1];
-   }*/
+   }
 
    /*if (lIndex < NUM_RESULTS) {
       atomicFloatAdd(&(common->icpResults[lIndex]), results[0][lIndex] + results[1][lIndex]);
