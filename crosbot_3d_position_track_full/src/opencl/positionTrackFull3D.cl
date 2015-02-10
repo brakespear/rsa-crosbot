@@ -1211,6 +1211,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
             /*float a = normal.y * transP.z - normal.z * transP.y;
             float b = -normal.x * transP.z + normal.z * transP.x;
             float c = normal.x * transP.y - normal.y * transP.x;*/
+
             
             /*float a = normal.z * transP.y - normal.y * transP.z;
             float b = normal.x * transP.z - normal.z * transP.x;
@@ -1219,12 +1220,20 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
             float e = normal.y;
             float f = normal.z;*/
 
+            float scale = dot(frameNormal, normal) / localMapCells[bI].distance[cIndex];
+            float a = (normal.z * transP.y - normal.y * transP.z) * scale;
+            float b = (normal.x * transP.z - normal.z * transP.x) * scale;
+            float c = (normal.y * transP.x - normal.x * transP.y) * scale;
+            float d = normal.x * scale;
+            float e = normal.y * scale;
+            float f = normal.z * scale;
+
             /*float a = (normal.z * transP.y - normal.y * transP.z) * common->icpScale[0];
             float b = (normal.x * transP.z - normal.z * transP.x) * common->icpScale[1];
             float c = (normal.y * transP.x - normal.x * transP.y) * common->icpScale[2];
             float d = normal.x * common->icpScale[3];
             float e = normal.y * common->icpScale[4];
-            float f = normal.z * common->icpScale[5];*/
+            float f = normal.z * common->icpScale[5];
 
             float at = normal.z * transP.y - normal.y * transP.z;
             float bt = normal.x * transP.z - normal.z * transP.x;
@@ -1268,16 +1277,19 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
                       ct * common->icpScale[5] * common->icpScale[2] +
                       dt * common->icpScale[5] * common->icpScale[3] +
                       et * common->icpScale[5] * common->icpScale[4] +
-                      ft * common->icpScale[5] * common->icpScale[5];
+                      ft * common->icpScale[5] * common->icpScale[5];*/
              
                      
 
 
 
 
-            float normScale = normal.x * (vm.x - transP.x) + 
+            /*float normScale = normal.x * (vm.x - transP.x) + 
                               normal.y * (vm.y - transP.y) +
-                              normal.z * (vm.z - transP.z);
+                              normal.z * (vm.z - transP.z);*/
+            float normScale = (normal.x * (vm.x - transP.x) + 
+                              normal.y * (vm.y - transP.y) +
+                              normal.z * (vm.z - transP.z)) * scale;
 
             atomicFloatAddLocal(&(results[wIndex][0]), a*a);
             atomicFloatAddLocal(&(results[wIndex][1]), a*b);
@@ -1462,12 +1474,12 @@ kernel void combineScaleICPResults(global oclLocalMapCommon *common, global floa
          max = results[i];
       }
    }
-   common->icpScale[index] = results[index] / max;
-   if (index >= 3) {
+   common->icpScale[index] = results[index] / (640.0f * 480.0f);
+   /*if (index >= 3) {
       common->icpScale[index] = 0.001f;
    } else {
       common->icpScale[index] = 1.0f;
-   }
+   }*/
 }
 
 

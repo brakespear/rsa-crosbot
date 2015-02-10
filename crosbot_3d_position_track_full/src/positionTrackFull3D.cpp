@@ -68,6 +68,9 @@ PositionTrackFull3D::PositionTrackFull3D() {
    newLocalMapInfo = NULL;
    currentLocalMapInfo = NULL;
 
+
+   f = fopen("/home/adrianrobolab/res.txt", "w");
+
 }
 
 void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
@@ -127,6 +130,7 @@ PositionTrackFull3D::~PositionTrackFull3D() {
 }
 
 void PositionTrackFull3D::stop() {
+   fclose(f);
 }
 
 void PositionTrackFull3D::initialiseFrame(const sensor_msgs::ImageConstPtr& depthImage, 
@@ -219,11 +223,11 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
    convertFrame(depthImage, rgbImage);
 
-   /*tf::Transform temp = icpFullPose.toTF() * oldICP.inverse();
+   tf::Transform temp = icpFullPose.toTF() * oldICP.inverse();
    oldICP = icpPose.toTF();
    tf::Transform newFullPose = temp * oldICP;
-   icpFullPose = newFullPose;*/
-   tf::Transform newFullPose = icpFullPose.toTF();
+   icpFullPose = newFullPose;
+   //tf::Transform newFullPose = icpFullPose.toTF();
 
    double y,p,r;
    icpPose.getYPR(y,p,r);
@@ -368,6 +372,18 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
       currentLocalMapICPPose = newLocalMapICPPose;
    }
    mapCentre = newMapCentre;
+
+
+   //Extract pose
+   ostringstream tt;
+   tt << ros::WallTime::now();
+   const char *st = tt.str().c+str();
+   tf::Transform tTrans = icpFullPose.toTF();
+   tf::Vector3 tVec = tTrans.getOrigin();
+   tf::Quaternion tQuat = tTrans.getRotation();
+   fprintf("%s %lf %lf %lf %lf %lf %lf %lf\n", st, origin[0], origin[1], origin[2],tQuat.x(),
+         tQuat.y(), tQuat.z(), tQuat.w());
+
 
    //questions:
    //- how to extract points? - for graph slam and for next iteration of position tracking?
@@ -860,11 +876,11 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
    tf::Transform start = newPose * sensorPose;
    tf::Transform curTrans = start;
    
-   scaleICP(numGroups, curTrans);
+   //scaleICP(numGroups, curTrans);
    readBuffer(clLocalMapCommon, CL_TRUE, icpResultsOffset + sizeof(float) * NUM_RESULTS, sizeof(ocl_float) * 6, 
             rawResults, 0, 0, 0, "Reading the icp scale results");
-   cout << "Scale is: " << rawResults[0] << " " << rawResults[1] << " " << rawResults[2] << " " <<
-      rawResults[3] << " " << rawResults[4] << " " << rawResults[5] << endl;
+   /*cout << "Scale is: " << rawResults[0] << " " << rawResults[1] << " " << rawResults[2] << " " <<
+      rawResults[3] << " " << rawResults[4] << " " << rawResults[5] << endl;*/
 
    Pose startPose = curTrans;
    double y,p,r;

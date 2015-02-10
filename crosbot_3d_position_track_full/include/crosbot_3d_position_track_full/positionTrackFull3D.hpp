@@ -194,6 +194,9 @@ private:
    Pose currentLocalMapICPPose;
    Pose newLocalMapICPPose;
 
+
+   FILE *f;
+
    void setupGPU();
    void initialiseImages();
    void initialiseLocalMap();
