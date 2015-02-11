@@ -1220,7 +1220,8 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
             float e = normal.y;
             float f = normal.z;*/
 
-            float scale = dot(frameNormal, normal) / localMapCells[bI].distance[cIndex];
+            //float scale = dot(frameNormal, normal) / localMapCells[bI].distance[cIndex];
+            float scale = localMapCells[bI].weight[cIndex] * dot(frameNormal, normal) / localMapCells[bI].distance[cIndex];
             float a = (normal.z * transP.y - normal.y * transP.z) * scale;
             float b = (normal.x * transP.z - normal.z * transP.x) * scale;
             float c = (normal.y * transP.x - normal.x * transP.y) * scale;

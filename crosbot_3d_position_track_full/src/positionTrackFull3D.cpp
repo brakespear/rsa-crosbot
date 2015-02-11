@@ -223,11 +223,11 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
    convertFrame(depthImage, rgbImage);
 
-   tf::Transform temp = icpFullPose.toTF() * oldICP.inverse();
+   /*tf::Transform temp = icpFullPose.toTF() * oldICP.inverse();
    oldICP = icpPose.toTF();
    tf::Transform newFullPose = temp * oldICP;
-   icpFullPose = newFullPose;
-   //tf::Transform newFullPose = icpFullPose.toTF();
+   icpFullPose = newFullPose;*/
+   tf::Transform newFullPose = icpFullPose.toTF();
 
    double y,p,r;
    icpPose.getYPR(y,p,r);
@@ -243,7 +243,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
    //icp itself
    ros::WallTime t1 = ros::WallTime::now();
-   //alignICP(sensorPose.toTF(), newFullPose);
+   alignICP(sensorPose.toTF(), newFullPose);
    ros::WallTime t2 = ros::WallTime::now();
    ros::WallDuration totalTime = t2 - t1;
    cout << "Time of align icp: " << totalTime.toSec() * 1000.0f << endl;
