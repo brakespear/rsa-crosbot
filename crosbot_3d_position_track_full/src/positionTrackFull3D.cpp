@@ -69,7 +69,7 @@ PositionTrackFull3D::PositionTrackFull3D() {
    currentLocalMapInfo = NULL;
 
 
-   f = fopen("/home/adrianrobolab/res.txt", "w");
+   f = fopen("res.txt", "w");
 
 }
 
@@ -243,7 +243,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
    //icp itself
    ros::WallTime t1 = ros::WallTime::now();
-   alignICP(sensorPose.toTF(), newFullPose);
+   //alignICP(sensorPose.toTF(), newFullPose);
    ros::WallTime t2 = ros::WallTime::now();
    ros::WallDuration totalTime = t2 - t1;
    cout << "Time of align icp: " << totalTime.toSec() * 1000.0f << endl;
@@ -376,12 +376,13 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
    //Extract pose
    ostringstream tt;
-   tt << ros::WallTime::now();
-   const char *st = tt.str().c+str();
+   //tt << ros::Time::now();
+   tt << depthImage->header.stamp;
+   const char *st = tt.str().c_str();
    tf::Transform tTrans = icpFullPose.toTF();
    tf::Vector3 tVec = tTrans.getOrigin();
    tf::Quaternion tQuat = tTrans.getRotation();
-   fprintf("%s %lf %lf %lf %lf %lf %lf %lf\n", st, origin[0], origin[1], origin[2],tQuat.x(),
+   fprintf(f, "%s %lf %lf %lf %lf %lf %lf %lf\n", st, tVec[0], tVec[1], tVec[2],tQuat.x(),
          tQuat.y(), tQuat.z(), tQuat.w());
 
 

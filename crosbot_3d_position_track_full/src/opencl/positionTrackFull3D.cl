@@ -1361,13 +1361,6 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
       tempStore[groupNum + 28 * numGroups] = goodCount[0] + goodCount[1];
    }
 
-   /*if (lIndex < NUM_RESULTS) {
-      atomicFloatAdd(&(common->icpResults[lIndex]), results[0][lIndex] + results[1][lIndex]);
-   }
-   if (lIndex == 0) {
-   //   atomic_add(&(common->goodCount), goodCount[0] + goodCount[1]);
-      atomicFloatAdd(&(common->icpResults[28]), goodCount[0] + goodCount[1]);
-   }*/
 }
 
 kernel void combineICPResults(global oclLocalMapCommon *common, global float *tempStore,
@@ -1474,7 +1467,7 @@ kernel void combineScaleICPResults(global oclLocalMapCommon *common, global floa
          max = results[i];
       }
    }
-   common->icpScale[index] = results[index] / (640.0f * 480.0f);
+   common->icpScale[index] = results[index] / max;
    /*if (index >= 3) {
       common->icpScale[index] = 0.001f;
    } else {
