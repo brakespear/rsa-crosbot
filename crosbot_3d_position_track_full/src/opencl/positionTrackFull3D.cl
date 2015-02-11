@@ -1364,11 +1364,271 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
 
 }
 
+
+
+__kernel void predictSurface(const oclPositionTrackConfig *config, global int *blocks,
+      global oclLocalBlock *localMapCells, global oclDepthPoints *curPoints, 
+      global oclDepthPoints *predPoints, global oclDepthPoints *predNormals, 
+      const int numPoints, const int3 cent, const float3 origin, const float3 rotation0, 
+      const float3 rotation1, const float3 rotation2) {
+   int index = get_global_id(0);
+
+   if (index < numPoints) {
+      predPoints->x[index] = NAN;
+      predNormals->x[index] = NAN;
+   }
+
+   if (index < numPoints && !isnan(curPoints->x[index])) {
+      int3 centMod;
+      centMod.x = cent.x % config->NumBlocksWidth;
+      centMod.y = cent.y % config->NumBlocksWidth;
+      centMod.z = cent.z % config->NumBlocksHeight;
+      float3 point = (float3)(curPoints->x[index], curPoints->y[index], curPoints->z[index]);
+      float3 transP = transformPoint(point, origin, rotation0, rotation1, rotation2);
+      int bIndex = getBlockIndex(config, transP, cent, centMod);
+
+      if (bIndex >= 0 && blocks[bIndex] >= 0) {
+         int bI = blocks[bIndex];
+         int cIndex = getCellIndex(config, transP);
+
+         int u = index % config->ImageWidth;
+         int v = index / config->ImageWidth;
+         float3 ray;       
+         p.x = ((float)u - config->cx - config->tx) / config->fx;
+         p.y = ((float)v - config->cy - config->ty) / config->fy;
+         p.z = 1.0f;
+         float3 zero = (float3) (0.0f, 0.0f, 0.0f);
+         ray = transformPoint(ray, zero, rotation0, rotation1, rotation2);
+         ray = fast_normalize(ray);
+
+         if (isnan(localMapCells[bI].distance[cIndex]) || localMapCells[bI].distance[cIndex] < 0) {
+            ray *= -1.0f;
+         }
+
+         float prevDist = localMapCells[bI].distance[cIndex];
+         float3 blockPos = getBlockPositionFromPoint(config, transP);
+         float3 pos = transP - blockPos;
+         int3 ind = pos / config->CellSize;
+         pos = ind * config->CellSize + (config->CellSize / 2.0f);
+         //pos is now the center of the cell
+
+
+         for (int numSteps; numSteps < 10; numSteps++) {
+            pos += ray;
+            if (pos.x < 0 || pos.y < 0 || pos.z < 0 || pos.x >= config->BlockSize ||
+                  pos.y >= config->BlockSize || pos.z >= config->BlockSize) {
+               bIndex = getBlockIndex(config, blockPos + pos, cent, centMed);
+               if (bIndex < 0 || blocks[bIndex] < 0) {
+                  break;
+               }
+               bI = blocks[bIndex];
+
+               if (pos.x < 0) {
+                  pos.x += config->BlockSize;
+               } else if (pos.x >= config->BlockSize) {
+                  pos.x -= config->BlockSize;
+               }
+               if (pos.y < 0) {
+                  pos.y += config->BlockSize;
+               } else if (pos.y >= config->BlockSize) {
+                  pos.y -= config->BlockSize;
+               }
+               if (pos.z < 0) {
+                  pos.z += config->BlockSize;
+               } else if (pos.z >= config->BlockSize) {
+                  pos.z -= config->BlockSize;
+               }
+            }
+
+            ind = pos / config->CellSize;
+            cIndex = ind.z * config->NumCellsWidth * config->NumCellsWidth + 
+               ind.y * config->NumCellsWidth + ind.x;
+            float newDist = localMapCells[bI].distance[cIndex];
+            if (sign(newDist) != sign(prevdist)) {
+
+
+                  }
+
+         }
+
+
+         float inc = fabs(cellVal / (cellNextVal - cellVal)) * config->CellSize;
+
+
+
+
+float3 getCellCentre(constant oclPositionTrackConfig *config, int cIndex, int bIndex,
+      const int3 cent, const int3 centMod) {
+   p.x += x * config->CellSize + (config->CellSize / 2.0f);
+   p.y += y * config->CellSize + (config->CellSize / 2.0f);
+   p.z += z * config->CellSize + (config->CellSize / 2.0f);
+
+
+float3 getBlockPositionFromPoint(constant oclPositionTrackConfig *config, float3 p) {
+   return floor(p / config->BlockSize) * config->BlockSize;
+}
+
+int getCellIndex(constant oclPositionTrackConfig *config, float3 point) {
+   float3 b = getBlockPositionFromPoint(config, point);
+   float3 diff = point - b;
+   int x = diff.x / config->CellSize;
+   int y = diff.y / config->CellSize;
+   int z = diff.z / config->CellSize;
+   return z * config->NumCellsWidth * config->NumCellsWidth + y * config->NumCellsWidth + x;
+}
+         int cellX = cIndex % config->NumCellsWidth;
+         int cellY = (cIndex / config->NumCellsWidth) % config->NumCellsWidth;
+         int cellZ = cIndex / (config->NumCellsWidth * config->NumCellsWidth);
+
+
+         
+      }
+   }
+}
+
+__kernel void rayTraceICP(constant oclPositionTrackConfig *config,
+      global oclLocalMapCommon *common, global oclDepthPoints *curPoints, 
+      global oclDepthPoints *curNormals, global oclDepthPoints *predPoints,
+      global oclDepthPoints *predNormals, global float *tempStore,
+      const int numPoints, const int numGroups,
+      const float3 origin, const float3 rotation0, 
+      const float3 rotation1, const float3 rotation2,
+      const float3 frOrigin, const float3 frRotation0,
+      const float3 frRotation1, const float3 frRotation2) {
+
+   int gIndex = get_global_id(0);
+   int lIndex = get_local_id(0);
+   int wIndex = lIndex % WARP_SIZE;
+
+   int groupNum = get_group_id(0);
+
+   local float results[WARP_SIZE][NUM_RESULTS];
+   local int goodCount[WARP_SIZE];
+   int i;
+
+   if (lIndex < WARP_SIZE) {
+      for (i = 0; i < NUM_RESULTS; i++) {
+         results[lIndex][i] = 0.0f;
+      }
+      goodCount[lIndex] = 0;
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+
+   if (gIndex < numPoints && !isnan(curPoints->x[gIndex]) && !isnan(curNormals->x[gIndex])) {
+
+      float3 point = (float3)(curPoints->x[gIndex], curPoints->y[gIndex], curPoints->z[gIndex]);
+      float3 dispPoint = transformPoint(point, frOrigin, frRotation0, frRotation1, frRotation2);
+      
+      int u = (config->fx * dispPoint.x + config->tx) / dispPoint.z + config->cx;
+      int v = (config->fy * dispPoint.y + config->ty) / dispPoint.z + config->cy;
+      int pointI = config->ImageWidth * v + u;
+      if (u >= 0 && u < config->ImageWidth && v >= 0 && v < config->ImageHeight &&
+            !isnan(predPoints->x[pointI]) && !isnan(predNormals->x[pointI])) {
+   
+         float3 vm = (float3)(predPoints->x[pointI], predPoints->y[pointI], predPoints->z[pointI]);
+         float3 normal = (float3)(predNormals->x[pointI], predNormals->y[pointI],
+            predNormals->z[pointI]);
+
+         float3 transP = transformPoint(point, origin, rotation0, rotation1, rotation2);
+         float3 zero = (float3) (0.0f, 0.0f, 0.0f);
+         float3 frameNormal = (float3)(curNormals->x[gIndex], curNormals->y[gIndex], 
+            curNormals->z[gIndex]);
+         frameNormal = transformPoint(frameNormal, zero, rotation0, rotation1, rotation2);
+         frameNormal = fast_normalize(frameNormal);
+
+         float dist2 = (transP.x - vm.x) * (transP.x - vm.x) + 
+                        (transP.y - vm.y) * (transP.y - vm.y) + 
+                        (transP.z - vm.z) * (transP.z - vm.z);
+         float dotProd = dot(frameNormal, normal);
+
+         if (dotProd && dist2 < 0.001f) {
+            
+            //float scale = dotProd / dist2;
+            float scale = 1.0f;
+            float a = (normal.z * transP.y - normal.y * transP.z) * scale;
+            float b = (normal.x * transP.z - normal.z * transP.x) * scale;
+            float c = (normal.y * transP.x - normal.x * transP.y) * scale;
+            float d = normal.x * scale;
+            float e = normal.y * scale;
+            float f = normal.z * scale;
+
+            float normScale = (normal.x * (vm.x - transP.x) + 
+                              normal.y * (vm.y - transP.y) +
+                              normal.z * (vm.z - transP.z)) * scale;
+
+            atomicFloatAddLocal(&(results[wIndex][0]), a*a);
+            atomicFloatAddLocal(&(results[wIndex][1]), a*b);
+            atomicFloatAddLocal(&(results[wIndex][2]), b*b);
+            atomicFloatAddLocal(&(results[wIndex][3]), a*c);
+            atomicFloatAddLocal(&(results[wIndex][4]), c*b);
+            atomicFloatAddLocal(&(results[wIndex][5]), c*c);
+            atomicFloatAddLocal(&(results[wIndex][6]), a*d);
+            atomicFloatAddLocal(&(results[wIndex][7]), d*b);
+            atomicFloatAddLocal(&(results[wIndex][8]), d*c);
+            atomicFloatAddLocal(&(results[wIndex][9]), d*d);
+            atomicFloatAddLocal(&(results[wIndex][10]), a*e);
+            atomicFloatAddLocal(&(results[wIndex][11]), b*e);
+            atomicFloatAddLocal(&(results[wIndex][12]), c*e);
+            atomicFloatAddLocal(&(results[wIndex][13]), d*e);
+            atomicFloatAddLocal(&(results[wIndex][14]), e*e);
+            atomicFloatAddLocal(&(results[wIndex][15]), a*f);
+            atomicFloatAddLocal(&(results[wIndex][16]), b*f);
+            atomicFloatAddLocal(&(results[wIndex][17]), c*f);
+            atomicFloatAddLocal(&(results[wIndex][18]), d*f);
+            atomicFloatAddLocal(&(results[wIndex][19]), e*f);
+            atomicFloatAddLocal(&(results[wIndex][20]), f*f);
+            atomicFloatAddLocal(&(results[wIndex][21]), normScale * a);
+            atomicFloatAddLocal(&(results[wIndex][22]), normScale * b);
+            atomicFloatAddLocal(&(results[wIndex][23]), normScale * c);
+            atomicFloatAddLocal(&(results[wIndex][24]), normScale * d);
+            atomicFloatAddLocal(&(results[wIndex][25]), normScale * e);
+            atomicFloatAddLocal(&(results[wIndex][26]), normScale * f);
+
+            atomic_inc(&(goodCount[wIndex]));
+            atomicFloatAddLocal(&(results[wIndex][27]), localMapCells[bI].distance[cIndex]);
+         }
+      }
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+   if (lIndex < 16 /*&& WARP_SIZE==32*/) {
+      for(i = 0; i < NUM_RESULTS; i++) {
+         results[lIndex][i] += results[lIndex + 16][i];
+      }
+      goodCount[lIndex] += goodCount[lIndex + 16];
+   }
+   if (lIndex < 8) {
+      for(i = 0; i < NUM_RESULTS; i++) {
+         results[lIndex][i] += results[lIndex + 8][i];
+      }
+      goodCount[lIndex] += goodCount[lIndex + 8];
+   }
+   if (lIndex < 4) {
+      for(i = 0; i < NUM_RESULTS; i++) {
+         results[lIndex][i] += results[lIndex + 4][i];
+      }
+      goodCount[lIndex] += goodCount[lIndex + 4];
+   }
+   if (lIndex < 2) {
+      for(i = 0; i < NUM_RESULTS; i++) {
+         results[lIndex][i] += results[lIndex + 2][i];
+      }
+      goodCount[lIndex] += goodCount[lIndex + 2];
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+   if (lIndex < NUM_RESULTS) {
+      tempStore[groupNum + lIndex * numGroups] = results[0][lIndex] + results[1][lIndex];
+   }
+   if (lIndex == 0) {
+      tempStore[groupNum + 28 * numGroups] = goodCount[0] + goodCount[1];
+   }
+}
+
+
+
+
 kernel void combineICPResults(global oclLocalMapCommon *common, global float *tempStore,
       const int numGroups) {
    int index = get_global_id(0);
-
-   //int numGroups = LOCAL_SIZE / NUM_RESULTS;
 
    if (index < NUM_RESULTS) {
       float res = 0;

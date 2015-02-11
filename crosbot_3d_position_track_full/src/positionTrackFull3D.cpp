@@ -382,7 +382,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    tf::Transform tTrans = icpFullPose.toTF();
    tf::Vector3 tVec = tTrans.getOrigin();
    tf::Quaternion tQuat = tTrans.getRotation();
-   fprintf(f, "%s %lf %lf %lf %lf %lf %lf %lf\n", st, tVec[0], tVec[1], tVec[2],tQuat.x(),
+   fprintf(f, "%s %lf %lf %lf %lf %lf %lf %lf\n", st, tVec[0], tVec[1], tVec[2], tQuat.x(),
          tQuat.y(), tQuat.z(), tQuat.w());
 
 
