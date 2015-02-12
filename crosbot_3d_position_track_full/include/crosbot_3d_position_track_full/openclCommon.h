@@ -8,7 +8,7 @@
 #ifndef OPENCL_COMMON_H_
 #define OPENCL_COMMON_H_
 
-#define NUM_RESULTS 29
+#define NUM_RESULTS 28
 
 //Vectors have different names in host code and kernel code. Kernel code
 //will be compiled with CL_RUNTIME flag set

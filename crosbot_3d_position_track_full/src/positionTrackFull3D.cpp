@@ -31,7 +31,9 @@ const string PositionTrackFull3D::kernel_names[] = {
    "bilateralFilter",
    "combineICPResults",
    "scaleICP",
-   "combineScaleICPResults"
+   "combineScaleICPResults",
+   "predictSurface",
+   "rayTraceICP"
 };
 const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kernel_names[0]);
 #define CLEAR_LOCAL_MAP 0
@@ -49,6 +51,8 @@ const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kerne
 #define COMBINE_ICP_RESULTS 12
 #define SCALE_ICP 13
 #define COMBINE_SCALE_ICP_RESULTS 14
+#define PREDICT_SURFACE 15
+#define RAY_TRACE_ICP 16
 
 PositionTrackFull3D::PositionTrackFull3D() {
    opencl_manager = new OpenCLManager();
@@ -243,7 +247,8 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
    //icp itself
    ros::WallTime t1 = ros::WallTime::now();
-   alignICP(sensorPose.toTF(), newFullPose);
+   //alignICP(sensorPose.toTF(), newFullPose);
+   alignRayTraceICP(sensorPose.toTF(), newFullPose);
    ros::WallTime t2 = ros::WallTime::now();
    ros::WallDuration totalTime = t2 - t1;
    cout << "Time of align icp: " << totalTime.toSec() * 1000.0f << endl;
@@ -861,7 +866,7 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
    opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCommon);
    opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
    opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clNormalsFrame);
-   opencl_task->setArg(6, kernelI, sizeof(cl_mem), &clPointCloud); //tempStore
+   opencl_task->setArg(6, kernelI, sizeof(cl_mem), &clColours); //tempStore
    opencl_task->setArg(7, kernelI, sizeof(int), &numDepthPoints);
    opencl_task->setArg(8, kernelI, sizeof(int), &numGroups);
    opencl_task->setArg(9, kernelI, sizeof(ocl_int3), &mapCentre);
@@ -1029,6 +1034,188 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
 
 }
 
+
+
+
+
+void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transform newPose) {
+   tf::Transform start = newPose * sensorPose;
+
+   predictSurface(start);
+
+   int globalSize = getGlobalWorkSize(numDepthPoints);
+   int numGroups = globalSize / LocalSize;
+   int kernelI = RAY_TRACE_ICP;
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapCommon);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clNormalsFrame);
+   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clPointCloud); //predPoints
+   opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clNormals); //predNormals
+   opencl_task->setArg(6, kernelI, sizeof(cl_mem), &clColours); //tempStore
+   opencl_task->setArg(7, kernelI, sizeof(int), &numDepthPoints);
+   opencl_task->setArg(8, kernelI, sizeof(int), &numGroups);
+
+   ocl_float rawResults[NUM_RESULTS];
+   float A[DOF][DOF];
+   float b[DOF];
+   float x[DOF];
+   tf::Transform curTrans = start;
+   
+   Pose startPose = curTrans;
+   double y,p,r;
+   startPose.getYPR(y,p,r);
+   cout << "Start pose is: " << startPose.position.x << " " << startPose.position.y << " " <<
+         startPose.position.z << " " << y << " " << p << " " << r << endl;
+
+   int i;
+   for (i = 0; i < 5; i++) {
+
+      tf::Matrix3x3 basis = curTrans.getBasis();
+      tf::Vector3 origin = curTrans.getOrigin();
+
+      ocl_float3 clBasis[3];
+      ocl_float3 clOrigin;
+      for (int j = 0; j < 3; j++) {
+         clBasis[j].x = basis[j][0];
+         clBasis[j].y = basis[j][1];
+         clBasis[j].z = basis[j][2];
+      }
+      clOrigin.x = origin[0];
+      clOrigin.y = origin[1];
+      clOrigin.z = origin[2];
+      opencl_task->setArg(9, kernelI, sizeof(ocl_float3), &clOrigin);
+      opencl_task->setArg(10, kernelI, sizeof(ocl_float3), &clBasis[0]);
+      opencl_task->setArg(11, kernelI, sizeof(ocl_float3), &clBasis[1]);
+      opencl_task->setArg(12, kernelI, sizeof(ocl_float3), &clBasis[2]);
+      tf::Transform adjust = start.inverse() * curTrans;
+      basis = adjust.getBasis();
+      origin = adjust.getOrigin();
+      ocl_float3 frBasis[3];
+      ocl_float3 frOrigin;
+      for (int j = 0; j < 3; j++) {
+         frBasis[j].x = basis[j][0];
+         frBasis[j].y = basis[j][1];
+         frBasis[j].z = basis[j][2];
+      }
+      frOrigin.x = origin[0];
+      frOrigin.y = origin[1];
+      frOrigin.z = origin[2];
+      opencl_task->setArg(13, kernelI, sizeof(ocl_float3), &frOrigin);
+      opencl_task->setArg(14, kernelI, sizeof(ocl_float3), &frBasis[0]);
+      opencl_task->setArg(15, kernelI, sizeof(ocl_float3), &frBasis[1]);
+      opencl_task->setArg(16, kernelI, sizeof(ocl_float3), &frBasis[2]);
+
+      opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+
+      combineICPResults(numGroups);
+
+      readBuffer(clLocalMapCommon, CL_TRUE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
+            rawResults, 0, 0, 0, "Reading the icp results");
+      A[0][0] = rawResults[0];
+      A[1][0] = rawResults[1];
+      A[1][1] = rawResults[2];
+      A[2][0] = rawResults[3];
+      A[2][1] = rawResults[4];
+      A[2][2] = rawResults[5];
+      A[3][0] = rawResults[6];
+      A[3][1] = rawResults[7];
+      A[3][2] = rawResults[8];
+      A[3][3] = rawResults[9];
+      A[4][0] = rawResults[10];
+      A[4][1] = rawResults[11];
+      A[4][2] = rawResults[12];
+      A[4][3] = rawResults[13];
+      A[4][4] = rawResults[14];
+      A[5][0] = rawResults[15];
+      A[5][1] = rawResults[16];
+      A[5][2] = rawResults[17];
+      A[5][3] = rawResults[18];
+      A[5][4] = rawResults[19];
+      A[5][5] = rawResults[20];
+      b[0] = rawResults[21];
+      b[1] = rawResults[22];
+      b[2] = rawResults[23];
+      b[3] = rawResults[24];
+      b[4] = rawResults[25];
+      b[5] = rawResults[26];
+
+      cout << "Raw results: ";
+      for (int j = 0; j < NUM_RESULTS; j++) {
+         cout << rawResults[j] << " ";
+      }
+      cout << endl;
+
+      solveCholesky(A, b, x);
+
+      /*cout << "Results: ";
+      for (int j = 0; j < DOF; j++) {
+         cout << x[j] << " ";
+      }
+      cout << endl;*/
+
+      bool valid = true;
+      for (int j = 0; j < DOF; j++) {
+         if (isnan(x[j])) {
+            valid = false;
+         }
+      }
+      if (!valid) {
+         cout << "Alignment failed" << endl;
+         break;
+      }
+
+      tf::Vector3 incVec(x[3], x[4], x[5]);
+      tf::Matrix3x3 incMat;
+      incMat.setEulerYPR(x[2], x[1], x[0]);
+      tf::Transform inc(incMat, incVec);
+      
+      Pose incPose = inc;
+      incPose.getYPR(y,p,r);
+      cout << incPose.position.x << " " << incPose.position.y << " " << incPose.position.z << " : " 
+         << y << " " << p << " " << r << " : " << rawResults[27] << " " << endl;
+      curTrans = inc * curTrans;
+   }
+   Pose endPose = curTrans;
+   endPose.getYPR(y,p,r);
+   cout << "End pose is: " << endPose.position.x << " " << endPose.position.y << " " <<
+       endPose.position.z << " " << y << " " << p << " " << r << endl;
+   icpFullPose = curTrans * sensorPose.inverse();
+}
+
+
+void PositionTrackFull3D::predictSurface(tf::Transform trans) {
+   int kernelI = PREDICT_SURFACE;
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCells);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
+   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clPointCloud); //predPoints
+   opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clNormals); //predNormals
+   opencl_task->setArg(6, kernelI, sizeof(int), &numDepthPoints);
+   opencl_task->setArg(7, kernelI, sizeof(ocl_int3), &mapCentre);
+   
+   tf::Matrix3x3 basis = trans.getBasis();
+   tf::Vector3 origin = trans.getOrigin();
+
+   ocl_float3 clBasis[3];
+   ocl_float3 clOrigin;
+   for (int j = 0; j < 3; j++) {
+      clBasis[j].x = basis[j][0];
+      clBasis[j].y = basis[j][1];
+      clBasis[j].z = basis[j][2];
+   }
+   clOrigin.x = origin[0];
+   clOrigin.y = origin[1];
+   clOrigin.z = origin[2];
+   opencl_task->setArg(8, kernelI, sizeof(ocl_float3), &clOrigin);
+   opencl_task->setArg(9, kernelI, sizeof(ocl_float3), &clBasis[0]);
+   opencl_task->setArg(10, kernelI, sizeof(ocl_float3), &clBasis[1]);
+   opencl_task->setArg(11, kernelI, sizeof(ocl_float3), &clBasis[2]);
+   int globalSize = getGlobalWorkSize(numDepthPoints);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+}
+
 void PositionTrackFull3D::solveCholesky(float A[DOF][DOF], float b[DOF], float x[DOF]) {
 
    int col, row, i;
@@ -1087,7 +1274,7 @@ void PositionTrackFull3D::bilateralFilter() {
 void PositionTrackFull3D::combineICPResults(int numGroups) {
    int kernelI = COMBINE_ICP_RESULTS;
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clLocalMapCommon);
-   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clPointCloud); //tempStore
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clColours); //tempStore
    opencl_task->setArg(2, kernelI, sizeof(int), &numGroups);
    opencl_task->queueKernel(kernelI, 1, LocalSize, LocalSize, 0, NULL, NULL, false);
 
@@ -1108,7 +1295,7 @@ void PositionTrackFull3D::scaleICP(int numGroups, tf::Transform trans) {
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapCommon);
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
    opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clNormalsFrame);
-   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clPointCloud); //tempStore
+   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clColours); //tempStore
    opencl_task->setArg(5, kernelI, sizeof(int), &numDepthPoints);
    opencl_task->setArg(6, kernelI, sizeof(int), &numGroups);
    opencl_task->setArg(7, kernelI, sizeof(ocl_float3), &clBasis[0]);
@@ -1117,7 +1304,7 @@ void PositionTrackFull3D::scaleICP(int numGroups, tf::Transform trans) {
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
    kernelI = COMBINE_SCALE_ICP_RESULTS;
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clLocalMapCommon);
-   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clPointCloud); //tempStore
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clColours); //tempStore
    opencl_task->setArg(2, kernelI, sizeof(int), &numGroups);
    opencl_task->queueKernel(kernelI, 1, LocalSize, LocalSize, 0, NULL, NULL, false);
 }

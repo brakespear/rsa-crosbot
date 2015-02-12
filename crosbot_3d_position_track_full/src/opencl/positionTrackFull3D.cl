@@ -1366,7 +1366,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
 
 
 
-__kernel void predictSurface(const oclPositionTrackConfig *config, global int *blocks,
+__kernel void predictSurface(constant oclPositionTrackConfig *config, global int *blocks,
       global oclLocalBlock *localMapCells, global oclDepthPoints *curPoints, 
       global oclDepthPoints *predPoints, global oclDepthPoints *predNormals, 
       const int numPoints, const int3 cent, const float3 origin, const float3 rotation0, 
@@ -1394,9 +1394,9 @@ __kernel void predictSurface(const oclPositionTrackConfig *config, global int *b
          int u = index % config->ImageWidth;
          int v = index / config->ImageWidth;
          float3 ray;       
-         p.x = ((float)u - config->cx - config->tx) / config->fx;
-         p.y = ((float)v - config->cy - config->ty) / config->fy;
-         p.z = 1.0f;
+         ray.x = ((float)u - config->cx - config->tx) / config->fx;
+         ray.y = ((float)v - config->cy - config->ty) / config->fy;
+         ray.z = 1.0f;
          float3 zero = (float3) (0.0f, 0.0f, 0.0f);
          ray = transformPoint(ray, zero, rotation0, rotation1, rotation2);
          ray = fast_normalize(ray);
@@ -1408,16 +1408,16 @@ __kernel void predictSurface(const oclPositionTrackConfig *config, global int *b
          float prevDist = localMapCells[bI].distance[cIndex];
          float3 blockPos = getBlockPositionFromPoint(config, transP);
          float3 pos = transP - blockPos;
-         int3 ind = pos / config->CellSize;
-         pos = ind * config->CellSize + (config->CellSize / 2.0f);
+         //int3 ind = pos / config->CellSize;
+         //pos = ind * config->CellSize + (config->CellSize / 2.0f);
          //pos is now the center of the cell
 
-
+         float3 wrapPos = pos;
          for (int numSteps; numSteps < 10; numSteps++) {
             pos += ray;
             if (pos.x < 0 || pos.y < 0 || pos.z < 0 || pos.x >= config->BlockSize ||
                   pos.y >= config->BlockSize || pos.z >= config->BlockSize) {
-               bIndex = getBlockIndex(config, blockPos + pos, cent, centMed);
+               bIndex = getBlockIndex(config, blockPos + wrapPos + ray, cent, centMod);
                if (bIndex < 0 || blocks[bIndex] < 0) {
                   break;
                }
@@ -1440,51 +1440,40 @@ __kernel void predictSurface(const oclPositionTrackConfig *config, global int *b
                }
             }
 
-            ind = pos / config->CellSize;
-            cIndex = ind.z * config->NumCellsWidth * config->NumCellsWidth + 
-               ind.y * config->NumCellsWidth + ind.x;
+            int indX = pos.x / config->CellSize;
+            int indY = pos.y / config->CellSize;
+            int indZ = pos.z / config->CellSize;
+            cIndex = indZ * config->NumCellsWidth * config->NumCellsWidth + 
+               indY * config->NumCellsWidth + indX;
             float newDist = localMapCells[bI].distance[cIndex];
-            if (sign(newDist) != sign(prevdist)) {
+            if (sign(newDist) != sign(prevDist)) {
+               float3 bottom = floor(wrapPos / config->CellSize) * config->CellSize +
+                  config->CellSize/2.0f;
+               float3 top = floor(wrapPos / config->CellSize) * config->CellSize +
+                  config->CellSize/2.0f;
+               bottom = wrapPos + dot(wrapPos - bottom, ray) * ray;
+               top = wrapPos + dot(wrapPos - top, ray) * ray;
 
+               bottom = blockPos + bottom - (prevDist / (newDist - prevDist)) * (top - bottom);
+               predPoints->x[index] = bottom.x;
+               predPoints->y[index] = bottom.y;
+               predPoints->z[index] = bottom.z;
 
-                  }
-
+               bottom = getNormal(config, blocks, localMapCells, cent, bIndex, cIndex);
+               predNormals->x[index] = bottom.x;
+               predNormals->y[index] = bottom.y;
+               predNormals->z[index] = bottom.z;
+               break;
+            }
+            prevDist = newDist;
+            wrapPos += ray;
          }
-
-
-         float inc = fabs(cellVal / (cellNextVal - cellVal)) * config->CellSize;
-
-
-
-
-float3 getCellCentre(constant oclPositionTrackConfig *config, int cIndex, int bIndex,
-      const int3 cent, const int3 centMod) {
-   p.x += x * config->CellSize + (config->CellSize / 2.0f);
-   p.y += y * config->CellSize + (config->CellSize / 2.0f);
-   p.z += z * config->CellSize + (config->CellSize / 2.0f);
-
-
-float3 getBlockPositionFromPoint(constant oclPositionTrackConfig *config, float3 p) {
-   return floor(p / config->BlockSize) * config->BlockSize;
-}
-
-int getCellIndex(constant oclPositionTrackConfig *config, float3 point) {
-   float3 b = getBlockPositionFromPoint(config, point);
-   float3 diff = point - b;
-   int x = diff.x / config->CellSize;
-   int y = diff.y / config->CellSize;
-   int z = diff.z / config->CellSize;
-   return z * config->NumCellsWidth * config->NumCellsWidth + y * config->NumCellsWidth + x;
-}
-         int cellX = cIndex % config->NumCellsWidth;
-         int cellY = (cIndex / config->NumCellsWidth) % config->NumCellsWidth;
-         int cellZ = cIndex / (config->NumCellsWidth * config->NumCellsWidth);
-
-
-         
       }
    }
 }
+
+
+
 
 __kernel void rayTraceICP(constant oclPositionTrackConfig *config,
       global oclLocalMapCommon *common, global oclDepthPoints *curPoints, 
@@ -1585,7 +1574,6 @@ __kernel void rayTraceICP(constant oclPositionTrackConfig *config,
             atomicFloatAddLocal(&(results[wIndex][26]), normScale * f);
 
             atomic_inc(&(goodCount[wIndex]));
-            atomicFloatAddLocal(&(results[wIndex][27]), localMapCells[bI].distance[cIndex]);
          }
       }
    }
@@ -1619,7 +1607,7 @@ __kernel void rayTraceICP(constant oclPositionTrackConfig *config,
       tempStore[groupNum + lIndex * numGroups] = results[0][lIndex] + results[1][lIndex];
    }
    if (lIndex == 0) {
-      tempStore[groupNum + 28 * numGroups] = goodCount[0] + goodCount[1];
+      tempStore[groupNum + 27 * numGroups] = goodCount[0] + goodCount[1];
    }
 }
 

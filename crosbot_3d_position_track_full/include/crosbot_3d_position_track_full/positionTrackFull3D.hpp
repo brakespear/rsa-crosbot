@@ -173,9 +173,9 @@ private:
    size_t numBlocksToDeleteOffset;
    size_t highestBlockNumOffset;
    size_t icpResultsOffset;
-   cl_mem clPointCloud;
-   cl_mem clColours;
-   cl_mem clNormals;
+   cl_mem clPointCloud; //Also predPoints
+   cl_mem clColours;  //Also clColours
+   cl_mem clNormals; //Also predNormals
 
    //The current icp pose output by this node
    Pose icpFullPose;
@@ -216,8 +216,13 @@ private:
    void outputAllPoints(int numPoints, vector<uint8_t>& allPoints);
    void calculateNormals();
    void alignICP(tf::Transform sensorPose, tf::Transform newPose);
+   void alignRayTraceICP(tf::Transform sensorPose, tf::Transform newPose);
+   void predictSurface(tf::Transform trans);
+
    void bilateralFilter();
    void combineICPResults(int numGroups);
+
+
    void scaleICP(int numGroups, tf::Transform trans);
 
    //Solve Ax = b. Requires A to be symmetric. Only looks at bottom left of A
