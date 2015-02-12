@@ -1724,5 +1724,22 @@ kernel void combineScaleICPResults(global oclLocalMapCommon *common, global floa
    }*/
 }
 
+__kernel void outputDebuggingImage(constant oclPositionTrackConfig *config, 
+      global oclDepthPoints *predPoints, global float *depthPoints,
+      const int numPoints, const float3 origin, const float3 rotation0, 
+      const float3 rotation1, const float3 rotation2) {
+   int index = get_global_id(0);
+
+   if (index < numPoints) {
+      if (!isnan(predPoints->x[index])) {
+         float3 p = (float3)(predPoints->x[index], predPoints->y[index], predPoints->z[index]);
+         p = transformPoint(p, origin, rotation0, rotation1, rotation2);
+         depthPoints[index] = p.z;
+      } else {
+         depthPoints[index] = NAN;
+      }
+   }
+}
+
 
 

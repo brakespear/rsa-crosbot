@@ -219,6 +219,8 @@ private:
    void alignRayTraceICP(tf::Transform sensorPose, tf::Transform newPose);
    void predictSurface(tf::Transform trans);
 
+   void outputDebuggingImage(tf::Transform trans);
+
    void bilateralFilter();
    void combineICPResults(int numGroups);
 

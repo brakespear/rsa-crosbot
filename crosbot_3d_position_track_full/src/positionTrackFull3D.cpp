@@ -33,7 +33,8 @@ const string PositionTrackFull3D::kernel_names[] = {
    "scaleICP",
    "combineScaleICPResults",
    "predictSurface",
-   "rayTraceICP"
+   "rayTraceICP",
+   "outputDebuggingImage"
 };
 const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kernel_names[0]);
 #define CLEAR_LOCAL_MAP 0
@@ -53,6 +54,8 @@ const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kerne
 #define COMBINE_SCALE_ICP_RESULTS 14
 #define PREDICT_SURFACE 15
 #define RAY_TRACE_ICP 16
+
+#define OUTPUT_DEBUGGING_IMAGE 17
 
 PositionTrackFull3D::PositionTrackFull3D() {
    opencl_manager = new OpenCLManager();
@@ -1042,6 +1045,7 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
    tf::Transform start = newPose * sensorPose;
 
    predictSurface(start);
+   outputDebuggingImage(start);
 
    int globalSize = getGlobalWorkSize(numDepthPoints);
    int numGroups = globalSize / LocalSize;
@@ -1308,6 +1312,44 @@ void PositionTrackFull3D::scaleICP(int numGroups, tf::Transform trans) {
    opencl_task->setArg(2, kernelI, sizeof(int), &numGroups);
    opencl_task->queueKernel(kernelI, 1, LocalSize, LocalSize, 0, NULL, NULL, false);
 }
+
+void PositionTrackFull3D::outputDebuggingImage(tf::Transform trans) {
+   int kernelI = OUTPUT_DEBUGGING_IMAGE;
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clPointCloud); //predPoints
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clFiltDepthFrame); //depthPoints
+   opencl_task->setArg(3, kernelI, sizeof(int), &numDepthPoints);
+  
+   trans = trans.inverse(); 
+   tf::Matrix3x3 basis = trans.getBasis();
+   tf::Vector3 origin = trans.getOrigin();
+
+   ocl_float3 clBasis[3];
+   ocl_float3 clOrigin;
+   for (int j = 0; j < 3; j++) {
+      clBasis[j].x = basis[j][0];
+      clBasis[j].y = basis[j][1];
+      clBasis[j].z = basis[j][2];
+   }
+   clOrigin.x = origin[0];
+   clOrigin.y = origin[1];
+   clOrigin.z = origin[2];
+   opencl_task->setArg(4, kernelI, sizeof(ocl_float3), &clOrigin);
+   opencl_task->setArg(5, kernelI, sizeof(ocl_float3), &clBasis[0]);
+   opencl_task->setArg(6, kernelI, sizeof(ocl_float3), &clBasis[1]);
+   opencl_task->setArg(7, kernelI, sizeof(ocl_float3), &clBasis[2]);
+   int globalSize = getGlobalWorkSize(numDepthPoints);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+
+   vector<uint8_t> data;
+   data.resize(640 * 480 * sizeof(float));
+   
+   readBuffer(clFiltDepthFrame, CL_TRUE, 0, sizeDepthPoints, &data, 0, 0, 0, 
+         "Reading debugging image from the GPU");
+   positionTrack3DNode->outputImage(data);
+}
+
+
 
 void PositionTrackFull3D::setCameraParams(double fx, double fy, double cx, double cy, double tx, double ty) {
 

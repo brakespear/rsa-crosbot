@@ -57,6 +57,9 @@ public:
     */
    void publishAllPoints();
 
+   //Debugging publisher
+   void outputImage(vector<uint8_t> &data);
+
 
 private:
    /*
@@ -101,6 +104,11 @@ private:
    message_filters::Subscriber<sensor_msgs::Image> *depthSub;
    message_filters::Subscriber<sensor_msgs::Image> *rgbSub;
    message_filters::Synchronizer<SyncPolicy> *sync;
+
+   //debugging
+   ros::Publisher outImagePub;
+   ros::Time curTimeStamp;
+   string kinectFrame;
 
 
    PositionTrackFull3D& position_track_3d;

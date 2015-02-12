@@ -79,6 +79,10 @@ void PositionTrackFull3DNode::initialise(ros::NodeHandle& nh) {
       allPointsMsg.fields[3].offset = 16;
       allPointsMsg.point_step = sizeof(float) * 8;
    }
+
+
+   //Debugging
+   outImagePub = nh.advertise<sensor_msgs::Image>("outImage", 1);
 }
 
 void PositionTrackFull3DNode::shutdown() {
@@ -90,6 +94,9 @@ void PositionTrackFull3DNode::shutdown() {
 
 void PositionTrackFull3DNode::callbackKinect(const sensor_msgs::ImageConstPtr& depthImage, 
       const sensor_msgs::ImageConstPtr& rgbImage) {
+
+   curTimeStamp = depthImage->header.stamp;
+   kinectFrame = rgbImage->header.frame_id;
 
    if (!receivedCameraParams) {
       return;
@@ -202,6 +209,19 @@ geometry_msgs::TransformStamped PositionTrackFull3DNode::getTransform(const Pose
    ts.transform.rotation.w = pose.orientation.w;
    return ts;
 
+}
+
+void PositionTrackFull3DNode::outputImage(vector<uint8_t>& data) {
+   sensor_msgs::Image im;
+   im.header.stamp = curTimeStamp;
+   im.header.frame_id = kinectFrame;
+   im.height = 480;
+   im.width = 640;
+   im.encoding = sensor_msgs::image_encodings::TYPE_32FC1;
+   im.is_bigendian = 1;
+   im.step = sizeof(float) * 640;
+   im.data = data;
+   outImagePub.publish(im);
 }
 
 
