@@ -418,12 +418,27 @@ void PositionTrackFull3D::initialiseImages() {
    clDepthFrameXYZ = opencl_manager->deviceAlloc(sizeDepthFrameXYZ, CL_MEM_READ_WRITE, NULL);
    clNormalsFrame = opencl_manager->deviceAlloc(sizeDepthFrameXYZ, CL_MEM_READ_WRITE, NULL);
 
-   clPointCloud = opencl_manager->deviceAlloc(sizeof(ocl_float) * MaxPoints * 3, 
+   size_t sizeOutPoints = sizeof(ocl_float) * MaxPoints * 3;
+   //clPointCloud and clNormals are reused during icp
+   if (sizeOutPoints < sizeDepthFrameXYZ) {
+      sizeOutPoints = sizeDepthFrameXYZ;
+   }
+   clPointCloud = opencl_manager->deviceAlloc(sizeOutPoints, 
          CL_MEM_READ_WRITE, NULL);
-   clColours = opencl_manager->deviceAlloc(sizeof(unsigned char) * MaxPoints * 3,
+   clNormals = opencl_manager->deviceAlloc(sizeOutPoints,
          CL_MEM_READ_WRITE, NULL);
-   clNormals = opencl_manager->deviceAlloc(sizeof(ocl_float) * MaxPoints * 3,
+
+   //clColours is reused during ICP
+   int globalSize = getGlobalWorkSize(numDepthPoints);
+   int numGroups = globalSize / LocalSize;
+   size_t sizeTempStore = numGroups * NUM_RESULTS;
+   size_t sizeOutColours = sizeof(unsigned char) * MaxPoints * 3;
+   if (sizeOutColours < sizeTempStore) {
+      sizeOutColours = sizeTempStore;
+   }
+   clColours = opencl_manager->deviceAlloc(sizeOutColours,
          CL_MEM_READ_WRITE, NULL);
+
 }
 
 void PositionTrackFull3D::initialiseLocalMap() {
@@ -1073,7 +1088,8 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
          startPose.position.z << " " << y << " " << p << " " << r << endl;
 
    int i;
-   for (i = 0; i < 5; i++) {
+   bool cont = true;
+   for (i = 0; i < 10 && cont; i++) {
 
       tf::Matrix3x3 basis = curTrans.getBasis();
       tf::Vector3 origin = curTrans.getOrigin();
@@ -1144,11 +1160,11 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
       b[4] = rawResults[25];
       b[5] = rawResults[26];
 
-      cout << "Raw results: ";
+      /*cout << "Raw results: ";
       for (int j = 0; j < NUM_RESULTS; j++) {
          cout << rawResults[j] << " ";
       }
-      cout << endl;
+      cout << endl;*/
 
       solveCholesky(A, b, x);
 
@@ -1159,9 +1175,13 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
       cout << endl;*/
 
       bool valid = true;
+      cont = false;
       for (int j = 0; j < DOF; j++) {
          if (isnan(x[j])) {
             valid = false;
+         }
+         if (fabs(x[j]) > 0.001f) {
+            cont = true;
          }
       }
       if (!valid) {
@@ -1343,8 +1363,8 @@ void PositionTrackFull3D::outputDebuggingImage(tf::Transform trans) {
 
    vector<uint8_t> data;
    data.resize(640 * 480 * sizeof(float));
-   
-   readBuffer(clFiltDepthFrame, CL_TRUE, 0, sizeDepthPoints, &data, 0, 0, 0, 
+  
+   readBuffer(clFiltDepthFrame, CL_TRUE, 0, sizeDepthPoints, &data[0], 0, 0, 0, 
          "Reading debugging image from the GPU");
    positionTrack3DNode->outputImage(data);
 }

@@ -1364,6 +1364,163 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
 
 }
 
+//pos is position of scan point inside current block - always positive
+float trilinearInterp(constant oclPositionTrackConfig *config, global int *blocks,
+      global oclLocalBlock *localMapCells, const int3 cent, int bIndex, float3 pos) {
+   
+   float3 cellCent = floor(pos / config->CellSize) * config->CellSize +
+                  config->CellSize/2.0f;
+   int3 cur;
+   cur.x = floor(pos.x / config->CellSize);
+   cur.y = floor(pos.y / config->CellSize);
+   cur.z = floor(pos.z / config->CellSize);
+   int3 oth;
+   int3 bIndexOth = (int3)(bIndex,bIndex,bIndex);
+   int3 dir;
+   if (pos.x < cellCent.x) {
+      dir.x = -1;
+      oth.x = cur.x - 1;
+      if (oth.x < 0) {
+         oth.x += config->NumCellsWidth;
+         bIndexOth.x = getBlockAdjX(config, bIndex, -1, cent.x);
+      }
+   } else {
+      dir.x = 1;
+      oth.x = cur.x + 1;
+      if (oth.x >= config->NumCellsWidth) {
+         oth.x -=  config->NumCellsWidth;
+         bIndexOth.x = getBlockAdjX(config, bIndex, 1, cent.x);
+      }
+   }
+   if (pos.y < cellCent.y) {
+      dir.y = -1;
+      oth.y = cur.y - 1;
+      if (oth.y < 0) {
+         oth.y += config->NumCellsWidth;
+         bIndexOth.y = getBlockAdjY(config, bIndex, -1, cent.y);
+      }
+   } else {
+      dir.y = 1;
+      oth.y = cur.y + 1;
+      if (oth.y >= config->NumCellsWidth) {
+         oth.y -=  config->NumCellsWidth;
+         bIndexOth.y = getBlockAdjY(config, bIndex, 1, cent.y);
+      }
+   }
+   if (pos.z < cellCent.z) {
+      dir.z = -1;
+      oth.z = cur.z - 1;
+      if (oth.z < 0) {
+         oth.z += config->NumCellsWidth;
+         bIndexOth.z = getBlockAdjZ(config, bIndex, -1, cent.z);
+      }
+   } else {
+      dir.z = 1;
+      oth.z = cur.z + 1;
+      if (oth.z >= config->NumCellsWidth) {
+         oth.z -=  config->NumCellsWidth;
+         bIndexOth.z = getBlockAdjZ(config, bIndex, 1, cent.z);
+      }
+   }
+   if (bIndexOth.x == -1 || bIndexOth.y == -1 || bIndexOth.z == -1 ||
+         blocks[bIndexOth.x] < 0 || blocks[bIndexOth.y] < 0 || blocks[bIndexOth.z] < 0) {
+      return NAN;
+   }
+
+   int i = cur.z * config->NumCellsWidth * config->NumCellsWidth + 
+               cur.y * config->NumCellsWidth + cur.x;
+   float xcyczc = localMapCells[blocks[bIndex]].distance[i];
+   i = cur.z * config->NumCellsWidth * config->NumCellsWidth + 
+               cur.y * config->NumCellsWidth + oth.x;
+   float xoyczc = localMapCells[blocks[bIndexOth.x]].distance[i];
+   i = cur.z * config->NumCellsWidth * config->NumCellsWidth + 
+               oth.y * config->NumCellsWidth + cur.x;
+   float xcyozc = localMapCells[blocks[bIndexOth.y]].distance[i];
+   i = oth.z * config->NumCellsWidth * config->NumCellsWidth + 
+               cur.y * config->NumCellsWidth + cur.x;
+   float xcyczo = localMapCells[blocks[bIndexOth.z]].distance[i];
+
+   i = cur.z * config->NumCellsWidth * config->NumCellsWidth + 
+               oth.y * config->NumCellsWidth + oth.x;
+   int bIndexOthXY = bIndex;
+   if (bIndexOth.x != bIndex && bIndexOth.y != bIndex) {
+      bIndexOthXY = getBlockAdjY(config, bIndexOth.x, dir.y, cent.y);
+      if (bIndexOthXY == -1 || blocks[bIndexOthXY] < 0) {
+         return NAN;
+      }
+   } else if (bIndexOth.x != bIndex) {
+      bIndexOthXY = bIndexOth.x;
+   } else if (bIndexOth.y != bIndex) {
+      bIndexOthXY = bIndexOth.y;
+   }
+   int xoyozc = localMapCells[blocks[bIndexOthXY]].distance[i];
+
+   i = oth.z * config->NumCellsWidth * config->NumCellsWidth + 
+               cur.y * config->NumCellsWidth + oth.x;
+   int bIndexOthXZ = bIndex;
+   if (bIndexOth.x != bIndex && bIndexOth.z != bIndex) {
+      bIndexOthXZ = getBlockAdjZ(config, bIndexOth.x, dir.z, cent.z);
+      if (bIndexOthXZ == -1 || blocks[bIndexOthXZ] < 0) {
+         return NAN;
+      }
+   } else if (bIndexOth.x != bIndex) {
+      bIndexOthXZ = bIndexOth.x;
+   } else if (bIndexOth.z != bIndex) {
+      bIndexOthXZ = bIndexOth.z;
+   }
+   int xoyczo = localMapCells[blocks[bIndexOthXZ]].distance[i];
+    
+   i = oth.z * config->NumCellsWidth * config->NumCellsWidth + 
+               oth.y * config->NumCellsWidth + cur.x;
+   int bIndexOthYZ = bIndex;
+   if (bIndexOth.y != bIndex && bIndexOth.z != bIndex) {
+      bIndexOthYZ = getBlockAdjZ(config, bIndexOth.y, dir.z, cent.z);
+      if (bIndexOthYZ == -1 || blocks[bIndexOthYZ] < 0) {
+         return NAN;
+      }
+   } else if (bIndexOth.y != bIndex) {
+      bIndexOthYZ = bIndexOth.y;
+   } else if (bIndexOth.z != bIndex) {
+      bIndexOthYZ = bIndexOth.z;
+   }
+   int xcyozo = localMapCells[blocks[bIndexOthYZ]].distance[i];
+
+   i = oth.z * config->NumCellsWidth * config->NumCellsWidth + 
+               oth.y * config->NumCellsWidth + oth.x;
+   int bIndexTemp = bIndex;
+   if (bIndexOth.x != bIndex && bIndexOth.y != bIndex && bIndexOth.z != bIndex) {
+      bIndexTemp = getBlockAdjZ(config, bIndexOthXY, dir.z, cent.z);
+      if (bIndexTemp == -1 || blocks[bIndexTemp] < 0) {
+         return NAN;
+      }
+   } else if (bIndexOth.x != bIndex && bIndexOth.y != bIndex) {
+      bIndexTemp = bIndexOthXY;
+   } else if (bIndexOth.x != bIndex && bIndexOth.z != bIndex) {
+      bIndexTemp = bIndexOthXZ;
+   } else if (bIndexOth.y != bIndex && bIndexOth.z != bIndex) {
+      bIndexTemp = bIndexOthYZ;
+   } else if (bIndexOth.x != bIndex) {
+      bIndexTemp = bIndexOth.x;
+   } else if (bIndexOth.y != bIndex) {
+      bIndexTemp = bIndexOth.y;
+   } else if (bIndexOth.z != bIndex) {
+      bIndexTemp = bIndexOth.z;
+   }
+   int xoyozo = localMapCells[blocks[bIndexTemp]].distance[i];
+
+   //Now can finally actually perform the interpolation!
+   float frac = fabs(pos.x - cellCent.x) / config->CellSize;
+   float c00 = xcyczc * (1 - frac) + xoyczc * frac;
+   float c10 = xcyozc * (1 - frac) + xoyozc * frac;
+   float c01 = xcyczo * (1 - frac) + xoyczo * frac;
+   float c11 = xcyozo * (1 - frac) + xoyozo * frac;
+   frac = fabs(pos.y - cellCent.y) / config->CellSize;
+   float c0 = c00 * (1 - frac) + c10 * frac;
+   float c1 = c01 * (1 - frac) + c11 * frac;
+   frac = fabs(pos.z - cellCent.z) / config->CellSize;
+   return c0 * (1 - frac) + c1 * frac;
+}
+
 
 
 __kernel void predictSurface(constant oclPositionTrackConfig *config, global int *blocks,
@@ -1389,7 +1546,9 @@ __kernel void predictSurface(constant oclPositionTrackConfig *config, global int
 
       if (bIndex >= 0 && blocks[bIndex] >= 0) {
          int bI = blocks[bIndex];
-         int cIndex = getCellIndex(config, transP);
+         
+         //int cIndex = getCellIndex(config, transP);
+         int cIndex;
 
          int u = index % config->ImageWidth;
          int v = index / config->ImageWidth;
@@ -1401,23 +1560,33 @@ __kernel void predictSurface(constant oclPositionTrackConfig *config, global int
          ray = transformPoint(ray, zero, rotation0, rotation1, rotation2);
          ray = fast_normalize(ray);
 
-         if (isnan(localMapCells[bI].distance[cIndex]) || localMapCells[bI].distance[cIndex] < 0) {
-            ray *= -1.0f;
+         transP -= ray * config->CellSize * 10;
+         bIndex = getBlockIndex(config, transP, cent, centMod);
+         if (bIndex < 0 || blocks[bIndex] < 0) {
+            return;
          }
 
-         float prevDist = localMapCells[bI].distance[cIndex];
          float3 blockPos = getBlockPositionFromPoint(config, transP);
          float3 pos = transP - blockPos;
-         //int3 ind = pos / config->CellSize;
-         //pos = ind * config->CellSize + (config->CellSize / 2.0f);
-         //pos is now the center of the cell
+
+         //float prevDist = localMapCells[bI].distance[cIndex];
+         float prevDist = trilinearInterp(config, blocks, localMapCells, cent, bIndex, pos);
+
+         if (isnan(prevDist)) {
+            return;
+         }
+         if (prevDist < 0) {
+            ray *= -1.0f;
+         }
+         float3 increment = ray * config->CellSize;
+
 
          float3 wrapPos = pos;
-         for (int numSteps; numSteps < 10; numSteps++) {
-            pos += ray;
+         for (int numSteps = 0; numSteps < 30; numSteps++) {
+            pos += increment;
             if (pos.x < 0 || pos.y < 0 || pos.z < 0 || pos.x >= config->BlockSize ||
                   pos.y >= config->BlockSize || pos.z >= config->BlockSize) {
-               bIndex = getBlockIndex(config, blockPos + wrapPos + ray, cent, centMod);
+               bIndex = getBlockIndex(config, blockPos + wrapPos + increment, cent, centMod);
                if (bIndex < 0 || blocks[bIndex] < 0) {
                   break;
                }
@@ -1440,25 +1609,34 @@ __kernel void predictSurface(constant oclPositionTrackConfig *config, global int
                }
             }
 
-            int indX = pos.x / config->CellSize;
+
+            /*int indX = pos.x / config->CellSize;
             int indY = pos.y / config->CellSize;
             int indZ = pos.z / config->CellSize;
             cIndex = indZ * config->NumCellsWidth * config->NumCellsWidth + 
                indY * config->NumCellsWidth + indX;
-            float newDist = localMapCells[bI].distance[cIndex];
+            float newDist = localMapCells[bI].distance[cIndex];*/
+            float newDist = trilinearInterp(config, blocks, localMapCells, cent, bIndex, pos);
+
+
             if (sign(newDist) != sign(prevDist)) {
-               float3 bottom = floor(wrapPos / config->CellSize) * config->CellSize +
+               /*float3 bottom = floor(wrapPos / config->CellSize) * config->CellSize +
                   config->CellSize/2.0f;
                float3 top = floor(wrapPos / config->CellSize) * config->CellSize +
                   config->CellSize/2.0f;
                bottom = wrapPos + dot(wrapPos - bottom, ray) * ray;
                top = wrapPos + dot(wrapPos - top, ray) * ray;
-
+               ////---Should it be blockPos + bottom + ....?????
                bottom = blockPos + bottom - (prevDist / (newDist - prevDist)) * (top - bottom);
+               //bottom = blockPos + wrapPos + increment;*/
+               float3 bottom = blockPos + wrapPos + increment * (prevDist / (prevDist - newDist));
+
                predPoints->x[index] = bottom.x;
                predPoints->y[index] = bottom.y;
                predPoints->z[index] = bottom.z;
 
+               bIndex = getBlockIndex(config, bottom, cent, centMod);
+               cIndex = getCellIndex(config, bottom);
                bottom = getNormal(config, blocks, localMapCells, cent, bIndex, cIndex);
                predNormals->x[index] = bottom.x;
                predNormals->y[index] = bottom.y;
@@ -1466,7 +1644,7 @@ __kernel void predictSurface(constant oclPositionTrackConfig *config, global int
                break;
             }
             prevDist = newDist;
-            wrapPos += ray;
+            wrapPos += increment;
          }
       }
    }
@@ -1515,8 +1693,7 @@ __kernel void rayTraceICP(constant oclPositionTrackConfig *config,
             !isnan(predPoints->x[pointI]) && !isnan(predNormals->x[pointI])) {
    
          float3 vm = (float3)(predPoints->x[pointI], predPoints->y[pointI], predPoints->z[pointI]);
-         float3 normal = (float3)(predNormals->x[pointI], predNormals->y[pointI],
-            predNormals->z[pointI]);
+         float3 normal = (float3)(predNormals->x[pointI], predNormals->y[pointI], predNormals->z[pointI]);
 
          float3 transP = transformPoint(point, origin, rotation0, rotation1, rotation2);
          float3 zero = (float3) (0.0f, 0.0f, 0.0f);
@@ -1530,10 +1707,12 @@ __kernel void rayTraceICP(constant oclPositionTrackConfig *config,
                         (transP.z - vm.z) * (transP.z - vm.z);
          float dotProd = dot(frameNormal, normal);
 
-         if (dotProd && dist2 < 0.001f) {
+         if (dotProd > 0.7f && dist2 < 0.0005f) {
+         //if (dotProd > 0.5f && dist2 < 0.025f) {
             
-            //float scale = dotProd / dist2;
-            float scale = 1.0f;
+            //float scale = dotProd / sqrt(dist2);
+            float scale = dotProd;
+            //float scale = 1.0f;
             float a = (normal.z * transP.y - normal.y * transP.z) * scale;
             float b = (normal.x * transP.z - normal.z * transP.x) * scale;
             float c = (normal.y * transP.x - normal.x * transP.y) * scale;
