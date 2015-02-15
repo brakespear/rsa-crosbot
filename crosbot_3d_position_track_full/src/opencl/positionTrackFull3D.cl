@@ -1038,6 +1038,45 @@ __kernel void bilateralFilter(constant oclPositionTrackConfig *config,
    }
 }
 
+/*__kernel void downsampleDepth(const oclPositionTrackConfig *config, global float *depthIn, 
+      global float *depthOut, const int widthOut, const int heightOut) {
+   int index = get_global_id(0);
+
+   int numPoints = widthOut * heightOut;
+   int widthIn = widthOut * 2;
+   if (index < numPoints) {
+      int u = index % widthOut;
+      int v = index / heightOut;
+
+      float av = depthIn[v * 2 * widthIn + u * 2];
+      float init = av;
+      int num = 1;
+      if (isnan(av)) {
+         depthOut[index] = av;
+      } else {
+         float temp = depthIn[v * 2 * widthIn + u * 2 + 1];
+         if (!isnan(temp) && fabs(temp - init) < config->DepthDistThresh) {
+            av += temp;
+            num++;
+         }
+         temp = depthIn[(v * 2 + 1) * widthIn + u * 2];
+         if (!isnan(temp) && fabs(temp - init) < config->DepthDistThresh) {
+            av += temp;
+            num++;
+         }
+         temp = depthIn[(v * 2 + 1) * widthIn + u * 2 + 1];
+         if (!isnan(temp) && fabs(temp - init) < config->DepthDistThresh) {
+            av += temp;
+            num++;
+         }
+         depthOut[index] = av / (float)num;
+      }
+   }
+}*/
+
+
+
+
 __kernel void calculateNormals(constant oclPositionTrackConfig *config, 
    global oclDepthPoints *points, global oclDepthPoints *normals,
    global float *depthP, const int numPoints) {
@@ -1560,7 +1599,7 @@ __kernel void predictSurface(constant oclPositionTrackConfig *config, global int
          ray = transformPoint(ray, zero, rotation0, rotation1, rotation2);
          ray = fast_normalize(ray);
 
-         transP -= ray * config->CellSize * 10;
+         transP -= ray * config->CellSize * 20;
          bIndex = getBlockIndex(config, transP, cent, centMod);
          if (bIndex < 0 || blocks[bIndex] < 0) {
             return;
@@ -1572,9 +1611,9 @@ __kernel void predictSurface(constant oclPositionTrackConfig *config, global int
          //float prevDist = localMapCells[bI].distance[cIndex];
          float prevDist = trilinearInterp(config, blocks, localMapCells, cent, bIndex, pos);
 
-         if (isnan(prevDist)) {
+         /*if (isnan(prevDist)) {
             return;
-         }
+         }*/
          if (prevDist < 0) {
             ray *= -1.0f;
          }
@@ -1582,7 +1621,7 @@ __kernel void predictSurface(constant oclPositionTrackConfig *config, global int
 
 
          float3 wrapPos = pos;
-         for (int numSteps = 0; numSteps < 30; numSteps++) {
+         for (int numSteps = 0; numSteps < 40; numSteps++) {
             pos += increment;
             if (pos.x < 0 || pos.y < 0 || pos.z < 0 || pos.x >= config->BlockSize ||
                   pos.y >= config->BlockSize || pos.z >= config->BlockSize) {
@@ -1617,6 +1656,10 @@ __kernel void predictSurface(constant oclPositionTrackConfig *config, global int
                indY * config->NumCellsWidth + indX;
             float newDist = localMapCells[bI].distance[cIndex];*/
             float newDist = trilinearInterp(config, blocks, localMapCells, cent, bIndex, pos);
+
+            if (isnan(newDist) || isnan(prevDist)) {
+               continue;
+            }
 
 
             if (sign(newDist) != sign(prevDist)) {
@@ -1707,9 +1750,9 @@ __kernel void rayTraceICP(constant oclPositionTrackConfig *config,
                         (transP.z - vm.z) * (transP.z - vm.z);
          float dotProd = dot(frameNormal, normal);
 
-         if (dotProd > 0.7f && dist2 < 0.0005f) {
-         //if (dotProd > 0.5f && dist2 < 0.025f) {
-            
+         //if (dotProd > 0.7f && dist2 < 0.0005f) {
+         if (dotProd > 0.5f && dist2 < 0.1f) {
+           
             //float scale = dotProd / sqrt(dist2);
             float scale = dotProd;
             //float scale = 1.0f;

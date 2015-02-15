@@ -259,7 +259,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
    t1 = ros::WallTime::now();
    //add frame
-   tf::Transform offset = newFullPose * sensorPose.toTF();
+   tf::Transform offset = icpFullPose.toTF() * sensorPose.toTF();
    checkBlocksExist(numDepthPoints, offset);
    readBuffer(clLocalMapCommon, CL_TRUE, numActiveBlocksOffset, 
          sizeof(int), &numActiveBlocks, 0, 0, 0, "Reading num active blocks");
@@ -1089,6 +1089,7 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
 
    int i;
    bool cont = true;
+   bool failed = false;
    for (i = 0; i < 10 && cont; i++) {
 
       tf::Matrix3x3 basis = curTrans.getBasis();
@@ -1183,9 +1184,13 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
          if (fabs(x[j]) > 0.001f) {
             cont = true;
          }
+         //if (j >= 3) {
+         //   x[j] = 0;
+         //}
       }
       if (!valid) {
          cout << "Alignment failed" << endl;
+         failed = true;
          break;
       }
 
@@ -1198,13 +1203,32 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
       incPose.getYPR(y,p,r);
       cout << incPose.position.x << " " << incPose.position.y << " " << incPose.position.z << " : " 
          << y << " " << p << " " << r << " : " << rawResults[27] << " " << endl;
+      
+      //Pose po = curTrans;
+      //po.position.x += x[3];
+      //po.position.y += x[4];
+      //po.position.z += x[5];
+      //po.getYPR(y,p,r);
+      //y += x[2];
+      //p += x[1];
+      //r += x[0];
+      //po.setYPR(y,p,r);
+      //curTrans = po.toTF();
+
+      //tf::Vector3 tt = curTrans.getOrigin();
+      //curTrans = inc * curTrans;
+      //curTrans.setOrigin(tt);
+
       curTrans = inc * curTrans;
+      //curTrans = curTrans *  inc;
    }
    Pose endPose = curTrans;
    endPose.getYPR(y,p,r);
    cout << "End pose is: " << endPose.position.x << " " << endPose.position.y << " " <<
        endPose.position.z << " " << y << " " << p << " " << r << endl;
-   icpFullPose = curTrans * sensorPose.inverse();
+   if (!failed) {
+      icpFullPose = curTrans * sensorPose.inverse();
+   }
 }
 
 
