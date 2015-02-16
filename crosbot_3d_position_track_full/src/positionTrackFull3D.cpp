@@ -35,6 +35,7 @@ const string PositionTrackFull3D::kernel_names[] = {
    "predictSurface",
    "rayTraceICP",
    "downsampleDepth",
+   "zOnlyICP",
    "outputDebuggingImage"
 };
 const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kernel_names[0]);
@@ -56,8 +57,9 @@ const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kerne
 #define PREDICT_SURFACE 15
 #define RAY_TRACE_ICP 16
 #define DOWNSAMPLE_DEPTH 17
+#define Z_ONLY_ICP 18
 
-#define OUTPUT_DEBUGGING_IMAGE 18
+#define OUTPUT_DEBUGGING_IMAGE 19
 
 PositionTrackFull3D::PositionTrackFull3D() {
    opencl_manager = new OpenCLManager();
@@ -107,6 +109,7 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("FilterWindowSize", FilterWindowSize, 4);
    paramNH.param<double>("FilterScalePixel", FilterScalePixel, 0.5);
    paramNH.param<int>("SkipNumCheckBlocks", SkipNumCheckBlocks, 4);
+   paramNH.param<double>("MoveThresh", MoveThresh, 0.001);
 
    paramNH.param<double>("DistThresh", DistThresh, 0.0005);
    paramNH.param<double>("DotThresh", DotThresh, 0.7);
@@ -269,7 +272,8 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    //icp itself
    ros::WallTime t1 = ros::WallTime::now();
    //alignICP(sensorPose.toTF(), newFullPose);
-   alignRayTraceICP(sensorPose.toTF(), newFullPose);
+   //alignRayTraceICP(sensorPose.toTF(), newFullPose);
+   alignZOnlyICP(sensorPose.toTF(), newFullPose);
    ros::WallTime t2 = ros::WallTime::now();
    ros::WallDuration totalTime = t2 - t1;
    cout << "Time of align icp: " << totalTime.toSec() * 1000.0f << endl;
@@ -1281,7 +1285,7 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
          if (isnan(x[j])) {
             valid = false;
          }
-         if (fabs(x[j]) > 0.001f) {
+         if (fabs(x[j]) > MoveThresh) {
             cont = true;
          }
          //if (j >= 3) {
@@ -1496,6 +1500,81 @@ void PositionTrackFull3D::scaleICP(int numGroups, tf::Transform trans) {
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clColours); //tempStore
    opencl_task->setArg(2, kernelI, sizeof(int), &numGroups);
    opencl_task->queueKernel(kernelI, 1, LocalSize, LocalSize, 0, NULL, NULL, false);
+}
+
+void PositionTrackFull3D::alignZOnlyICP(tf::Transform sensorPose, tf::Transform newPose) {
+   tf::Transform curTrans = newPose * sensorPose;
+
+   int kernelI = Z_ONLY_ICP;
+   int globalSize = getGlobalWorkSize(numDepthPoints);
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCells);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCommon);
+   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
+   opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clNormalsFrame);
+   opencl_task->setArg(6, kernelI, sizeof(int), &numDepthPoints);
+   opencl_task->setArg(7, kernelI, sizeof(ocl_int3), &mapCentre);
+   tf::Matrix3x3 basis = curTrans.getBasis();
+   tf::Vector3 origin = curTrans.getOrigin();
+
+   ocl_float3 clBasis[3];
+   ocl_float3 clOrigin;
+   for (int j = 0; j < 3; j++) {
+      clBasis[j].x = basis[j][0];
+      clBasis[j].y = basis[j][1];
+      clBasis[j].z = basis[j][2];
+   }
+   clOrigin.x = origin[0];
+   clOrigin.y = origin[1];
+   clOrigin.z = origin[2];
+   opencl_task->setArg(8, kernelI, sizeof(ocl_float3), &clOrigin);
+   opencl_task->setArg(9, kernelI, sizeof(ocl_float3), &clBasis[0]);
+   opencl_task->setArg(10, kernelI, sizeof(ocl_float3), &clBasis[1]);
+   opencl_task->setArg(11, kernelI, sizeof(ocl_float3), &clBasis[2]);
+   float dotThresh = DotThresh;
+   float normalThresh = DotThresh4;
+   opencl_task->setArg(12, kernelI, sizeof(float), &dotThresh);
+   opencl_task->setArg(13, kernelI, sizeof(float), &normalThresh);
+
+   bool success = true;
+   int i;
+   float zInc = 0;
+   float results[2];
+   for (i = 0; i < 10; i++) {
+
+      writeBuffer(clLocalMapCommon, CL_FALSE, icpResultsOffset, sizeof(ocl_float) * 2,
+         results, 0, 0, 0, "Zeroing the icp results array");
+
+      opencl_task->setArg(14, kernelI, sizeof(float), &zInc);
+      opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+
+
+      readBuffer(clLocalMapCommon, CL_TRUE, icpResultsOffset, sizeof(ocl_float) * 2, 
+            results, 0, 0, 0, "Reading the icp results");
+      float distance = results[0];
+      float count = results[1];
+      float zAl = distance / count;
+
+      cout << "Count is: " << count << endl;
+      int cc = (int)count;
+      //if (count < MinCount) {
+      if (cc == 0) {
+         zInc = 0;
+         success = false;
+         break;
+      }
+      zInc += zAl;
+      if (fabs(zAl) < MoveThresh) {
+         break;
+      }
+   }
+   if (success /*&& fabs(zInc) < MaxMove*/) {
+      cout << "Moved: " << zInc << endl;
+      Pose endPose = newPose;
+      endPose.position.z += zInc;
+      icpFullPose = endPose.toTF();
+   }
 }
 
 void PositionTrackFull3D::outputDebuggingImage(tf::Transform trans) {

@@ -114,6 +114,8 @@ private:
    double FilterScalePixel;
    //How many pixels will be skipped in the checkBlocks kernel
    int SkipNumCheckBlocks;
+   //When the movement in an iteration falls below this, it will stop
+   double MoveThresh;
 
    double DistThresh;
    double DotThresh;
@@ -240,6 +242,7 @@ private:
    void alignRayTraceICP(tf::Transform sensorPose, tf::Transform newPose);
    void predictSurface(tf::Transform trans);
    void downsampleDepth();
+   void alignZOnlyICP(tf::Transform sensorPose, tf::Transform newPose);
 
    void outputDebuggingImage(tf::Transform trans);
 
