@@ -1002,43 +1002,38 @@ __kernel void bilateralFilter(constant oclPositionTrackConfig *config,
 
    int index = get_global_id(0);
 
-   int windowSize = 4;
-   float scale = 5.0f; //it is really scale^2
+   int windowSize = config->FilterWindowSize;
+   float scaleDist = config->DepthDistThreshold * config->DepthDistThreshold;
+   float scalePixel = config->FilterScalePixel;
 
    if (index < numPoints) {
       int u = index % config->ImageWidth;
       int v = index / config->ImageWidth;
-      if (isnan(depthP[index]) || u - windowSize < 0 || u + windowSize >= config->ImageWidth ||
-            v - windowSize < 0 || v + windowSize >= config->ImageHeight) {
+      if (isnan(depthP[index])) {
          depthOut[index] = NAN;
       } else {
          int i,j;
          float sumWeight = 0.0f;
          float depth = 0.0f;
          int valid = 1;
-         for (j = v - windowSize; j <= v + windowSize && valid == 1; j++) {
-            for (i = u - windowSize; i <= u + windowSize && valid == 1; i++) {
+         for (j = v - windowSize; j <= v + windowSize; j++) {
+            for (i = u - windowSize; i <= u + windowSize; i++) {
                int iC = j * config->ImageWidth + i;
-               if (isnan(depthP[iC])) {
-                  valid = 0;
-               } else {
+               if (j >= 0 && j < config->ImageHeight && i >= 0 && i < config->ImageWidth
+                     && !isnan(depthP[iC])) {
                   float diff = depthP[index] - depthP[iC];
-                  float weight = exp(-(((u-i)*(u-i)+(v-j)*(v-j))/scale)-((diff * diff)/scale));
+                  float weight = exp(-(((u-i)*(u-i)+(v-j)*(v-j))/scalePixel)-((diff * diff)/scaleDist));
                   sumWeight += weight;
                   depth += depthP[iC] * weight;
                }
             }
          }
-         if (valid == 1) {
-            depthOut[index] = depth /= sumWeight;
-         } else {
-            depthOut[index] = NAN;
-         }
+         depthOut[index] = depth / sumWeight;
       }
    }
 }
 
-/*__kernel void downsampleDepth(const oclPositionTrackConfig *config, global float *depthIn, 
+__kernel void downsampleDepth(constant oclPositionTrackConfig *config, global float *depthIn, 
       global float *depthOut, const int widthOut, const int heightOut) {
    int index = get_global_id(0);
 
@@ -1046,7 +1041,7 @@ __kernel void bilateralFilter(constant oclPositionTrackConfig *config,
    int widthIn = widthOut * 2;
    if (index < numPoints) {
       int u = index % widthOut;
-      int v = index / heightOut;
+      int v = index / widthOut;
 
       float av = depthIn[v * 2 * widthIn + u * 2];
       float init = av;
@@ -1055,45 +1050,44 @@ __kernel void bilateralFilter(constant oclPositionTrackConfig *config,
          depthOut[index] = av;
       } else {
          float temp = depthIn[v * 2 * widthIn + u * 2 + 1];
-         if (!isnan(temp) && fabs(temp - init) < config->DepthDistThresh) {
+         if (!isnan(temp) && fabs(temp - init) < 3*config->DepthDistThreshold) {
             av += temp;
             num++;
          }
          temp = depthIn[(v * 2 + 1) * widthIn + u * 2];
-         if (!isnan(temp) && fabs(temp - init) < config->DepthDistThresh) {
+         if (!isnan(temp) && fabs(temp - init) < 3*config->DepthDistThreshold) {
             av += temp;
             num++;
          }
          temp = depthIn[(v * 2 + 1) * widthIn + u * 2 + 1];
-         if (!isnan(temp) && fabs(temp - init) < config->DepthDistThresh) {
+         if (!isnan(temp) && fabs(temp - init) < 3*config->DepthDistThreshold) {
             av += temp;
             num++;
          }
          depthOut[index] = av / (float)num;
       }
    }
-}*/
-
-
-
+}
 
 __kernel void calculateNormals(constant oclPositionTrackConfig *config, 
    global oclDepthPoints *points, global oclDepthPoints *normals,
-   global float *depthP, const int numPoints) {
+   global float *depthP, const int numPoints, const int factor) {
 
    int index = get_global_id(0);
 
    if (index < numPoints && !isnan(depthP[index])) {
-      int u = index % config->ImageWidth;
-      int v = index / config->ImageWidth;
+      int width = config->ImageWidth / factor;
+      int height = config->ImageHeight / factor;
+      int u = index % width;
+      int v = index / width;
       int xPlusInd = index + 1;
-      int yPlusInd = index + config->ImageWidth;
-      if (u < config->ImageWidth - 1 && v < config->ImageHeight - 1 &&
+      int yPlusInd = index + width;
+      if (u < width - 1 && v < height - 1 &&
             !isnan(depthP[xPlusInd]) && !isnan(depthP[yPlusInd])) {
          
-         float3 point = convertPixelToPoint(config, u, v, depthP[index]);
-         float3 pointXPlus = convertPixelToPoint(config, u + 1, v, depthP[xPlusInd]);
-         float3 pointYPlus = convertPixelToPoint(config, u, v + 1, depthP[yPlusInd]);
+         float3 point = convertPixelToPoint(config, u * factor, v * factor, depthP[index]);
+         float3 pointXPlus = convertPixelToPoint(config, (u + 1) * factor, v * factor, depthP[xPlusInd]);
+         float3 pointYPlus = convertPixelToPoint(config, u * factor, (v + 1) * factor, depthP[yPlusInd]);
          float3 crosA;
          crosA.x = pointXPlus.x - point.x;
          crosA.y = pointXPlus.y - point.y;
@@ -1704,7 +1698,8 @@ __kernel void rayTraceICP(constant oclPositionTrackConfig *config,
       const float3 origin, const float3 rotation0, 
       const float3 rotation1, const float3 rotation2,
       const float3 frOrigin, const float3 frRotation0,
-      const float3 frRotation1, const float3 frRotation2) {
+      const float3 frRotation1, const float3 frRotation2,
+      const float dotProdThresh, const float distanceThresh) {
 
    int gIndex = get_global_id(0);
    int lIndex = get_local_id(0);
@@ -1750,8 +1745,9 @@ __kernel void rayTraceICP(constant oclPositionTrackConfig *config,
                         (transP.z - vm.z) * (transP.z - vm.z);
          float dotProd = dot(frameNormal, normal);
 
+         if (dotProd > dotProdThresh && dist2 < distanceThresh) {
          //if (dotProd > 0.7f && dist2 < 0.0005f) {
-         if (dotProd > 0.5f && dist2 < 0.1f) {
+         //if (dotProd > 0.5f && dist2 < 0.1f) {
            
             //float scale = dotProd / sqrt(dist2);
             float scale = dotProd;

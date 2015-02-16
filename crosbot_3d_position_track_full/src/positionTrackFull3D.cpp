@@ -34,6 +34,7 @@ const string PositionTrackFull3D::kernel_names[] = {
    "combineScaleICPResults",
    "predictSurface",
    "rayTraceICP",
+   "downsampleDepth",
    "outputDebuggingImage"
 };
 const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kernel_names[0]);
@@ -54,8 +55,9 @@ const int PositionTrackFull3D::num_kernels = sizeof(kernel_names) / sizeof(kerne
 #define COMBINE_SCALE_ICP_RESULTS 14
 #define PREDICT_SURFACE 15
 #define RAY_TRACE_ICP 16
+#define DOWNSAMPLE_DEPTH 17
 
-#define OUTPUT_DEBUGGING_IMAGE 17
+#define OUTPUT_DEBUGGING_IMAGE 18
 
 PositionTrackFull3D::PositionTrackFull3D() {
    opencl_manager = new OpenCLManager();
@@ -101,6 +103,16 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("SliceMult", SliceMult, 2);
    paramNH.param<int>("MaxPointsFrac", MaxPointsFrac, 1);
    paramNH.param<bool>("ReExtractBlocks", ReExtractBlocks, false);
+   paramNH.param<double>("DepthDistThreshold", DepthDistThreshold, 0.2);
+   paramNH.param<int>("FilterWindowSize", FilterWindowSize, 4);
+   paramNH.param<double>("FilterScalePixel", FilterScalePixel, 0.5);
+
+   paramNH.param<double>("DistThresh", DistThresh, 0.0005);
+   paramNH.param<double>("DotThresh", DotThresh, 0.7);
+   paramNH.param<double>("DistThresh2", DistThresh2, 0.05);
+   paramNH.param<double>("DotThresh2", DotThresh2, 0.6);
+   paramNH.param<double>("DistThresh4", DistThresh4, 0.2);
+   paramNH.param<double>("DotThresh4", DotThresh4, 0.5);
 
    paramNH.param<int>("ImageWidth", imageWidth, -1);
    paramNH.param<int>("ImageHeight", imageHeight, -1);
@@ -185,6 +197,9 @@ void PositionTrackFull3D::setupGPU() {
    positionTrackConfig.MaxDistance = MaxDistance;
    positionTrackConfig.MaxPoints = MaxPoints;
    positionTrackConfig.ReExtractBlocks = ReExtractBlocks;
+   positionTrackConfig.DepthDistThreshold = DepthDistThreshold;
+   positionTrackConfig.FilterWindowSize = FilterWindowSize;
+   positionTrackConfig.FilterScalePixel = FilterScalePixel;
    clPositionTrackConfig = opencl_manager->deviceAlloc(sizeof(oclPositionTrackConfig),
          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &positionTrackConfig);
 
@@ -245,7 +260,8 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
       icpFullPose.position.z << " " << y << " " << p << " " << r << endl;
 
    //preprocessing of points (only used for icp) - normals, filtering and different res's
-   //bilateralFilter();
+   bilateralFilter();
+   downsampleDepth();
    calculateNormals();
 
    //icp itself
@@ -438,6 +454,21 @@ void PositionTrackFull3D::initialiseImages() {
    }
    clColours = opencl_manager->deviceAlloc(sizeOutColours,
          CL_MEM_READ_WRITE, NULL);
+
+   /*int widthDown = imageWidth / 2;
+   int heightDown = imageHeight / 2;
+   size_t sizeDownPoints = sizeof(ocl_float) * widthDown * heightDown * 3;
+   clDepthFrameXYZ2 = opencl_manager->deviceAlloc(sizeDownPoints, CL_MEM_READ_WRITE, NULL);
+   clNormalsFrame2 = opencl_manager->deviceAlloc(sizeDownPoints, CL_MEM_READ_WRITE, NULL);
+   widthDown /= 2;
+   heightDown /= 2;
+   sizeDownPoints = sizeof(ocl_float) * widthDown * heightDown * 3;
+   clDepthFrameXYZ4 = opencl_manager->deviceAlloc(sizeDownPoints, CL_MEM_READ_WRITE, NULL);
+   clNormalsFrame4 = opencl_manager->deviceAlloc(sizeDownPoints, CL_MEM_READ_WRITE, NULL);*/
+   clDepthFrameXYZ2 = opencl_manager->deviceAlloc(sizeDepthFrameXYZ, CL_MEM_READ_WRITE, NULL);
+   clNormalsFrame2 = opencl_manager->deviceAlloc(sizeDepthFrameXYZ, CL_MEM_READ_WRITE, NULL);
+   clDepthFrameXYZ4 = opencl_manager->deviceAlloc(sizeDepthFrameXYZ, CL_MEM_READ_WRITE, NULL);
+   clNormalsFrame4 = opencl_manager->deviceAlloc(sizeDepthFrameXYZ, CL_MEM_READ_WRITE, NULL);
 
 }
 
@@ -865,11 +896,37 @@ void PositionTrackFull3D::calculateNormals() {
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clNormalsFrame);
-   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clDepthFrame);
-   //opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clFiltDepthFrame);
+   //opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clDepthFrame);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clFiltDepthFrame);
    opencl_task->setArg(4, kernelI, sizeof(int), &numDepthPoints);
+   int factor = 1;
+   opencl_task->setArg(5, kernelI, sizeof(int), &factor);
    int globalSize = getGlobalWorkSize(numDepthPoints);
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+
+   int width = imageWidth / 2;
+   int height = imageHeight / 2;
+   int numDownPoints = width * height;
+   factor = 2;
+   globalSize = getGlobalWorkSize(numDownPoints);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clDepthFrameXYZ2);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clNormalsFrame2);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clPointCloud);
+   opencl_task->setArg(4, kernelI, sizeof(int), &numDownPoints);
+   opencl_task->setArg(5, kernelI, sizeof(int), &factor);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+   width /= 2;
+   height /= 2;
+   numDownPoints = width * height;
+   factor = 4;
+   globalSize = getGlobalWorkSize(numDownPoints);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clDepthFrameXYZ4);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clNormalsFrame4);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clNormals);
+   opencl_task->setArg(4, kernelI, sizeof(int), &numDownPoints);
+   opencl_task->setArg(5, kernelI, sizeof(int), &factor);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+
 }
 
 void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPose) {
@@ -1062,18 +1119,29 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
    predictSurface(start);
    outputDebuggingImage(start);
 
-   int globalSize = getGlobalWorkSize(numDepthPoints);
-   int numGroups = globalSize / LocalSize;
    int kernelI = RAY_TRACE_ICP;
+
+   //int numPoints = numDepthPoints;
+   int numPoints = (imageWidth / 4) * (imageHeight / 4);
+   int globalSize = getGlobalWorkSize(numPoints);
+   int numGroups = globalSize / LocalSize;
+  
+   float distThresh = DistThresh4;
+   float dotThresh = DotThresh4;
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapCommon);
-   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
-   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clNormalsFrame);
+   //opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
+   //opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clNormalsFrame);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clDepthFrameXYZ4);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clNormalsFrame4);
    opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clPointCloud); //predPoints
    opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clNormals); //predNormals
    opencl_task->setArg(6, kernelI, sizeof(cl_mem), &clColours); //tempStore
-   opencl_task->setArg(7, kernelI, sizeof(int), &numDepthPoints);
+   opencl_task->setArg(7, kernelI, sizeof(int), &numPoints);
    opencl_task->setArg(8, kernelI, sizeof(int), &numGroups);
+   
+   opencl_task->setArg(17, kernelI, sizeof(float), &dotThresh);
+   opencl_task->setArg(18, kernelI, sizeof(float), &distThresh);
 
    ocl_float rawResults[NUM_RESULTS];
    float A[DOF][DOF];
@@ -1091,6 +1159,34 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
    bool cont = true;
    bool failed = false;
    for (i = 0; i < 10 && cont; i++) {
+
+      if (i == 4) {
+         numPoints = (imageWidth / 2) * (imageHeight / 2);
+         globalSize = getGlobalWorkSize(numPoints);
+         numGroups = globalSize / LocalSize;
+         distThresh = DistThresh2;
+         dotThresh = DotThresh2;
+         
+         opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clDepthFrameXYZ2);
+         opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clNormalsFrame2);
+         opencl_task->setArg(7, kernelI, sizeof(int), &numPoints);
+         opencl_task->setArg(8, kernelI, sizeof(int), &numGroups);
+         opencl_task->setArg(17, kernelI, sizeof(float), &dotThresh);
+         opencl_task->setArg(18, kernelI, sizeof(float), &distThresh);
+      } else if (i == 7) {
+         globalSize = getGlobalWorkSize(numDepthPoints);
+         numGroups = globalSize / LocalSize;
+         distThresh = DistThresh;
+         dotThresh = DotThresh;
+         
+         opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
+         opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clNormalsFrame);
+         opencl_task->setArg(7, kernelI, sizeof(int), &numDepthPoints);
+         opencl_task->setArg(8, kernelI, sizeof(int), &numGroups);
+         opencl_task->setArg(17, kernelI, sizeof(float), &dotThresh);
+         opencl_task->setArg(18, kernelI, sizeof(float), &distThresh);
+      }
+
 
       tf::Matrix3x3 basis = curTrans.getBasis();
       tf::Vector3 origin = curTrans.getOrigin();
@@ -1187,6 +1283,9 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
          //if (j >= 3) {
          //   x[j] = 0;
          //}
+      }
+      if (i < 5) {
+         cont = true;
       }
       if (!valid) {
          cout << "Alignment failed" << endl;
@@ -1317,7 +1416,45 @@ void PositionTrackFull3D::bilateralFilter() {
    opencl_task->setArg(3, kernelI, sizeof(int), &numDepthPoints);
    int globalSize = getGlobalWorkSize(numDepthPoints);
    opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+   
+   //Debugging
+   /*vector<uint8_t> data;
+   data.resize(640 * 480 * sizeof(float));
+  
+   readBuffer(clFiltDepthFrame, CL_TRUE, 0, sizeDepthPoints, &data[0], 0, 0, 0, 
+         "Reading debugging image from the GPU");
+   positionTrack3DNode->outputImage(data);*/
 }
+
+void PositionTrackFull3D::downsampleDepth() {
+   int kernelI = DOWNSAMPLE_DEPTH;
+   int widthOut = imageWidth / 2;
+   int heightOut = imageHeight / 2;
+
+   int numPoints = widthOut * heightOut;
+   int globalSize = getGlobalWorkSize(numPoints);
+   opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clFiltDepthFrame);
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clPointCloud); //image out
+   opencl_task->setArg(3, kernelI, sizeof(int), &widthOut);
+   opencl_task->setArg(4, kernelI, sizeof(int), &heightOut);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+   widthOut /= 2;
+   heightOut /= 2;
+   numPoints = widthOut * heightOut;
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clPointCloud); //image in
+   opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clNormals); //image out
+   opencl_task->setArg(3, kernelI, sizeof(int), &widthOut);
+   opencl_task->setArg(4, kernelI, sizeof(int), &heightOut);
+   opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
+   /*vector<uint8_t> data;
+   data.resize(160 * 120 * sizeof(float));
+  
+   readBuffer(clNormals, CL_TRUE, 0, sizeof(float) * 160 * 120, &data[0], 0, 0, 0, 
+         "Reading debugging image from the GPU");
+   positionTrack3DNode->outputImage(data);*/
+}
+
 
 void PositionTrackFull3D::combineICPResults(int numGroups) {
    int kernelI = COMBINE_ICP_RESULTS;

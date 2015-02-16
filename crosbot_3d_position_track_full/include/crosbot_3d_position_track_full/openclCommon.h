@@ -57,6 +57,9 @@ typedef struct {
    ocl_float MaxDistance;
    ocl_int MaxPoints;
    ocl_int ReExtractBlocks;
+   ocl_float DepthDistThreshold;
+   ocl_int FilterWindowSize;
+   ocl_float FilterScalePixel;
 } oclPositionTrackConfig;
 
 typedef struct {

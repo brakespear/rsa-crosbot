@@ -39,11 +39,14 @@
       <param name="TruncPos" value="0.2" />
       <param name="LocalMapWidth" value="8" />
       <param name="LocalMapHeight" value="4" />
-      <param name="CellSize" value="0.0125" />
-      <param name="NumBlocksAllocated" value="4000" />
+      <param name="CellSize" value="0.025" />
+      <param name="NumBlocksAllocated" value="10000" />
       <param name="MaxPointsFrac" value="5" />
       <param name="SliceMult" value="1" />
       <param name="OutputCurrentMapRate" value="3000000" />
+      <param name="DistThresh" value="0.002" />
+      <param name="DistThresh2" value="0.1" />
+      <param name="DistThresh4" value="0.2" />
 	</node>
 
    

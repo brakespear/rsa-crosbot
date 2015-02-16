@@ -105,6 +105,20 @@ private:
    //Extract blocks if they are seen again after they have been extracted into a
    //previous local map
    bool ReExtractBlocks;
+   //When downsampling won't include points 3*this distance away from this point
+   //Also used during bilateral filter
+   double DepthDistThreshold;
+   //Window size of the bilateral filter
+   int FilterWindowSize;
+   //Scaling for pixel position used in the bilateral filter
+   double FilterScalePixel;
+
+   double DistThresh;
+   double DotThresh;
+   double DistThresh2;
+   double DotThresh2;
+   double DistThresh4;
+   double DotThresh4;
 
    //GPU configs
    int LocalSize;
@@ -174,8 +188,13 @@ private:
    size_t highestBlockNumOffset;
    size_t icpResultsOffset;
    cl_mem clPointCloud; //Also predPoints
-   cl_mem clColours;  //Also clColours
+   cl_mem clColours;  //Also tempStore
    cl_mem clNormals; //Also predNormals
+
+   cl_mem clDepthFrameXYZ2;
+   cl_mem clNormalsFrame2;
+   cl_mem clDepthFrameXYZ4;
+   cl_mem clNormalsFrame4;
 
    //The current icp pose output by this node
    Pose icpFullPose;
@@ -218,6 +237,7 @@ private:
    void alignICP(tf::Transform sensorPose, tf::Transform newPose);
    void alignRayTraceICP(tf::Transform sensorPose, tf::Transform newPose);
    void predictSurface(tf::Transform trans);
+   void downsampleDepth();
 
    void outputDebuggingImage(tf::Transform trans);
 

@@ -217,9 +217,12 @@ void PositionTrackFull3DNode::outputImage(vector<uint8_t>& data) {
    im.header.frame_id = kinectFrame;
    im.height = 480;
    im.width = 640;
+   //im.height = 120;
+   //im.width = 160;
    im.encoding = sensor_msgs::image_encodings::TYPE_32FC1;
    im.is_bigendian = 1;
    im.step = sizeof(float) * 640;
+   //im.step = sizeof(float) * 160;
    im.data = data;
    outImagePub.publish(im);
 }
