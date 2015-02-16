@@ -106,6 +106,7 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("DepthDistThreshold", DepthDistThreshold, 0.2);
    paramNH.param<int>("FilterWindowSize", FilterWindowSize, 4);
    paramNH.param<double>("FilterScalePixel", FilterScalePixel, 0.5);
+   paramNH.param<int>("SkipNumCheckBlocks", SkipNumCheckBlocks, 4);
 
    paramNH.param<double>("DistThresh", DistThresh, 0.0005);
    paramNH.param<double>("DotThresh", DotThresh, 0.7);
@@ -200,6 +201,7 @@ void PositionTrackFull3D::setupGPU() {
    positionTrackConfig.DepthDistThreshold = DepthDistThreshold;
    positionTrackConfig.FilterWindowSize = FilterWindowSize;
    positionTrackConfig.FilterScalePixel = FilterScalePixel;
+   positionTrackConfig.SkipNumCheckBlocks = SkipNumCheckBlocks;
    clPositionTrackConfig = opencl_manager->deviceAlloc(sizeof(oclPositionTrackConfig),
          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &positionTrackConfig);
 
@@ -308,6 +310,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    cout << "Time of adding points: " << totalTime.toSec() * 1000.0f << endl;
    //cout << "Highest block num is: " << highestBlockNum << " cent is: " << mapCentre.x <<
    //  " " << mapCentre.y << " " << mapCentre.z << endl;
+
    //cout << "pose is: " << icpPose.position.x << " " << icpPose.position.y << " " <<
    //   icpPose.position.z << endl;
 
@@ -607,7 +610,8 @@ void PositionTrackFull3D::checkBlocksExist(int numDepthPoints, tf::Transform tra
    clOrigin.x = origin[0];
    clOrigin.y = origin[1];
    clOrigin.z = origin[2];
-   int globalSize = getGlobalWorkSize(numDepthPoints);
+   int numPoints = (imageWidth / SkipNumCheckBlocks) * (imageHeight / SkipNumCheckBlocks);
+   int globalSize = getGlobalWorkSize(numPoints);
    int kernelI = CHECK_BLOCKS_EXIST;
 
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
@@ -615,7 +619,7 @@ void PositionTrackFull3D::checkBlocksExist(int numDepthPoints, tf::Transform tra
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCommon);
    opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCells);
    opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrame);
-   opencl_task->setArg(5, kernelI, sizeof(int), &numDepthPoints);
+   opencl_task->setArg(5, kernelI, sizeof(int), &numPoints);
    opencl_task->setArg(6, kernelI, sizeof(ocl_int3), &mapCentre);
    opencl_task->setArg(7, kernelI, sizeof(ocl_float3), &clOrigin);
    opencl_task->setArg(8, kernelI, sizeof(ocl_float3), &clBasis[0]);

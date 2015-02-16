@@ -336,12 +336,28 @@ __kernel void checkBlocksExist(constant oclPositionTrackConfig *config,
       const float3 rotation0, const float3 rotation1, const float3 rotation2) {
 
    int index = get_global_id(0);
+   
+   /*int r = index / (config->ImageWidth / config->SkipNumCheckBlocks);
+   int c = index % (config->ImageWidth / config->SkipNumCheckBlocks);
+   r *= config->SkipNumCheckBlocks;
+   c *= config->SkipNumCheckBlocks;
+   index = r * ()
+   if (c >= config->ImageWidth) {
+      index = numPoints + 1;
+   } else {
+      index = r * config->ImageWidth + c;
+   }*/
 
-   if (index < numPoints && !isnan(depthP[index])) {
-      int u = index % config->ImageWidth;
-      int v = index / config->ImageWidth;
+   int u = index % (config->ImageWidth / config->SkipNumCheckBlocks);
+   int v = index / (config->ImageWidth / config->SkipNumCheckBlocks);
+      
+   u *= config->SkipNumCheckBlocks;
+   v *= config->SkipNumCheckBlocks;
+   int pIndex = v * config->ImageWidth + u;
+   if (index < numPoints && !isnan(depthP[pIndex])) {
+
          
-      float3 point = convertPixelToPoint(config, u, v, depthP[index]);
+      float3 point = convertPixelToPoint(config, u, v, depthP[pIndex]);
       //float3 point = (float3)(points->x[index], points->y[index], points->z[index]);
 
       //Transform point from camera frame to icp frame

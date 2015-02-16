@@ -112,6 +112,8 @@ private:
    int FilterWindowSize;
    //Scaling for pixel position used in the bilateral filter
    double FilterScalePixel;
+   //How many pixels will be skipped in the checkBlocks kernel
+   int SkipNumCheckBlocks;
 
    double DistThresh;
    double DotThresh;

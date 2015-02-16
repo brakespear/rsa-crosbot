@@ -60,6 +60,7 @@ typedef struct {
    ocl_float DepthDistThreshold;
    ocl_int FilterWindowSize;
    ocl_float FilterScalePixel;
+   ocl_int SkipNumCheckBlocks;
 } oclPositionTrackConfig;
 
 typedef struct {
