@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   tf
 )
+find_package(PCL REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -96,7 +97,7 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(include
-  ${catkin_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS}
 )
 
 ## Declare a cpp library
@@ -113,7 +114,7 @@ add_executable(crosbot_3d_graphslam_full src/main.cpp src/graphSlamFull3D.cpp sr
 
 ## Specify libraries to link a library or executable target against
  target_link_libraries(crosbot_3d_graphslam_full
-   ${catkin_LIBRARIES}
+   ${catkin_LIBRARIES} ${PCL_LIBRARIES}
  )
 
 #############
