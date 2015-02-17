@@ -1849,10 +1849,10 @@ __kernel void rayTraceICP(constant oclPositionTrackConfig *config,
 
 
 kernel void combineICPResults(global oclLocalMapCommon *common, global float *tempStore,
-      const int numGroups) {
+      const int numGroups, const int numResults) {
    int index = get_global_id(0);
 
-   if (index < NUM_RESULTS) {
+   if (index < numResults) {
       float res = 0;
       int start = numGroups * index;
       int i;
@@ -1961,12 +1961,14 @@ kernel void combineScaleICPResults(global oclLocalMapCommon *common, global floa
 __kernel void zOnlyICP(constant oclPositionTrackConfig *config, global int *blocks, 
       global oclLocalBlock *localMapCells, global oclLocalMapCommon *common,
       global oclDepthPoints *points, global oclDepthPoints *normals, 
-      const int numPoints, const int3 cent, const float3 origin, const float3 rotation0, 
+      global float *tempStore, const int numPoints, const int numGroups, const int3 cent, 
+      const float3 origin, const float3 rotation0, 
       const float3 rotation1, const float3 rotation2, const float dotThresh,
       const float normalThresh, const float zInc) {
 
    int gIndex = get_global_id(0);
    int lIndex = get_local_id(0);
+   int groupNum = get_group_id(0);
 
    local int countPoints[LOCAL_SIZE];
    local float distance[LOCAL_SIZE];
@@ -2118,8 +2120,10 @@ __kernel void zOnlyICP(constant oclPositionTrackConfig *config, global int *bloc
    if (lIndex == 0) {
       countPoints[lIndex] += countPoints[lIndex + 1];
       distance[lIndex] += distance[lIndex + 1];
-      atomicFloatAdd(&(common->icpResults[0]), distance[0]);
-      atomicFloatAdd(&(common->icpResults[1]), countPoints[0]);
+      tempStore[groupNum] = distance[0];
+      tempStore[numGroups + groupNum] = countPoints[0];
+      //atomicFloatAdd(&(common->icpResults[0]), distance[0]);
+      //atomicFloatAdd(&(common->icpResults[1]), countPoints[0]);
    }
 }
 

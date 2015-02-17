@@ -247,7 +247,7 @@ private:
    void outputDebuggingImage(tf::Transform trans);
 
    void bilateralFilter();
-   void combineICPResults(int numGroups);
+   void combineICPResults(int numGroups, int numResults);
 
 
    void scaleICP(int numGroups, tf::Transform trans);

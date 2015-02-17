@@ -1007,7 +1007,7 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
       opencl_task->setArg(13, kernelI, sizeof(ocl_float3), &clBasis[2]);
 
       opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
-      combineICPResults(numGroups);
+      combineICPResults(numGroups, NUM_RESULTS);
    
       readBuffer(clLocalMapCommon, CL_TRUE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
             rawResults, 0, 0, 0, "Reading the icp results");
@@ -1233,7 +1233,7 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
 
       opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 
-      combineICPResults(numGroups);
+      combineICPResults(numGroups, NUM_RESULTS);
 
       readBuffer(clLocalMapCommon, CL_TRUE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
             rawResults, 0, 0, 0, "Reading the icp results");
@@ -1464,11 +1464,12 @@ void PositionTrackFull3D::downsampleDepth() {
 }
 
 
-void PositionTrackFull3D::combineICPResults(int numGroups) {
+void PositionTrackFull3D::combineICPResults(int numGroups, int numResults) {
    int kernelI = COMBINE_ICP_RESULTS;
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clLocalMapCommon);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clColours); //tempStore
    opencl_task->setArg(2, kernelI, sizeof(int), &numGroups);
+   opencl_task->setArg(3, kernelI, sizeof(int), &numResults);
    opencl_task->queueKernel(kernelI, 1, LocalSize, LocalSize, 0, NULL, NULL, false);
 
 }
@@ -1507,14 +1508,17 @@ void PositionTrackFull3D::alignZOnlyICP(tf::Transform sensorPose, tf::Transform 
 
    int kernelI = Z_ONLY_ICP;
    int globalSize = getGlobalWorkSize(numDepthPoints);
+   int numGroups = globalSize / LocalSize;
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCells);
    opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCommon);
    opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
    opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clNormalsFrame);
-   opencl_task->setArg(6, kernelI, sizeof(int), &numDepthPoints);
-   opencl_task->setArg(7, kernelI, sizeof(ocl_int3), &mapCentre);
+   opencl_task->setArg(6, kernelI, sizeof(cl_mem), &clColours); //tempStore
+   opencl_task->setArg(7, kernelI, sizeof(int), &numDepthPoints);
+   opencl_task->setArg(8, kernelI, sizeof(int), &numGroups);
+   opencl_task->setArg(9, kernelI, sizeof(ocl_int3), &mapCentre);
    tf::Matrix3x3 basis = curTrans.getBasis();
    tf::Vector3 origin = curTrans.getOrigin();
 
@@ -1528,14 +1532,14 @@ void PositionTrackFull3D::alignZOnlyICP(tf::Transform sensorPose, tf::Transform 
    clOrigin.x = origin[0];
    clOrigin.y = origin[1];
    clOrigin.z = origin[2];
-   opencl_task->setArg(8, kernelI, sizeof(ocl_float3), &clOrigin);
-   opencl_task->setArg(9, kernelI, sizeof(ocl_float3), &clBasis[0]);
-   opencl_task->setArg(10, kernelI, sizeof(ocl_float3), &clBasis[1]);
-   opencl_task->setArg(11, kernelI, sizeof(ocl_float3), &clBasis[2]);
+   opencl_task->setArg(10, kernelI, sizeof(ocl_float3), &clOrigin);
+   opencl_task->setArg(11, kernelI, sizeof(ocl_float3), &clBasis[0]);
+   opencl_task->setArg(12, kernelI, sizeof(ocl_float3), &clBasis[1]);
+   opencl_task->setArg(13, kernelI, sizeof(ocl_float3), &clBasis[2]);
    float dotThresh = DotThresh;
    float normalThresh = DotThresh4;
-   opencl_task->setArg(12, kernelI, sizeof(float), &dotThresh);
-   opencl_task->setArg(13, kernelI, sizeof(float), &normalThresh);
+   opencl_task->setArg(14, kernelI, sizeof(float), &dotThresh);
+   opencl_task->setArg(15, kernelI, sizeof(float), &normalThresh);
 
    bool success = true;
    int i;
@@ -1543,12 +1547,10 @@ void PositionTrackFull3D::alignZOnlyICP(tf::Transform sensorPose, tf::Transform 
    float results[2];
    for (i = 0; i < 10; i++) {
 
-      writeBuffer(clLocalMapCommon, CL_FALSE, icpResultsOffset, sizeof(ocl_float) * 2,
-         results, 0, 0, 0, "Zeroing the icp results array");
-
-      opencl_task->setArg(14, kernelI, sizeof(float), &zInc);
+      opencl_task->setArg(16, kernelI, sizeof(float), &zInc);
       opencl_task->queueKernel(kernelI, 1, globalSize, LocalSize, 0, NULL, NULL, false);
 
+      combineICPResults(numGroups, 2);
 
       readBuffer(clLocalMapCommon, CL_TRUE, icpResultsOffset, sizeof(ocl_float) * 2, 
             results, 0, 0, 0, "Reading the icp results");
