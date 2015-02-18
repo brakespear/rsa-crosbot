@@ -34,6 +34,9 @@ public:
    double parentInfo[6][6];
    tf::Transform parentOffset;
 
+   double startPose[6];
+   bool poseChanged;
+
 
    LocalMaps(LocalMapInfoPtr inMap, int pIndex, pcl::PointCloud<pcl::PointNormal>::Ptr pts);
 };
@@ -44,6 +47,8 @@ public:
    int j;
    tf::Transform offset;
    double info[6][6];
+
+   LoopConstraint(int i, int j): i(i), j(j) {}
 };
 
 class GraphSlamFull3D {
@@ -99,12 +104,21 @@ private:
    double EndDotThresh;
    //When movements falls below this, ICP will stop
    double MoveThresh;
+   int MaxNumOfOptimisationIts;
+   //When moves during optimisation get smaller than this, it will stop
+   double MaxOptMoveXYZ;
+   double MaxOptMoveYPR;
 
    //ReadWriteLock masterLock;
    bool receivedOptimisationRequest;
    int parentIndex;
    int currentIndex;
    vector<LocalMaps *> localMaps;
+   vector<LoopConstraint *> loopConstraints;
+
+   Pose newMapPosition;
+   bool haveNewMapPosition;
+   int startNewConstraints;
 
 
    //Temp stores
@@ -130,6 +144,20 @@ private:
          double A[6][6], double b[6], double distThresh, double dotThresh, int numSkip);
 
    void solveCholesky(double A[6][6], double b[6], double x[6]);
+
+   //Update the position of a local map after it has been optimised by 2D graph slam
+   void updateMapPosition(int i, Pose pose);
+
+   void optimiseGlobalMap();
+
+   vector<LocalMapInfoPtr> getNewMapPositions();
+
+   //Converts a tf to an array of r,p,y,x,y,z.
+   inline void tfToArray(tf::Transform trans, double arr[6]);
+   inline void copyM(double in[6][6], double out[6][6]);
+   inline void mult6x6Matrix(double a[6][6], double b[6][6], double c[6][6]);
+   inline void transpose6x6Matrix(double in[6][6], double out[6][6]);
+   inline void mult6x6Vector(double a[6][6], double b[6], double *res);
 
 };
    

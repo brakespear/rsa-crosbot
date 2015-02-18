@@ -7,6 +7,9 @@
 
 #include <crosbot_3d_graphslam_full/graphSlamFull3D.hpp>
 #include <crosbot/utils.hpp>
+#include <suitesparse/cs.h>
+
+#define ANGNORM(X) while (X < -M_PI) X += 2.0*M_PI;while (X > M_PI) X -= 2.0*M_PI
 
 using namespace std;
 using namespace crosbot;
@@ -27,6 +30,20 @@ GraphSlamFull3D::GraphSlamFull3D() {
 
 void GraphSlamFull3D::initialise(ros::NodeHandle &nh) {
    ros::NodeHandle paramNH("~");
+   paramNH.param<double>("MaxCorrespDist", MaxCorrespDist, 0.2);
+   paramNH.param<int>("SkipPoints", SkipPoints, 8);
+   paramNH.param<double>("KDTreeEpsilon", KDTreeEpsilon, 0.03);
+   paramNH.param<int>("MaxIterations", MaxIterations, 10);
+   paramNH.param<int>("MinCount", MinCount, 10000);
+   paramNH.param<double>("StartDistThresh", StartDistThresh, 0.2);
+   paramNH.param<double>("StartDotThresh", StartDotThresh, 0.6);
+   paramNH.param<double>("EndDistThresh", EndDistThresh, 0.03);
+   paramNH.param<double>("EndDotThresh", EndDotThresh, 0.8);
+   paramNH.param<double>("MoveThresh", MoveThresh, 0.01);
+   paramNH.param<int>("MaxNumOfOptimisationIts", MaxNumOfOptimisationIts, 10);
+   paramNH.param<double>("MaxOptMoveXYZ", MaxOptMoveXYZ, 0.01);
+   paramNH.param<double>("MaxOptMoveYPR", MaxOptMoveYPR, 0.01);
+
 }
 
 void GraphSlamFull3D::start() {
@@ -60,18 +77,31 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
 
       if (receivedOptimisationRequest) {
 
-         //map message contains all loop closure constraints
-         //need loopconstraint vector, and to add contraints, and here to deal with them properly
-         //and all config params
-         
+         if (haveNewMapPosition) {
+            updateMapPosition(currentIndex, newMapPosition);
+         }
+         if (startNewConstraints != loopConstraints.size() - 1) {
+            cout << "ERROR: Correcting more than one loop closure per map is not supported yet" << endl;
+         }
+         if (loopConstraints[startNewConstraints]->j != currentIndex) {
+            cout << "ERROR: Loop constraints are not in expected format" << endl;
+         }
+         int mapI = loopConstraints[startNewConstraints]->i;
+         int mapJ = loopConstraints[startNewConstraints]->j;
+         //TODO: get transform from loop close service??
+         tf::Transform diff = localMaps[mapJ]->pose.inverse() * localMaps[mapI]->pose;
          //otherI, diff, info
-         //tf::Transform change = performICP(kdTree, cloud, otherI, diff);
-         //calculateInfo(kdTree, cloud, otherI, change, info);
-
-
+         tf::Transform change = performICP(kdTree, cloud, mapI, diff);
+         calculateInfo(kdTree, cloud, mapI, change, loopConstraints[startNewConstraints]->info);
+         loopConstraints[startNewConstraints]->offset = localMaps[mapI]->pose.inverse() *
+            localMaps[mapJ]->pose * change;
+         
+         optimiseGlobalMap();
+         vector<LocalMapInfoPtr> newPositions = getNewMapPositions();
+         graphSlamFull3DNode->publishOptimisedMapPositions(newPositions);
 
          receivedOptimisationRequest = false;
-         //parentIndex = 
+         parentIndex = mapI;
       } else {
          parentIndex = currentIndex;
       }
@@ -98,6 +128,26 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
 void GraphSlamFull3D::haveOptimised(vector<LocalMapInfoPtr> newMapPositions,
       vector<int> iNodes, vector<int> jNodes, bool wasFullLoop) {
 
+   startNewConstraints = loopConstraints.size();
+   for (int x = startNewConstraints; x < iNodes.size(); x++) {
+      int i = iNodes[x];
+      int j = jNodes[x];
+      //tf::Transform offset = newMapPositions[j].pose.toTF().inverse() * newMapPositions[i].pose.toTF();
+      LoopConstraint *loop = new LoopConstraint(i, j);
+      loopConstraints.push_back(loop);
+   }
+   haveNewMapPosition = false;
+   for (int x = 0; x < newMapPositions.size(); x++) {
+      if (newMapPositions[x]->index < localMaps.size()) {
+         updateMapPosition(newMapPositions[x]->index, newMapPositions[x]->pose);
+      } else if (newMapPositions[x]->index == localMaps.size()) {
+         haveNewMapPosition = true;
+         newMapPosition = newMapPositions[x]->pose;
+      } else {
+         cout << "ERROR: received map index that is too high" << endl;
+      }
+   }
+   receivedOptimisationRequest = true;
 }
 
 pcl::PointCloud<pcl::PointNormal>::Ptr GraphSlamFull3D::addPointsToCloud(
@@ -357,6 +407,320 @@ void GraphSlamFull3D::solveCholesky(double A[6][6], double b[6], double x[6]) {
       x[row] = buf[row];
       for (i = row + 1; i < 6; i++) {
          x[row] -= A[i][row] * x[i];
+      }
+   }
+}
+
+void GraphSlamFull3D::updateMapPosition(int i, Pose pose) {
+   Pose current = localMaps[i]->pose;
+   double y,p,r;
+   current.getYPR(y,p,r);
+   current.position.x = pose.position.x;
+   current.position.y = pose.position.y;
+   double yp, pp, rp;
+   pose.getYPR(yp,pp, rp);
+   y += yp;
+   current.setYPR(y,p,r);
+   localMaps[i]->pose = current.toTF();
+
+}
+
+void GraphSlamFull3D::optimiseGlobalMap() {
+   int numMaps = localMaps.size();
+   int nrows = 6 * numMaps;
+   int nzmax = (numMaps + loopConstraints.size() * 2) * 36;
+
+   double *b = (double *) malloc(sizeof(double) * nrows);
+   cs *sparseH = cs_spalloc(nrows, nrows, nzmax, 1, 1);
+
+   //TODO: Only optimise part of map
+   tf::Transform startPose = localMaps[0]->pose;
+
+   for (int i = 0; i < numMaps; i++) {
+      tfToArray(localMaps[i]->pose, localMaps[i]->startPose);
+      localMaps[i]->poseChanged = false;
+   }
+
+   for (int numI; numI < MaxNumOfOptimisationIts; numI++) {
+
+      memset(b, 0, sizeof(double) * nrows);
+      int count = 0;
+
+      for (int x = 0; x <= currentIndex; x++, count++) {
+         int off = x * 6;
+         for (int j = 0; j < 6; j++) {
+            for (int i = 0; i < 6; i++) {
+               sparseH->i[count] = off + i;
+               sparseH->p[count] = off + j;
+               sparseH->x[count] = 0;
+            }
+         }
+      }
+
+      double maxMove[6];
+      memset(maxMove, 0, sizeof(double) * 6);
+
+      int numConstraints = localMaps.size() - 1 + loopConstraints.size();
+      int startLoopConstraint = localMaps.size() - 1;
+      for (int cI = 0; cI < numConstraints; cI++) {
+
+         int iNode;
+         int jNode;
+         double constraint[6];
+         //Information matrix of the constraint
+         double info[6][6];
+         //The two blocks of the Jacobian
+         double A[6][6];
+         double B[6][6];
+         //Positions of the two maps
+         double posI[6];
+         double posJ[6];
+         //error in the constraint
+         double error[6];
+         //Transposes of the Jacobians
+         double AT[6][6];
+         double BT[6][6];
+         //Temp stores
+         double temp[6][6];
+         double ATA[6][6];
+         double ATB[6][6];
+         double BTA[6][6];
+         double BTB[6][6];
+
+
+         if (cI < startLoopConstraint) {
+            //Constraint is a movement constraint
+            int mapI = cI + 1;
+            iNode = localMaps[mapI]->parentIndex;
+            jNode = mapI;
+            tfToArray(localMaps[mapI]->parentOffset, constraint);
+            copyM(localMaps[mapI]->parentInfo, info);
+
+
+         } else {
+            //Constraint is a loop closing constraint
+            int conI = cI = startLoopConstraint;
+            iNode = loopConstraints[conI]->i;
+            jNode = loopConstraints[conI]->j;
+            tfToArray(loopConstraints[conI]->offset, constraint);
+            copyM(loopConstraints[conI]->info, info);
+         }
+         tfToArray(localMaps[iNode]->pose, posI);
+         tfToArray(localMaps[jNode]->pose, posJ);
+
+         double cr = cos(posI[0]);
+         double cp = cos(posI[1]);
+         double cy = cos(posI[2]);
+         double sr = sin(posI[0]);
+         double sp = sin(posI[1]);
+         double sy = sin(posI[2]);
+
+         double xd = posJ[3] - posI[3];
+         double yd = posJ[4] - posI[4];
+         double zd = posJ[5] - posI[5];
+
+         A[0][0] = -1;
+         A[0][1] = A[0][2] = A[0][3] = A[0][4] = A[0][5] = A[1][0] = 0;
+         A[1][1] = -1;
+         A[1][2] = A[1][3] = A[1][4] = A[1][5] = A[2][0] = A[2][1] = 0;
+         A[2][2] = -1;
+         A[2][3] = A[2][4] = A[2][5] = 0;
+         A[3][0] = (cr*sp*cy-sr*sy)*yd + (cr*sy+sp*sr*cy)*zd;
+         A[3][1] = -sp*cy*xd + cp*sr*cy*yd - cp*cy*cy*zd;
+         A[3][2] = -cp*sy*xd + (cr*cy-sp*sr*sy)*yd + (sr*cy+sp*cr*sy)*zd;
+         A[3][3] = -cp*cy;
+         A[3][4] = -sp*sr*cy - cr*sy;
+         A[3][5] = sp*cr*cy - sr*sy;
+         A[4][0] = (-sr*cy-sp*cr*sy)*yd + (cr*cy-sp*sr*sy)*zd;
+         A[4][1] = sp*sy*xd - cp*sr*sy*yd + cp*cr*sy*zd;
+         A[4][2] = -cp*cy*xd + (-cr*sy-sp*sr*cy)*yd + (sp*cr*cy-sr*sy)*zd;
+         A[4][3] = cp*sy;
+         A[4][4] = sp*sr*sy-cr*cy;
+         A[4][5] = -sp*cr*sy-sr*cy;
+         A[5][0] = -cp*cr*yd - cp*sr*zd;
+         A[5][1] = cp*xd + sp*sr*yd - sp*cr*zd;
+         A[5][2] = 0;
+         A[5][3] = -sp;
+         A[5][4] = cp*sr;
+         A[5][5] = -cp*cr;
+
+         B[0][0] = B[1][1] = B[2][2] = 1;
+         B[0][1] = B[0][2] = B[0][3] = B[0][4] = B[0][5] = B[1][0] = B[1][2] = B[1][3] = B[1][4] = 
+            B[1][5] = B[2][0] = B[2][1] = B[2][3] = B[2][4] = B[2][5] = B[3][0] = B[3][1] = 
+            B[3][2] = B[4][0] = B[4][1] = B[4][2] = B[5][0] = B[5][1] = B[5][2] = 0;
+         B[3][3] = cp*cy;
+         B[3][4] = sp*sr*cy + cr*sy;
+         B[3][5] = sr*sy - sp*cr*cy;
+         B[4][3] = -cp*sy;
+         B[4][4] = cr*cy - sp*sr*sy;
+         B[4][5] = sp*cr*sy + sr*cy;
+         B[5][3] = sp;
+         B[5][4] = -cp*sr;
+         B[5][5] = cp*cr;
+
+         error[0] = posJ[0] - posI[0] - constraint[0];
+         ANGNORM(error[0]);
+         error[1] = posJ[1] - posI[1] - constraint[1];
+         ANGNORM(error[1]);
+         error[2] = posJ[2] - posI[2] - constraint[2];
+         ANGNORM(error[2]);
+         error[3] = cp*cy*xd + (sp*sr*cy+cr*sy)*yd + (sr*sy-sp*cr*cy)*zd - constraint[3];
+         error[4] = -cp*sy*xd + (cr*cy - sp*sr*sy)*yd + (sp*cr*sy+sr*cy)*zd - constraint[4];
+         error[5] = sp*xd - cp*sr*yd + cp*cr*zd - constraint[5];
+
+         transpose6x6Matrix(A, AT);
+         transpose6x6Matrix(B, BT);
+
+         double tempVecA[6];
+         double tempVecB[6];
+         mult6x6Matrix(AT, info, temp);
+         mult6x6Vector(temp, error, tempVecA);
+
+         mult6x6Matrix(temp, A, ATA);
+         mult6x6Matrix(temp, B, ATB);
+
+         mult6x6Matrix(BT, info, temp);
+         mult6x6Vector(temp, error, tempVecB);
+
+         mult6x6Matrix(temp, A, BTA);
+         mult6x6Matrix(temp, B, BTB);
+
+         for (int i = 0; i < 6; i++) {
+            b[iNode * 6 + i] -= tempVecA[i];
+            b[jNode * 6 + i] -= tempVecB[i];
+         }
+
+         for (int j = 0; j < 6; j++) {
+            for (int i = 0; i < 6; i++) {
+               //TODO: are the i and js in the ATA, etc in the correct order??
+               sparseH->x[iNode * 9 + j * 9 + i] += ATA[i][j];
+               sparseH->x[jNode * 9 + j * 9 + i] += BTB[i][j];
+
+               sparseH->i[count] = iNode * 9 + i;
+               sparseH->p[count] = jNode * 9 + j;
+               sparseH->x[count] = ATB[i][j];
+               count++;
+               sparseH->i[count] = jNode * 9 + i;
+               sparseH->p[count] = iNode * 9 + j;
+               sparseH->x[count] = BTA[i][j];
+               count++;
+            }
+         }
+      }
+      sparseH->nz = count;
+   
+      //Compress H into sparse column form
+      cs *compH = cs_compress(sparseH);
+      //Solve the linear system
+      int retVal = cs_lusol(0, compH, b, 1);
+      if (retVal != 1) {
+         cout << "Solving matrix failed " << retVal << endl;
+         break;
+      }
+
+      for (int x = 0; x < numMaps; x++) {
+         if (b[x * 6] > 100) {
+            cout << "BIIIGGGG Angle" << endl;
+         }
+         ANGNORM(b[x*6]);
+         ANGNORM(b[x*6 + 1]);
+         ANGNORM(b[x*6 + 2]);
+
+         double tPos[6];
+         tfToArray(localMaps[x]->pose, tPos);
+         for (int y = 0; y < 6; y++) {
+            tPos[y] += b[x*6 + y];
+            if (y < 3) {
+               ANGNORM(tPos[y]);
+            }
+
+            if (fabs(b[x*6 + y]) > maxMove[y]) {
+               maxMove[y] = fabs(b[x*6 + y]);
+            }
+         }
+         Pose p;
+         p.position.x = tPos[3];
+         p.position.y = tPos[4];
+         p.position.z = tPos[5];
+         p.setYPR(tPos[2], tPos[1], tPos[0]);
+         localMaps[x]->pose = p.toTF();
+      }
+      if (maxMove[0] < MaxOptMoveYPR && maxMove[1] < MaxOptMoveYPR && maxMove[2] < MaxOptMoveYPR &&
+          maxMove[3] < MaxOptMoveXYZ && maxMove[4] < MaxOptMoveXYZ && maxMove[5] < MaxOptMoveXYZ) {
+         cout << "Finished Optimising" << endl;
+         break;
+      }
+   }
+   cs_spfree(sparseH);
+   free(b);
+
+   //Recenter the map on 0
+   tf::Transform off = localMaps[0]->pose.inverse();
+
+   double thresh = 0.005;
+   for (int i = 0; i <= currentIndex; i++) {
+      localMaps[i]->pose = localMaps[i]->pose * off;
+      double tempPos[6];
+      tfToArray(localMaps[i]->pose, tempPos);
+      for (int x = 0; x < 6; x++) {
+         if (fabs(tempPos[x] - localMaps[i]->startPose[x]) > thresh) {
+            localMaps[i]->poseChanged = true;
+         }
+      }
+   }
+}
+
+vector<LocalMapInfoPtr> GraphSlamFull3D::getNewMapPositions() {
+   vector<LocalMapInfoPtr> newPositions;
+   for (int i = 0; i < localMaps.size(); i++) {
+      if (localMaps[i]->poseChanged) {
+         Pose p = localMaps[i]->pose;
+         newPositions.push_back(new LocalMapInfo(p, i));
+      }
+   }
+   return newPositions;
+}
+
+inline void GraphSlamFull3D::tfToArray(tf::Transform trans, double arr[6]) {
+   Pose p = trans;
+   arr[3] = p.position.x;
+   arr[4] = p.position.y;
+   arr[5] = p.position.z;
+   p.getYPR(arr[2], arr[1], arr[0]);
+}
+
+inline void GraphSlamFull3D::copyM(double in[6][6], double out[6][6]) {
+   for (int j = 0; j < 6; j++) {
+      for (int i = 0; i < 6; i++) {
+         out[j][i] = in[j][i];
+      }
+   }
+}
+
+inline void GraphSlamFull3D::mult6x6Matrix(double a[6][6], double b[6][6], double c[6][6]) {
+   for (int y = 0; y < 6; y++) {
+      for (int x = 0; x < 6; x++) {
+         c[y][x] = 0;
+         for(int i = 0; i < 6; i++) {
+            c[y][x] += a[y][i] * b[i][x];
+         }
+      }
+   }
+}
+
+inline void GraphSlamFull3D::transpose6x6Matrix(double in[6][6], double out[6][6]) {
+   for (int y = 0; y < 6; y++) {
+      for (int x = 0; x < 6; x++) {
+         out[x][y] = in[y][x];
+      }
+   }
+}
+
+inline void GraphSlamFull3D::mult6x6Vector(double a[6][6], double b[6], double *res) {
+   for (int y = 0; y < 6; y++) {
+      res[y] = 0;
+      for (int x = 0; x < 6; x++) {
+         res[y] += a[y][x] * b[x];
       }
    }
 }

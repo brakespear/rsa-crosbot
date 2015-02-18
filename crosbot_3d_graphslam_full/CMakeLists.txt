@@ -12,6 +12,8 @@ find_package(catkin REQUIRED COMPONENTS
   tf
 )
 find_package(PCL REQUIRED)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+find_package(SuiteSparse REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -86,7 +88,7 @@ catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES crosbot_3d_graphslam_full
   CATKIN_DEPENDS crosbot crosbot_graphslam roscpp std_msgs tf
-#  DEPENDS system_lib
+  DEPENDS suitesparse-dev
 )
 
 ###########
@@ -114,7 +116,7 @@ add_executable(crosbot_3d_graphslam_full src/main.cpp src/graphSlamFull3D.cpp sr
 
 ## Specify libraries to link a library or executable target against
  target_link_libraries(crosbot_3d_graphslam_full
-   ${catkin_LIBRARIES} ${PCL_LIBRARIES}
+   ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${SuiteSparse_LIBRARIES}
  )
 
 #############
