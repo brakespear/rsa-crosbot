@@ -95,6 +95,45 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
          int mapJ = loopConstraints[startNewConstraints]->j;
          //TODO: get transform from loop close service??
          tf::Transform diff = localMaps[mapJ]->pose.inverse() * localMaps[mapI]->pose;
+         cout << "Matching maps: " << mapI << " " << mapJ << endl;
+         double y,p,r;
+         Pose pp = localMaps[mapJ]->pose;
+         pp.getYPR(y,p,r);
+         cout << "Pose mapJ: " << pp.position.x << " " << pp.position.y << " " << pp.position.z << 
+            " " << y << " " << p << " " << r << endl;
+         pp = localMaps[mapI]->pose;
+         pp.getYPR(y,p,r);
+         cout << "Pose mapI: " << pp.position.x << " " << pp.position.y << " " << pp.position.z <<
+            " " << y << " " << p << " " << r << endl;
+
+
+         
+   int numPoints = localMapInfo->cloud->cloud.size();
+   cout << "outputting current map: " << endl;
+   FILE *f = fopen("curMap.pcd", "w");
+   fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F \nCOUNT 1 1 1 \nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
+   for (int i = 0; i < numPoints;i++) {
+      fprintf(f, "%f %f %f\n", localMapInfo->cloud->cloud[i].x, localMapInfo->cloud->cloud[i].y, 
+            localMapInfo->cloud->cloud[i].z);
+   }
+   fclose(f);
+   cout << "done" << endl;
+   numPoints = localMaps[mapI]->cloud->size();
+   f = fopen("otherMap.pcd", "w");
+   fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F \nCOUNT 1 1 1 \nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
+   for (int i = 0; i < numPoints;i++) {
+      tf::Vector3 p;
+      p[0] = (*(localMaps[mapI]->cloud))[i].x;
+      p[1] = (*(localMaps[mapI]->cloud))[i].y;
+      p[2] = (*(localMaps[mapI]->cloud))[i].z;
+      p = diff * p;
+      fprintf(f, "%f %f %f\n", p.x(), p.y(), p.z());
+   }
+   fclose(f);
+
+
+
+
          
          cout << "About to perform ICP" << endl; 
          tf::Transform change = performICP(kdTree, cloud, mapI, diff);
@@ -271,6 +310,7 @@ tf::Transform GraphSlamFull3D::performICP(pcl::KdTreeFLANN<pcl::PointNormal> &kd
       for (int j = 0; j < 6; j++) {
          if(std::isnan(x[j])) {
             valid = false;
+            cout << "Found a NAN value" << endl;
          }
          if (fabs(x[j]) > MoveThresh) {
             cont = true;
@@ -319,7 +359,6 @@ int GraphSlamFull3D::performICPIteration(pcl::KdTreeFLANN<pcl::PointNormal> &kdT
       pcl::PointNormal mapP = getClosestPoint(kdTree, cloud, p);
 
       if (!isnan(mapP.x)) {
-            goodCount++;
 
          tf::Vector3 n((*otherCloud)[i].normal_x, (*otherCloud)[i].normal_y, (*otherCloud)[i].normal_z);
          tf::Vector3 zero(0,0,0);
@@ -434,7 +473,7 @@ void GraphSlamFull3D::updateMapPosition(int i, Pose pose) {
    current.position.y = pose.position.y;
    double yp, pp, rp;
    pose.getYPR(yp,pp, rp);
-   y += yp;
+   y = yp;
    current.setYPR(y,p,r);
    localMaps[i]->pose = current.toTF();
 

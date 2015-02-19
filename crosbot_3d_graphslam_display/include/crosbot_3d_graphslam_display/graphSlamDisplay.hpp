@@ -19,6 +19,7 @@
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/surface/gp3.h>
+#include <pcl/conversions.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/io/vtk_io.h>
 //#include <pcl/surface/mls.h>
@@ -39,6 +40,8 @@ public:
    //After an optimise should the points in a local map be moved to align with the next map
    //or just translated according to the base position of the map?
    bool WarpMaps;
+   //Open the visualiser
+   bool UseVisualiser;
 
 
    GraphSlamDisplay();
@@ -78,6 +81,7 @@ private:
    typedef struct {
       Pose pose;
       pcl::PolygonMesh *mesh;
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud;
    } LocalMap;
 
    /*
@@ -98,6 +102,7 @@ private:
    Mutex viewerLock;
    bool viewerUpdate;
    pcl::PolygonMesh *currentMesh;
+   pcl::PointCloud<pcl::PointXYZRGB>::Ptr currentCloud;
    int currentMeshIndex;
    bool viewerUpdateOptimise;
    vector<int> mapsChanged;

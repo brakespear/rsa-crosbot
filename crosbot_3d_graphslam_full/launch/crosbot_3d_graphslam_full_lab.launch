@@ -1,9 +1,9 @@
 <launch>
    <arg name="manager" default="pointcloud_manager" />
 
-   <node pkg="nodelet" type="nodelet" name="$(arg manager)" args="manager" output="screen" />
+   <!--node pkg="nodelet" type="nodelet" name="$(arg manager)" args="manager" output="screen" /-->
   
-  <node pkg="nodelet" type="nodelet" name="depth_image_registration"
+  <!--node pkg="nodelet" type="nodelet" name="depth_image_registration"
         args="load depth_image_proc/register $(arg manager)"
         respawn="false">
     <remap from="rgb/camera_info"             to="/camera/rgb/camera_info" />
@@ -12,7 +12,7 @@
     
     <remap from="depth_registered/camera_info"    to="/camera/depth_registered/camera_info" />
     <remap from="depth_registered/image_rect"     to="/camera/depth_registered/image_raw" />
-  </node>
+  </node-->
 
   <node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp" output="screen">
 		<param name="odom_frame" value="odom" />
@@ -29,8 +29,8 @@
       <param name="ImageWidth" value="640" />
       <param name="ImageHeight" value="480" />
       <param name="rgb_sub" value="/camera/rgb/image_color" />
-      <param name="depth_sub" value="/camera/depth_registered/image_raw" />
-      <!--param name="depth_sub" value="/camera/depth/image" /-->
+      <!--param name="depth_sub" value="/camera/depth_registered/image_raw" /-->
+      <param name="depth_sub" value="/camera/depth/image" />
       <param name="UseLocalMaps" value="true" />
       <param name="OutputCurrentMap" value="false" />
       <param name="PublishTransform" value="true" />
@@ -58,6 +58,9 @@
       <param name="icp_frame" value="icp_z" />
       <param name="InformationScaleFactor" value ="100000" />
       <param name="CorrelationThreshold" value ="3.1" />
+      <param name="MaxErrorDisp" value ="0.005" />
+      <param name="MaxErrorTheta" value ="0.3" />
+      <param name="FinalMinGoodCount" value ="110" />
       <param name="UseTempLoopClosures" value ="false" />
 	</node>
   <node pkg="image_view" type="image_view" name="globalmap_view">
@@ -68,6 +71,8 @@
    <node pkg="crosbot_3d_graphslam_full" type="crosbot_3d_graphslam_full" name="crosbot_3d_graphslam_full" output="screen">
 	</node>
 
-   <node pkg="crosbot_3d_graphslam_display" type="crosbot_3d_graphslam_display" name="crosbot_3d_graphslam_display" output="screen" launch-prefix="nice -n 10"/>
+   <node pkg="crosbot_3d_graphslam_display" type="crosbot_3d_graphslam_display" name="crosbot_3d_graphslam_display" output="screen" launch-prefix="nice -n 10">
+      <param name="CreateMesh" value ="false" />
+   </node>
 
 </launch>	

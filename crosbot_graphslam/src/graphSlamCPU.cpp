@@ -1745,11 +1745,12 @@ void GraphSlamCPU::findPotentialMatches() {
                            localMaps[globalWarp].currentGlobalPosY,
                            localMaps[globalWarp].currentGlobalPosTh,
                            &mapOtherPosX, &mapOtherPosY);
-         /*cout << "covar of map " << currentLocalMap << " to map " << globalWarp <<
+         cout << "covar of map " << currentLocalMap << " to map " << globalWarp <<
             " is " << totalCovar[0][0] << " " << totalCovar[1][1] << " pos " <<
-            mapCurPosX << " " << mapCurPosY << " " << mapOtherPosX << " " << mapOtherPosY << endl;*/
+            mapCurPosX << " " << mapCurPosY << " " << mapOtherPosX << " " << mapOtherPosY << endl;
          if (fabs(mapCurPosX - mapOtherPosX) < totalCovar[0][0] + LocalMapDistance &&
                fabs(mapCurPosY - mapOtherPosY) < totalCovar[1][1] + LocalMapDistance) {
+            cout << "In here" << endl;
             //In the right area for a match, so do histogram correlation
             int i, j;
             //Perform the correlations for the entropy and orientation histograms

@@ -24,11 +24,12 @@ void GraphSlamDisplay::initialise(ros::NodeHandle &nh) {
    paramNH.param<bool>("PublishPointCloud", PublishPointCloud, false);
    paramNH.param<bool>("CreateMesh", CreateMesh, true);
    paramNH.param<bool>("WarpMaps", WarpMaps, true);
+   paramNH.param<bool>("UseVisualiser", UseVisualiser, true);
 
    viewerUpdate = false;
    viewerUpdateOptimise = false;
    //Only start the pcl viewer if want to reconstruct the surface
-   if (CreateMesh) {
+   if (UseVisualiser) {
       start(); //starts the visualiser thread
    }
 }
@@ -65,7 +66,7 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
          points.colours[startIndex + i] = localMapPoints->cloud->colours[i];
       }
 
-      if (CreateMesh) {
+      //if (CreateMesh) {
          pcl::PointXYZRGB p(localMapPoints->cloud->colours[i].r, localMapPoints->cloud->colours[i].g, localMapPoints->cloud->colours[i].b);
          p.x = point.x;
          p.y = point.y;
@@ -75,10 +76,10 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
          //cloud->push_back(p);
          (*cloud)[i] = p;
          (*normals)[i] = n;
-      }
+      //}
    }
 
-   if (CreateMesh && cloud->size() > 0) {
+   if (/*CreateMesh && */cloud->size() > 0) {
       ros::WallTime t1 = ros::WallTime::now();
 
       //TODO: if store normals in existing code, consider passing these in the message to avoid having to calculate them
@@ -110,46 +111,50 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       n.compute (*normals);*/
       // normals should not contain the point normals + surface curvatures
 
-      // Concatenate the XYZ and normal fields*
-      pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_with_normals (new pcl::PointCloud<pcl::PointXYZRGBNormal>);
-      pcl::concatenateFields (*cloud, *normals, *cloud_with_normals);
-      // cloud_with_normals = cloud + normals
-      
-
-      // Create search tree*
-      pcl::search::KdTree<pcl::PointXYZRGBNormal>::Ptr tree2 (new pcl::search::KdTree<pcl::PointXYZRGBNormal>);
-      tree2->setInputCloud (cloud_with_normals);
-
-      // Initialize objects
-      pcl::GreedyProjectionTriangulation<pcl::PointXYZRGBNormal> gp3;
       pcl::PolygonMesh *triangles = new pcl::PolygonMesh();
+      
+      if (CreateMesh) {
+         // Concatenate the XYZ and normal fields*
+         pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_with_normals (new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+         pcl::concatenateFields (*cloud, *normals, *cloud_with_normals);
+         // cloud_with_normals = cloud + normals
+         // Create search tree*
+         pcl::search::KdTree<pcl::PointXYZRGBNormal>::Ptr tree2 (new pcl::search::KdTree<pcl::PointXYZRGBNormal>);
+         tree2->setInputCloud (cloud_with_normals);
 
-      // Set the maximum distance between connected points (maximum edge length)
-      gp3.setSearchRadius (0.1); //0.025 in example code //was 2
+         // Initialize objects
+         pcl::GreedyProjectionTriangulation<pcl::PointXYZRGBNormal> gp3;
 
-      // Set typical values for the parameters
-      //maximum acceptabole distance to search for neighbours relative to closest neighbour
-      gp3.setMu (2);  //2.5 in example code  //was 2.5
-      //How many neighbours are searched for
-      gp3.setMaximumNearestNeighbors (100); 
-      //Min and max allowable angle in each triangle
-      gp3.setMinimumAngle(M_PI/18); // 10 degrees
-      gp3.setMaximumAngle(2*M_PI/3); // 120 degrees
-      //Deals with sharp edges or corners. Points are not connected if normals deviate by more than
-      //the max surface angle. normal consistency to false means this ignores normal direction
-      gp3.setMaximumSurfaceAngle(M_PI/4); // 45 degrees. was pi/4
-      gp3.setNormalConsistency(false);
+         // Set the maximum distance between connected points (maximum edge length)
+         gp3.setSearchRadius (0.1); //0.025 in example code //was 2
 
-      // Get result
-      gp3.setInputCloud (cloud_with_normals);
-      gp3.setSearchMethod (tree2);
-      gp3.reconstruct (*triangles);
+         // Set typical values for the parameters
+         //maximum acceptabole distance to search for neighbours relative to closest neighbour
+         gp3.setMu (2);  //2.5 in example code  //was 2.5
+         //How many neighbours are searched for
+         gp3.setMaximumNearestNeighbors (100); 
+         //Min and max allowable angle in each triangle
+         gp3.setMinimumAngle(M_PI/18); // 10 degrees
+         gp3.setMaximumAngle(2*M_PI/3); // 120 degrees
+         //Deals with sharp edges or corners. Points are not connected if normals deviate by more than
+         //the max surface angle. normal consistency to false means this ignores normal direction
+         gp3.setMaximumSurfaceAngle(M_PI/4); // 45 degrees. was pi/4
+         gp3.setNormalConsistency(false);
 
-      /*delete *normals;
-      delete *tree;
-      delete *cloud_with_normals;
-      delete *tree2;
-      delete *cloud;*/
+         // Get result
+         gp3.setInputCloud (cloud_with_normals);
+         gp3.setSearchMethod (tree2);
+         gp3.reconstruct (*triangles);
+      } //else {
+         //toPCLPointCloud2(*cloud_with_normals, triangles->cloud);
+         
+      //}
+
+         /*delete *normals;
+         delete *tree;
+         delete *cloud_with_normals;
+         delete *tree2;
+         delete *cloud;*/
 
       if (localMapPoints->index != maps.size()) {
          cout << "We have a problem. Missing a map" << endl;
@@ -158,11 +163,17 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       viewerLock.lock();
       LocalMap newMap;
       newMap.pose = localMapPoints->pose;
-      newMap.mesh = triangles;
+      if (CreateMesh) {
+         newMap.mesh = triangles;
+         currentMesh = triangles;
+      } else {
+         newMap.cloud = cloud;
+         currentCloud = cloud;
+      }
       maps.push_back(newMap);
 
       viewerUpdate = true;
-      currentMesh = triangles;
+
       currentMeshIndex = localMapPoints->index;
       viewerLock.unlock();
       
@@ -189,11 +200,15 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       //pcl::io::saveVTKFile ("/home/adrianrobolab/groovy_workspace/crosbot/src/crosbot_3d_graphslam_display/mesh.vtk", triangles);
       
       //outputMapToFile("/home/adrianrobolab/mesh.vtk");
-   } else if (CreateMesh) {
+   } else {
       cout << "ERROR: Creating an empty mesh" << endl;
       LocalMap newMap;
       newMap.pose = localMapPoints->pose;
-      newMap.mesh = new pcl::PolygonMesh();
+      if (CreateMesh) {
+         newMap.mesh = new pcl::PolygonMesh();
+      } else {
+         newMap.cloud = cloud;
+      }
       maps.push_back(newMap);
    }
 }
@@ -362,18 +377,30 @@ void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, Pose
       transM = diff.getOrigin();
       rotM = diff.getBasis();*/
    }
-   pcl::PolygonMesh *mesh = maps[index].mesh;
-   int sizeCloud = mesh->cloud.width * mesh->cloud.height;
+   int sizeCloud;
+   //pcl::PolygonMesh *mesh = maps[index].mesh;
+   if (CreateMesh) {
+      sizeCloud = maps[index].mesh->cloud.width * maps[index].mesh->cloud.height;
+   } else {
+      sizeCloud = maps[index].cloud->size();
+   }
    for (int i = 0; i < sizeCloud; i++) {
-      const uint8_t *p = &(mesh->cloud.data[i * mesh->cloud.point_step]);
-      float x,y,z;
-      x = *(float*)(p);
-      y = *(float*)(p + 4);
-      z = *(float*)(p + 8);
+      const uint8_t *p;
       tf::Vector3 point;
-      point[0] = x;
-      point[1] = y;
-      point[2] = z;
+      if (CreateMesh) {
+         p = &(maps[index].mesh->cloud.data[i * maps[index].mesh->cloud.point_step]);
+         float x,y,z;
+         x = *(float*)(p);
+         y = *(float*)(p + 4);
+         z = *(float*)(p + 8);
+         point[0] = x;
+         point[1] = y;
+         point[2] = z;
+      } else {
+         point[0] = (*(maps[index].cloud))[i].x;
+         point[1] = (*(maps[index].cloud))[i].y;
+         point[2] = (*(maps[index].cloud))[i].z;
+      }
 
       if (warpMap) {
          tf::Vector3 a = point - oldStartPos;
@@ -446,12 +473,20 @@ void GraphSlamDisplay::repositionMap(int index, Pose newStart, Pose newEnd, Pose
       //Convert the point to the new position
       tf::Vector3 newPoint = (rotM * (point - gM)) + gM + transM;
 
-      x = newPoint[0];
-      y = newPoint[1];
-      z = newPoint[2];
-      *(float*)(p) = x;
-      *(float*)(p+4) = y;
-      *(float*)(p+8) = z;
+      if (CreateMesh) {
+         float x,y,z;
+         x = newPoint[0];
+         y = newPoint[1];
+         z = newPoint[2];
+         *(float*)(p) = x;
+         *(float*)(p+4) = y;
+         *(float*)(p+8) = z;
+      } else {
+         (*(maps[index].cloud))[i].x = newPoint[0];
+         (*(maps[index].cloud))[i].y = newPoint[1];
+         (*(maps[index].cloud))[i].z = newPoint[2];
+      }
+         
    }
 
    /*int sizeCloud = triangles->cloud.width * triangles->cloud.height;
@@ -484,39 +519,46 @@ void GraphSlamDisplay::outputMapToFile(string fileName) {
       return;
    }
 
-   //cout << "before" << maps[0].mesh->cloud.height << " " << maps[0].mesh->cloud.width << endl;
-   pcl::PolygonMesh fullMesh = *(maps[0].mesh);
-   pcl::uint32_t pointStep = maps[0].mesh->cloud.point_step;
+   if (CreateMesh) {
+      //cout << "before" << maps[0].mesh->cloud.height << " " << maps[0].mesh->cloud.width << endl;
+      pcl::PolygonMesh fullMesh = *(maps[0].mesh);
+      pcl::uint32_t pointStep = maps[0].mesh->cloud.point_step;
 
-   int numPoints = maps[0].mesh->cloud.width;
-   for (int i = 1; i < maps.size(); i++) {
-      pcl::uint32_t oldDataSize = fullMesh.cloud.data.size();
-      pcl::uint32_t cloudDataSize = maps[i].mesh->cloud.data.size();
-      fullMesh.cloud.data.resize(oldDataSize + cloudDataSize);
-      for (unsigned int j = 0; j < cloudDataSize; j++) {
-         fullMesh.cloud.data[j + oldDataSize] = maps[i].mesh->cloud.data[j];
-      }
-      fullMesh.cloud.width += maps[i].mesh->cloud.width;
+      int numPoints = maps[0].mesh->cloud.width;
+      for (int i = 1; i < maps.size(); i++) {
+         pcl::uint32_t oldDataSize = fullMesh.cloud.data.size();
+         pcl::uint32_t cloudDataSize = maps[i].mesh->cloud.data.size();
+         fullMesh.cloud.data.resize(oldDataSize + cloudDataSize);
+         for (unsigned int j = 0; j < cloudDataSize; j++) {
+            fullMesh.cloud.data[j + oldDataSize] = maps[i].mesh->cloud.data[j];
+         }  
+         fullMesh.cloud.width += maps[i].mesh->cloud.width;
       
-      int oldPolygons = fullMesh.polygons.size();
-      int numNewPolygons = maps[i].mesh->polygons.size();
-      fullMesh.polygons.resize(oldPolygons + numNewPolygons);
-      for (unsigned int j = 0; j < numNewPolygons; j++) {
-         fullMesh.polygons[j + oldPolygons].vertices.resize(3);
-         fullMesh.polygons[j + oldPolygons].vertices[0] = maps[i].mesh->polygons[j].vertices[0] +
-            numPoints;
-         fullMesh.polygons[j + oldPolygons].vertices[1] = maps[i].mesh->polygons[j].vertices[1] +
-            numPoints;
-         fullMesh.polygons[j + oldPolygons].vertices[2] = maps[i].mesh->polygons[j].vertices[2] +
-            numPoints;
+         int oldPolygons = fullMesh.polygons.size();
+         int numNewPolygons = maps[i].mesh->polygons.size();
+         fullMesh.polygons.resize(oldPolygons + numNewPolygons);
+         for (unsigned int j = 0; j < numNewPolygons; j++) {
+            fullMesh.polygons[j + oldPolygons].vertices.resize(3);
+            fullMesh.polygons[j + oldPolygons].vertices[0] = maps[i].mesh->polygons[j].vertices[0] +
+               numPoints;
+            fullMesh.polygons[j + oldPolygons].vertices[1] = maps[i].mesh->polygons[j].vertices[1] +
+               numPoints;
+            fullMesh.polygons[j + oldPolygons].vertices[2] = maps[i].mesh->polygons[j].vertices[2] +
+               numPoints;
+         }
+         numPoints += maps[i].mesh->cloud.width;
       }
-      numPoints += maps[i].mesh->cloud.width;
-   }
 
-   fullMesh.cloud.row_step = fullMesh.cloud.data.size();
+      fullMesh.cloud.row_step = fullMesh.cloud.data.size();
    
-   cout << "Saving map!!" << endl;
-   pcl::io::saveVTKFile (fileName, fullMesh);
+      cout << "Saving map!!" << endl;
+      pcl::io::saveVTKFile (fileName, fullMesh);
+   } else {
+      pcl::PointCloud<pcl::PointXYZRGB> fullCloud;
+      for (int i = 0; i < maps.size(); i++) {
+         fullCloud += *(maps[i].cloud);
+      }
+   }
 }
 
 void GraphSlamDisplay::run() {
@@ -531,8 +573,15 @@ void GraphSlamDisplay::run() {
             ostringstream ss;
             ss << mapsChanged[i];
             //viewer->updatePolygonMesh(*(maps[mapsChanged[i]].mesh), ss.str());
-            viewer->removePolygonMesh(ss.str());
-            viewer->addPolygonMesh(*(maps[mapsChanged[i]].mesh), ss.str());
+            if (CreateMesh) {
+               viewer->removePolygonMesh(ss.str());
+               viewer->addPolygonMesh(*(maps[mapsChanged[i]].mesh), ss.str());
+            } else {
+               viewer->removePointCloud(ss.str());
+               viewer->addPointCloud(maps[mapsChanged[i]].cloud, ss.str());
+               viewer->setPointCloudRenderingProperties (
+                     pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, ss.str());
+            }
          }
          mapsChanged.resize(0);
          viewerUpdateOptimise = false;
@@ -555,7 +604,13 @@ void GraphSlamDisplay::run() {
          ostringstream ss;
          ss << currentMeshIndex;
          cout << "Adding the mesh " << ss.str() << endl;
-         viewer->addPolygonMesh(*currentMesh, ss.str());
+         if (CreateMesh) {
+            viewer->addPolygonMesh(*currentMesh, ss.str());
+         } else {
+            viewer->addPointCloud(currentCloud, ss.str());
+            viewer->setPointCloudRenderingProperties (
+                  pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, ss.str());
+         }
          viewerUpdate = false;
       }
       viewerLock.unlock();
