@@ -85,7 +85,8 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
             updateMapPosition(currentIndex, newMapPosition);
          }
          if (startNewConstraints != loopConstraints.size() - 1) {
-            cout << "ERROR: Correcting more than one loop closure per map is not supported yet" << endl;
+            cout << "ERROR: Correcting more than one loop closure per map is not supported yet " << startNewConstraints << " "
+              << loopConstraints.size() << endl;
          }
          if (loopConstraints[startNewConstraints]->j != currentIndex) {
             cout << "ERROR: Loop constraints are not in expected format" << endl;
@@ -207,6 +208,7 @@ void GraphSlamFull3D::calculateInfo(pcl::KdTreeFLANN<pcl::PointNormal> &kdTree,
       }
    }
 
+   int count = 0;
    pcl::PointCloud<pcl::PointNormal>::Ptr otherCloud = localMaps[otherI]->cloud;
    int size = otherCloud->size();
    for (int i = 0; i < size; i += SkipPoints) {
@@ -215,6 +217,7 @@ void GraphSlamFull3D::calculateInfo(pcl::KdTreeFLANN<pcl::PointNormal> &kdTree,
 
       pcl::PointNormal mapP = getClosestPoint(kdTree, cloud, p);
       if (!isnan(mapP.x)) {
+         count++;
          double normX = fabs(mapP.normal_x);
          double normY = fabs(mapP.normal_y);
          double normZ = fabs(mapP.normal_z);
@@ -233,6 +236,7 @@ void GraphSlamFull3D::calculateInfo(pcl::KdTreeFLANN<pcl::PointNormal> &kdTree,
          }
       }
    }
+   cout << "Used: " << count << " points for info matrix" << endl;
 }
 
 tf::Transform GraphSlamFull3D::performICP(pcl::KdTreeFLANN<pcl::PointNormal> &kdTree,
@@ -276,10 +280,11 @@ tf::Transform GraphSlamFull3D::performICP(pcl::KdTreeFLANN<pcl::PointNormal> &kd
          valid = false;
       }
       if (!valid) {
-         cout << "ERROR: Alignment failed" << endl;
+         cout << "ERROR: Alignment failed " << goodCount << endl;
          failed = true;
          break;
       }
+      cout << "Success!: " << x[3] << " " << x[4] << " " << x[5] << " " << x[0] << " " << x[1] << " " << x[2] << endl;
       tf::Vector3 incVec(x[3], x[4], x[5]);
       tf::Matrix3x3 incMat;
       incMat.setEulerYPR(x[2], x[1], x[0]);
@@ -314,6 +319,7 @@ int GraphSlamFull3D::performICPIteration(pcl::KdTreeFLANN<pcl::PointNormal> &kdT
       pcl::PointNormal mapP = getClosestPoint(kdTree, cloud, p);
 
       if (!isnan(mapP.x)) {
+            goodCount++;
 
          tf::Vector3 n((*otherCloud)[i].normal_x, (*otherCloud)[i].normal_y, (*otherCloud)[i].normal_z);
          tf::Vector3 zero(0,0,0);

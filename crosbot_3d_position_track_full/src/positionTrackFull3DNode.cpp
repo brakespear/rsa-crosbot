@@ -106,18 +106,18 @@ void PositionTrackFull3DNode::callbackKinect(const sensor_msgs::ImageConstPtr& d
    tf::StampedTransform kin2Base, base2Icp;
 
    try {
-      tfListener.waitForTransform(base_frame, rgbImage->header.frame_id,
-             rgbImage->header.stamp, ros::Duration(1, 0));
+      tfListener.waitForTransform(base_frame, depthImage->header.frame_id,
+             depthImage->header.stamp, ros::Duration(1, 0));
   		tfListener.lookupTransform(base_frame,
-   				rgbImage->header.frame_id, rgbImage->header.stamp, kin2Base);
+   				depthImage->header.frame_id, depthImage->header.stamp, kin2Base);
   		sensorPose = kin2Base;
 
-      tfListener.waitForTransform(icp_frame, base_frame, rgbImage->header.stamp, ros::Duration(1,0));
-      tfListener.lookupTransform(icp_frame, base_frame, rgbImage->header.stamp, base2Icp);
+      tfListener.waitForTransform(icp_frame, base_frame, depthImage->header.stamp, ros::Duration(1,0));
+      tfListener.lookupTransform(icp_frame, base_frame, depthImage->header.stamp, base2Icp);
       icpPose = base2Icp;
    } catch (tf::TransformException& ex) {
  		fprintf(stderr, "position track full 3d: Error getting transform. (%s) (%d.%d)\n", ex.what(),
-   		rgbImage->header.stamp.sec, rgbImage->header.stamp.nsec);
+   		depthImage->header.stamp.sec, depthImage->header.stamp.nsec);
    	return;
    }
 

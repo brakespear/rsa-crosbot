@@ -265,7 +265,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
       icpFullPose.position.z << " " << y << " " << p << " " << r << endl;
 
    //preprocessing of points (only used for icp) - normals, filtering and different res's
-   bilateralFilter();
+   //bilateralFilter();
    downsampleDepth();
    calculateNormals();
 
@@ -277,7 +277,6 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    ros::WallTime t2 = ros::WallTime::now();
    ros::WallDuration totalTime = t2 - t1;
    cout << "Time of align icp: " << totalTime.toSec() * 1000.0f << endl;
-
 
    t1 = ros::WallTime::now();
    //add frame
@@ -909,8 +908,8 @@ void PositionTrackFull3D::calculateNormals() {
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clNormalsFrame);
-   //opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clDepthFrame);
-   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clFiltDepthFrame);
+   opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clDepthFrame);
+   //opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clFiltDepthFrame);
    opencl_task->setArg(4, kernelI, sizeof(int), &numDepthPoints);
    int factor = 1;
    opencl_task->setArg(5, kernelI, sizeof(int), &factor);
@@ -1447,8 +1446,8 @@ void PositionTrackFull3D::downsampleDepth() {
    int numPoints = widthOut * heightOut;
    int globalSize = getGlobalWorkSize(numPoints);
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
-   //opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clDepthFrame);
-   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clFiltDepthFrame);
+   opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clDepthFrame);
+   //opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clFiltDepthFrame);
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clPointCloud); //image out
    opencl_task->setArg(3, kernelI, sizeof(int), &widthOut);
    opencl_task->setArg(4, kernelI, sizeof(int), &heightOut);
