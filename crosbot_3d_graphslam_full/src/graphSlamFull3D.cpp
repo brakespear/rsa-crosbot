@@ -373,7 +373,7 @@ int GraphSlamFull3D::performICPIteration(pcl::KdTreeFLANN<pcl::PointNormal> &kdT
       
          //TODO: add conditions to accepting pair
          if (dot > dotThresh && dist2 < distThresh) {
-            int scale = dot;
+            double scale = dot;
             double a = (mapP.normal_z * p.y() - mapP.normal_y * p.z()) * scale;
             double b = (mapP.normal_x * p.z() - mapP.normal_z * p.x()) * scale;
             double c = (mapP.normal_y * p.x() - mapP.normal_x * p.y()) * scale;
