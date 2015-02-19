@@ -534,7 +534,7 @@ void PositionTrackFull3D::convertFrame(const sensor_msgs::ImageConstPtr& depthIm
    }*/
    if (depthImage->header.frame_id != rgbImage->header.frame_id) {
       cout << "ERROR: depth and rgb images should be in the same frame!" << endl;
-      return;
+      //return;
    }
 
    if (depthImage->width != rgbImage->width) {
@@ -1447,6 +1447,7 @@ void PositionTrackFull3D::downsampleDepth() {
    int numPoints = widthOut * heightOut;
    int globalSize = getGlobalWorkSize(numPoints);
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
+   //opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clDepthFrame);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clFiltDepthFrame);
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clPointCloud); //image out
    opencl_task->setArg(3, kernelI, sizeof(int), &widthOut);

@@ -14,7 +14,7 @@
     <remap from="depth_registered/image_rect"     to="/camera/depth_registered/image_raw" />
   </node-->
 
-  <node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp">
+  <node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp" output="screen">
 		<param name="odom_frame" value="odom" />
 		<param name="base_frame" value="base_footprint" />
       <param name="icp_frame" value="icp_test" />
@@ -23,7 +23,7 @@
       <remap from="image" to="localImage" />
 	</node>
 
-	<node pkg="crosbot_3d_position_track_full" type="crosbot_3d_position_track_full" name="crosbot_3d_position_track_full" output="screen">
+	<node pkg="crosbot_3d_position_track_full" type="crosbot_3d_position_track_full" name="crosbot_3d_position_track_full">
       <param name="icp_frame" value="icp_test" />
       <param name="base_frame" value="base_footprint" />
       <param name="ImageWidth" value="640" />
@@ -66,7 +66,7 @@
    <node pkg="crosbot_3d_graphslam_full" type="crosbot_3d_graphslam_full" name="crosbot_3d_graphslam_full" output="screen">
 	</node>
 
-   <node pkg="crosbot_3d_graphslam_display" type="crosbot_3d_graphslam_display" name="crosbot_3d_graphslam_display" output="screen"/>
+   <!--node pkg="crosbot_3d_graphslam_display" type="crosbot_3d_graphslam_display" name="crosbot_3d_graphslam_display" output="screen"/-->
 
 
 </launch>	
