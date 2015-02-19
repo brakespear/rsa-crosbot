@@ -1,0 +1,72 @@
+<launch>
+   <arg name="manager" default="pointcloud_manager" />
+
+   <!--node pkg="nodelet" type="nodelet" name="$(arg manager)" args="manager" output="screen" /-->
+  
+  <!--node pkg="nodelet" type="nodelet" name="depth_image_registration"
+        args="load depth_image_proc/register $(arg manager)"
+        respawn="false">
+    <remap from="rgb/camera_info"             to="/camera/rgb/camera_info" />
+    <remap from="depth/camera_info"           to="/camera/depth/camera_info" />
+    <remap from="depth/image_rect"            to="/camera/depth/image" />
+    
+    <remap from="depth_registered/camera_info"    to="/camera/depth_registered/camera_info" />
+    <remap from="depth_registered/image_rect"     to="/camera/depth_registered/image_raw" />
+  </node-->
+
+  <node pkg="crosbot_ogmbicp" type="crosbot_ogmbicp" name="crosbot_ogmbicp">
+		<param name="odom_frame" value="odom" />
+		<param name="base_frame" value="base_footprint" />
+      <param name="icp_frame" value="icp_test" />
+	</node>
+   <node pkg="image_view" type="image_view" name="localmap_view">
+      <remap from="image" to="localImage" />
+	</node>
+
+	<node pkg="crosbot_3d_position_track_full" type="crosbot_3d_position_track_full" name="crosbot_3d_position_track_full" output="screen">
+      <param name="icp_frame" value="icp_test" />
+      <param name="base_frame" value="base_footprint" />
+      <param name="ImageWidth" value="640" />
+      <param name="ImageHeight" value="480" />
+      <param name="rgb_sub" value="/camera/rgb/image_color" />
+      <!--param name="depth_sub" value="/camera/depth_registered/image_raw" /-->
+      <param name="depth_sub" value="/camera/depth/image" />
+      <param name="UseLocalMaps" value="true" />
+      <param name="OutputCurrentMap" value="false" />
+      <param name="PublishTransform" value="true" />
+      <param name="PublishMessage" value="true" />
+      <param name="SkipNumCheckBlocks" value="8" />
+      <param name="UseOccupancyForSurface" value="false" />
+      <!--param name="TruncNeg" value="0.1" /-->
+      <!--param name="TruncPos" value="0.2" /-->
+      <param name="TruncNeg" value="0.3" />
+      <param name="TruncPos" value="0.5" />
+      <param name="LocalMapWidth" value="8" />
+      <param name="LocalMapHeight" value="4" />
+      <param name="CellSize" value="0.025" />
+      <param name="NumBlocksAllocated" value="10000" />
+      <param name="MaxPointsFrac" value="2" />
+      <param name="SliceMult" value="1" />
+      <param name="OutputCurrentMapRate" value="3000000" />
+      <param name="DistThresh" value="0.002" />
+      <param name="DistThresh2" value="0.1" />
+      <param name="DistThresh4" value="0.2" />
+	</node>
+
+   <node pkg="crosbot_graphslam" type="crosbot_graphslam" name="crosbot_graphslam">
+		<param name="base_frame" value="base_footprint" />
+      <param name="icp_frame" value="icp_z" />
+      <param name="InformationScaleFactor" value ="100000" />
+	</node>
+  <node pkg="image_view" type="image_view" name="globalmap_view">
+      <remap from="image" to="globalImage" />
+	</node>
+
+
+   <node pkg="crosbot_3d_graphslam_full" type="crosbot_3d_graphslam_full" name="crosbot_3d_graphslam_full" output="screen">
+	</node>
+
+   <node pkg="crosbot_3d_graphslam_display" type="crosbot_3d_graphslam_display" name="crosbot_3d_graphslam_display" output="screen"/>
+
+
+</launch>	

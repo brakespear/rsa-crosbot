@@ -11,7 +11,7 @@
 #include <crosbot_3d_graphslam_display/graphSlamDisplay.hpp>
 
 int main(int argc, char **argv) {
-   ros::init(argc, argv, "graphDlamDisplay");
+   ros::init(argc, argv, "graphSlamDisplay");
 
    ros::NodeHandle nh;
 

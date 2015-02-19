@@ -250,11 +250,11 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
    convertFrame(depthImage, rgbImage);
 
-   /*tf::Transform temp = icpFullPose.toTF() * oldICP.inverse();
+   tf::Transform temp = icpFullPose.toTF() * oldICP.inverse();
    oldICP = icpPose.toTF();
    tf::Transform newFullPose = temp * oldICP;
-   icpFullPose = newFullPose;*/
-   tf::Transform newFullPose = icpFullPose.toTF();
+   icpFullPose = newFullPose;
+   //tf::Transform newFullPose = icpFullPose.toTF();
 
    double y,p,r;
    icpPose.getYPR(y,p,r);
@@ -273,7 +273,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    ros::WallTime t1 = ros::WallTime::now();
    //alignICP(sensorPose.toTF(), newFullPose);
    //alignRayTraceICP(sensorPose.toTF(), newFullPose);
-   alignZOnlyICP(sensorPose.toTF(), newFullPose);
+   //alignZOnlyICP(sensorPose.toTF(), newFullPose);
    ros::WallTime t2 = ros::WallTime::now();
    ros::WallDuration totalTime = t2 - t1;
    cout << "Time of align icp: " << totalTime.toSec() * 1000.0f << endl;
@@ -344,9 +344,12 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
             numPoints = MaxPoints;
          }
 
-         tf::Transform trans = currentLocalMapICPPose.toTF().inverse();
-         transformPoints(numPoints, true, trans);
-         addPointsToLocalMap(numPoints);
+         if (numPoints > 0) {
+
+            tf::Transform trans = currentLocalMapICPPose.toTF().inverse();
+            transformPoints(numPoints, true, trans);
+            addPointsToLocalMap(numPoints);
+         }
       }
    }
 
@@ -364,7 +367,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
       int numBlocksToExtract;
       readBuffer(clLocalMapCommon, CL_TRUE, numBlocksToExtractOffset,
             sizeof(int), &numBlocksToExtract, 0, 0, 0, "reading num of blocks to extract");
-      cout << numBlocksToExtract << " blocks to extract" << endl;
+      //cout << numBlocksToExtract << " blocks to extract" << endl;
 
       extractPoints(numBlocksToExtract, false);
 
@@ -377,11 +380,13 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
          numPoints = MaxPoints;
       }
 
-      //Should the points be transformed to be relative to the robot?
-      //tf::Transform trans = icpFullPose.toTF().inverse();
-      //transformPoints(numPoints, false, trans);
+      if (numPoints > 0) {
+         //Should the points be transformed to be relative to the robot?
+         //tf::Transform trans = icpFullPose.toTF().inverse();
+         //transformPoints(numPoints, false, trans);
 
-      outputAllPoints(numPoints, allPoints);               
+         outputAllPoints(numPoints, allPoints);               
+      }
    
       t2 = ros::WallTime::now();
       totalTime = t2 - t1;

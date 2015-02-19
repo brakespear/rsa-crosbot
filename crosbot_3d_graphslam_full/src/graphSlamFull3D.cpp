@@ -61,6 +61,8 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
    }
    currentIndex = localMapInfo->index;
 
+   cout << "Received new local map " << currentIndex << endl;
+
    pcl::PointCloud<pcl::PointNormal>::Ptr cloud = addPointsToCloud(localMapInfo->cloud, localMapInfo->normals);
    localMaps.push_back(new LocalMaps(localMapInfo, parentIndex, cloud));
 
@@ -77,6 +79,8 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
 
       if (receivedOptimisationRequest) {
 
+         cout << "processing optimisation request" << endl;
+
          if (haveNewMapPosition) {
             updateMapPosition(currentIndex, newMapPosition);
          }
@@ -90,13 +94,17 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
          int mapJ = loopConstraints[startNewConstraints]->j;
          //TODO: get transform from loop close service??
          tf::Transform diff = localMaps[mapJ]->pose.inverse() * localMaps[mapI]->pose;
-         //otherI, diff, info
+         
+         cout << "About to perform ICP" << endl; 
          tf::Transform change = performICP(kdTree, cloud, mapI, diff);
+         cout << "Performed ICP" << endl;
          calculateInfo(kdTree, cloud, mapI, change, loopConstraints[startNewConstraints]->info);
          loopConstraints[startNewConstraints]->offset = localMaps[mapI]->pose.inverse() *
             localMaps[mapJ]->pose * change;
          
+         cout << "About to optimise" << endl;
          optimiseGlobalMap();
+         cout << "Finished optimising" << endl;
          vector<LocalMapInfoPtr> newPositions = getNewMapPositions();
          graphSlamFull3DNode->publishOptimisedMapPositions(newPositions);
 
@@ -128,6 +136,7 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
 void GraphSlamFull3D::haveOptimised(vector<LocalMapInfoPtr> newMapPositions,
       vector<int> iNodes, vector<int> jNodes, bool wasFullLoop) {
 
+   cout << "Received optimisation request" << endl;
    startNewConstraints = loopConstraints.size();
    for (int x = startNewConstraints; x < iNodes.size(); x++) {
       int i = iNodes[x];

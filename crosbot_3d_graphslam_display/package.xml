@@ -59,7 +59,7 @@
   <run_depend>crosbot_graphslam</run_depend>
   <!--run_depend>pcl</run_depend-->
   <!--run_depend>pcl_ros</run_depend-->
-  <run_depend>libpcl-all</run_depend>
+  <run_depend>libpcl-all-dev</run_depend>
 
 
 
