@@ -27,6 +27,7 @@ class GraphSlamFull3DNode;
 class LocalMaps {
 public:
 
+   tf::Transform initialPose;
    tf::Transform pose;
    pcl::PointCloud<pcl::PointNormal>::Ptr cloud;
 
@@ -116,9 +117,10 @@ private:
    vector<LocalMaps *> localMaps;
    vector<LoopConstraint *> loopConstraints;
 
-   Pose newMapPosition;
-   bool haveNewMapPosition;
+   //Pose newMapPosition;
+   //bool haveNewMapPosition;
    int startNewConstraints;
+   vector<LocalMapInfoPtr> newMapPos;
 
 
    //Temp stores

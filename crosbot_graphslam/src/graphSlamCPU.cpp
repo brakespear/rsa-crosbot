@@ -2907,6 +2907,10 @@ void GraphSlamCPU::optimiseGraph(int type) {
             constraint[2] = localMaps[constraintIndex].parentOffsetTh;
             weight = 1;
          }
+         if (numIterations == 0) {
+            cout << "&&& Maps: " << iNode << " " << jNode << ": " << constraint[0] << " " << constraint[1] <<
+               " " << constraint[2] << endl;
+         }
          double sinI = sin(localMaps[iNode].currentGlobalPosTh);
          double cosI = cos(localMaps[iNode].currentGlobalPosTh);
 

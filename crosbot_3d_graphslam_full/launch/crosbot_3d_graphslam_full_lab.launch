@@ -53,7 +53,7 @@
       <param name="DistThresh4" value="0.2" />
 	</node>
 
-   <node pkg="crosbot_graphslam" type="crosbot_graphslam" name="crosbot_graphslam">
+   <node pkg="crosbot_graphslam" type="crosbot_graphslam" name="crosbot_graphslam" output="screen">
 		<param name="base_frame" value="base_footprint" />
       <param name="icp_frame" value="icp_z" />
       <param name="InformationScaleFactor" value ="100000" />
