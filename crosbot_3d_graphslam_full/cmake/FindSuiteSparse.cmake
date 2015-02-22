@@ -19,12 +19,13 @@ else (SuiteSparse_INCLUDE_DIRS AND SuiteSparse_LIBRARIES)
 	libfind_pkg_check_modules(SuiteSparse_PKGCONF newmat)
 	
 	# Include dir
-	find_path(SuiteSparse_INCLUDE_DIR
-		NAMES suitesparse/cs.h
+	find_path(SuiteSparse_INCLUDE_DIRS
+		NAMES cs.h
 		PATHS 
 			${SuiteSparse_PKGCONF_INCLUDE_DIRS}
 			/usr/include
 			/usr/local/include
+			/use/local/include/suitesparse
 	)
 
 	# Finally the library itself

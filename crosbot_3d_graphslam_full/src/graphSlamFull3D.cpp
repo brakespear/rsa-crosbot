@@ -9,10 +9,26 @@
 #include <crosbot/utils.hpp>
 #include <suitesparse/cs.h>
 
+#include "g2o/types/slam3d/edge_se3.h"
+#include "g2o/core/factory.h"
+#include "g2o/solvers/csparse/linear_solver_csparse.h"
+#include "g2o/core/block_solver.h"
+#include "g2o/core/sparse_optimizer.h"
+#include "g2o/types/slam3d/types_slam3d.h"
+#include "g2o/core/optimization_algorithm_gauss_newton.h"
+#include "g2o/solvers/cholmod/linear_solver_cholmod.h"
+#include "g2o/core/optimization_algorithm_factory.h"
+
 #define ANGNORM(X) while (X < -M_PI) X += 2.0*M_PI;while (X > M_PI) X -= 2.0*M_PI
 
 using namespace std;
 using namespace crosbot;
+using namespace g2o;
+
+typedef g2o::BlockSolver< g2o::BlockSolverTraits<6, 3> >  SlamBlockSolver;
+typedef g2o::LinearSolverCSparse<SlamBlockSolver::PoseMatrixType> SlamLinearCSparseSolver;
+typedef Eigen::Matrix<double, 6, 6> InfoMatrix;
+typedef g2o::LinearSolverCholmod<SlamBlockSolver::PoseMatrixType> SlamLinearCholmodSolver;
 
 LocalMaps::LocalMaps(LocalMapInfoPtr inMap, int pIndex, pcl::PointCloud<pcl::PointNormal>::Ptr pts) {
    pose = inMap->pose.toTF();
@@ -44,34 +60,6 @@ void GraphSlamFull3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("MaxNumOfOptimisationIts", MaxNumOfOptimisationIts, 10);
    paramNH.param<double>("MaxOptMoveXYZ", MaxOptMoveXYZ, 0.01);
    paramNH.param<double>("MaxOptMoveYPR", MaxOptMoveYPR, 0.01);
-
-
-   double y1 = 0.2;
-   double r1 = -0.3;
-   double p1 = 1.3;
-   double y2 = 1.6;
-   double r2 = 0.6;
-   double p2 = -0.4;
-   y1 = r1 = y2 = r2 = 0;
-   tf::Matrix3x3 mat1, mat2, matAdd, matRes;
-   mat1.setEulerYPR(y1, p1, r1);
-   mat2.setEulerYPR(y2, p2, r2);
-   matAdd.setEulerYPR(y1 + y2, p1 + p2, r1 + r2);
-   matRes = mat2 * mat1;
-
-   double yA,pA,rA, yR,pR,rR;
-   matAdd.getEulerYPR(yA, pA, rA);
-   matRes.getEulerYPR(yR, pR, rR);
-   cout << "Result of adding first: " << yA << " " << pA << " " << rA << endl;
-   cout << "Result of multiplying : " << yR << " " << pR << " " << rR << endl;
-
-
-
-   /*tf::Vector3 incVec(b[x*6 + 3], b[x*6 + 4], b[x*6 + 5]);
-   tf::Matrix3x3 incMat;
-   incMat.setEulerYPR(b[x*6 + 2], b[x*6 + 1], b[x*6]);
-   tf::Transform inc(incMat, incVec);
-   localMaps[x]->pose = inc * localMaps[x]->pose;*/
 
 }
 
@@ -182,9 +170,6 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
          pp.getYPR(y,p,r);
          cout << "Pose change: " << pp.position.x << " " << pp.position.y << " " << pp.position.z <<
             " " << y << " " << p << " " << r << endl;
-         r = 0; p = 0;
-         pp.setYPR(y,p,r);
-         //pp.position.z = 0;
          loopConstraints[startNewConstraints]->offset = pp.toTF().inverse();
   
          
@@ -204,7 +189,7 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
    fclose(f);
          
          cout << "About to optimise" << endl;
-         optimiseGlobalMap();
+         optimiseGlobalMapg2o();
          cout << "Finished optimising" << endl;
          vector<LocalMapInfoPtr> newPositions = getNewMapPositions();
          graphSlamFull3DNode->publishOptimisedMapPositions(newPositions);
@@ -546,7 +531,120 @@ void GraphSlamFull3D::updateMapPosition(int i, Pose pose) {
 
 }
 
-void GraphSlamFull3D::optimiseGlobalMap() {
+void GraphSlamFull3D::optimiseGlobalMapg2o() {
+   SparseOptimizer *optimizer = new SparseOptimizer();
+   optimizer->setVerbose(false);
+   SlamLinearCholmodSolver* linearSolver = new SlamLinearCholmodSolver();
+   linearSolver->setBlockOrdering(false);
+   SlamBlockSolver *blockSolver = new SlamBlockSolver(linearSolver);
+   OptimizationAlgorithmGaussNewton* solver = new OptimizationAlgorithmGaussNewton(blockSolver);
+   optimizer->setAlgorithm(solver);
+
+   vector<VertexSE3 *> vertexList;
+
+   double estPose[7];
+   for (int i = 0; i < localMaps.size(); i++) {
+      tfToLongArray(localMaps[i]->pose, estPose);
+      VertexSE3 *map = new VertexSE3;
+      map->setId(i);
+      map->setEstimateDataImpl(estPose);
+      if (i == 0) {
+         map->setFixed(true);
+      }
+      optimizer->addVertex(map);
+      vertexList.push_back(map);
+      cout << "Before pose map " << i << ": " << estPose[0] << " " << estPose[1] << " " << estPose[2] << "  " <<
+         estPose[3] << " " << estPose[4] << " " << estPose[5] << " " << estPose[6] << endl;
+   }
+   for (int x = 1; x < vertexList.size(); x++) {
+      EdgeSE3 *edge = new EdgeSE3;
+      edge->vertices()[0] = vertexList[localMaps[x]->parentIndex];
+      edge->vertices()[1] = vertexList[x];
+      tfToLongArray(localMaps[x]->parentOffset, estPose);
+      edge->setMeasurementData(estPose);
+      InfoMatrix info;
+      for (int j = 0; j < 6; j++) {
+         for (int i = 0; i < 6; i++) {
+            info(j,i) = localMaps[x]->parentInfo[j][i];
+         }
+      }
+      edge->setInformation(info);
+      optimizer->addEdge(edge);
+   }
+   for (int x = 0; x < loopConstraints.size(); x++) {
+      EdgeSE3 *edge = new EdgeSE3;
+      edge->vertices()[0] = vertexList[loopConstraints[x]->i];
+      edge->vertices()[1] = vertexList[loopConstraints[x]->j];
+      tfToLongArray(loopConstraints[x]->offset, estPose);
+      edge->setMeasurementData(estPose);
+      InfoMatrix info;
+      for (int j = 0; j < 6; j++) {
+         for (int i = 0; i < 6; i++) {
+            info(j,i) = loopConstraints[x]->info[j][i];
+         }
+      }
+      edge->setInformation(info);
+      optimizer->addEdge(edge);
+   }
+
+   //Now actually do the optimisation
+   optimizer->initializeOptimization();
+   
+   double prevChi2 = std::numeric_limits<double>::max();
+
+   for (int i = 0; i < MaxNumOfOptimisationIts; i++) {
+      optimizer->optimize(1);
+      optimizer->computeActiveErrors();
+      cout << "Optimiser: " << optimizer->chi2() << endl;
+      if (prevChi2 - optimizer->chi2() < optimizer->chi2() * 0.001) {
+         break;
+      }
+      prevChi2 = optimizer->chi2();
+   }
+
+
+   //Save the results
+   for(int i = 0; i < localMaps.size(); i++) {
+      //optimizer->vertices()[0]->getId();
+      vertexList[i]->getEstimateData(estPose);
+      localMaps[i]->pose = longArrayToTF(estPose);
+      cout << "After pose map " << i << ": " << estPose[0] << " " << estPose[1] << " " << estPose[2] << "  " <<
+         estPose[3] << " " << estPose[4] << " " << estPose[5] << " " << estPose[6] << endl;
+      //TODO: make this dynamic
+      localMaps[i]->poseChanged = true;
+
+   }
+
+   optimizer->clear();
+  Factory::destroy();
+  OptimizationAlgorithmFactory::destroy();
+  HyperGraphActionLibrary::destroy();
+}
+
+void GraphSlamFull3D::tfToLongArray(tf::Transform trans, double arr[7]) {
+   tf::Vector3 vec = trans.getOrigin();
+   arr[0] = vec.x();
+   arr[1] = vec.y();
+   arr[2] = vec.z();
+   tf::Quaternion quat = trans.getRotation();
+   quat.normalize();
+   vec = quat.getAxis();
+   arr[3] = quat.x();
+   arr[4] = quat.y();
+   arr[5] = quat.z();
+   arr[6] = quat.getW();
+}
+
+tf::Transform GraphSlamFull3D::longArrayToTF(double arr[7]) {
+   tf::Vector3 origin(arr[0], arr[1], arr[2]);
+   tf::Quaternion quat(arr[3], arr[4], arr[5], arr[6]);
+   tf::Transform trans;
+   trans.setOrigin(origin);
+   trans.setRotation(quat);
+   return trans;
+}
+
+/*void GraphSlamFull3D::optimiseGlobalMap() {
    int numMaps = localMaps.size();
    int nrows = 6 * numMaps;
    int nzmax = (numMaps + (numMaps + loopConstraints.size()) * 2) * 36;
@@ -620,13 +718,13 @@ void GraphSlamFull3D::optimiseGlobalMap() {
             jNode = mapI;
             tfToArray(localMaps[mapI]->parentOffset, constraint);
             copyM(localMaps[mapI]->parentInfo, info);
-            /*cout << "Info for loop " << iNode << " " << jNode << ": ";
-            for (int y = 0; y < 6; y++) {
-               for (int x = 0; x < 6; x++) {
-                  cout << info[y][x] << " ";
-               }
-            }
-            cout << endl;*/
+            //cout << "Info for loop " << iNode << " " << jNode << ": ";
+            //for (int y = 0; y < 6; y++) {
+            //   for (int x = 0; x < 6; x++) {
+            //      cout << info[y][x] << " ";
+            //   }
+            //}
+            //cout << endl;
 
 
          } else {
@@ -636,13 +734,13 @@ void GraphSlamFull3D::optimiseGlobalMap() {
             jNode = loopConstraints[conI]->j;
             tfToArray(loopConstraints[conI]->offset, constraint);
             copyM(loopConstraints[conI]->info, info);
-            /*cout << "Info for constraint " << iNode << " " << jNode << ": ";
-            for (int y = 0; y < 6; y++) {
-               for (int x = 0; x < 6; x++) {
-                  cout << info[y][x] << " ";
-               }
-            }
-            cout << endl;*/
+            //cout << "Info for constraint " << iNode << " " << jNode << ": ";
+            //for (int y = 0; y < 6; y++) {
+            //   for (int x = 0; x < 6; x++) {
+            //      cout << info[y][x] << " ";
+            //   }
+            //}
+            //cout << endl;
          }
          if (numI == 0) {
             cout << "^^^^^ Maps: " << iNode << " " << jNode << ": " << constraint[3] << " " << constraint[4] <<
@@ -805,11 +903,310 @@ void GraphSlamFull3D::optimiseGlobalMap() {
          p.setYPR(tPos[2], tPos[1], tPos[0]);
          localMaps[x]->pose = p.toTF();
 
-         /*tf::Vector3 incVec(b[x*6 + 3], b[x*6 + 4], b[x*6 + 5]);
-         tf::Matrix3x3 incMat;
-         incMat.setEulerYPR(b[x*6 + 2], b[x*6 + 1], b[x*6]);
-         tf::Transform inc(incMat, incVec);
-         localMaps[x]->pose = inc * localMaps[x]->pose;*/
+         //tf::Vector3 incVec(b[x*6 + 3], b[x*6 + 4], b[x*6 + 5]);
+         //tf::Matrix3x3 incMat;
+         //incMat.setEulerYPR(b[x*6 + 2], b[x*6 + 1], b[x*6]);
+         //tf::Transform inc(incMat, incVec);
+         //localMaps[x]->pose = inc * localMaps[x]->pose;
+      }
+      if (maxMove[0] < MaxOptMoveYPR && maxMove[1] < MaxOptMoveYPR && maxMove[2] < MaxOptMoveYPR &&
+          maxMove[3] < MaxOptMoveXYZ && maxMove[4] < MaxOptMoveXYZ && maxMove[5] < MaxOptMoveXYZ) {
+         cout << "Finished Optimising" << endl;
+         break;
+      }
+   }
+   cs_spfree(sparseH);
+   free(b);
+
+   //Recenter the map on 0
+   tf::Transform off = localMaps[0]->pose.inverse();
+
+   double thresh = 0.005;
+   for (int i = 0; i <= currentIndex; i++) {
+      localMaps[i]->pose = off * localMaps[i]->pose;
+      double tempPos[6];
+      tfToArray(localMaps[i]->pose, tempPos);
+      cout << "End pose of map: " << i << " is: " << tempPos[3] << " " << tempPos[4] << " " << tempPos[5]
+         << "  " << tempPos[2] << " " << tempPos[1] << " " << tempPos[0] << endl;
+      for (int x = 0; x < 6; x++) {
+         if (fabs(tempPos[x] - localMaps[i]->startPose[x]) > thresh) {
+            localMaps[i]->poseChanged = true;
+         }
+      }
+   }
+}*/
+
+void GraphSlamFull3D::optimiseGlobalMap() {
+   int numMaps = localMaps.size();
+   int nrows = 6 * numMaps;
+   int nzmax = (numMaps + (numMaps + loopConstraints.size()) * 2) * 36;
+
+   double *b = (double *) malloc(sizeof(double) * nrows);
+   cs *sparseH = cs_spalloc(nrows, nrows, nzmax, 1, 1);
+
+   //TODO: Only optimise part of map
+   tf::Transform startPose = localMaps[0]->pose;
+
+   for (int i = 0; i < numMaps; i++) {
+      tfToArray(localMaps[i]->pose, localMaps[i]->startPose);
+      localMaps[i]->poseChanged = false;
+   }
+
+   for (int numI = 0; numI < MaxNumOfOptimisationIts; numI++) {
+
+      memset(b, 0, sizeof(double) * nrows);
+      int count = 0;
+
+      for (int x = 0; x <= currentIndex; x++) {
+         int off = x * 6;
+         for (int j = 0; j < 6; j++) {
+            for (int i = 0; i < 6; i++, count++) {
+               sparseH->i[count] = off + i;
+               sparseH->p[count] = off + j;
+               sparseH->x[count] = 0;
+            }
+         }
+         double temp[6];
+         tfToArray(localMaps[x]->pose, temp);
+         cout << "Pose of map: " << x << " is: " << temp[3] << " " << temp[4] << " " << temp[5]
+            << "  " << temp[2] << " " << temp[1] << " " << temp[0] << endl;
+      }
+
+      double maxMove[6];
+      memset(maxMove, 0, sizeof(double) * 6);
+
+      int numConstraints = localMaps.size() - 1 + loopConstraints.size();
+      int startLoopConstraint = localMaps.size() - 1;
+      for (int cI = 0; cI < numConstraints; cI++) {
+
+         int iNode;
+         int jNode;
+         double constraint[6];
+         //Information matrix of the constraint
+         double info[6][6];
+         //The two blocks of the Jacobian
+         double A[6][6];
+         double B[6][6];
+         //Positions of the two maps
+         double posI[6];
+         double posJ[6];
+         //error in the constraint
+         double error[6];
+         //Transposes of the Jacobians
+         double AT[6][6];
+         double BT[6][6];
+         //Temp stores
+         double temp[6][6];
+         double ATA[6][6];
+         double ATB[6][6];
+         double BTA[6][6];
+         double BTB[6][6];
+
+         //The top left parts of A and B
+         double APart[3][3];
+         double BPart[3][3];
+
+
+         if (cI < startLoopConstraint) {
+            //Constraint is a movement constraint
+            int mapI = cI + 1;
+            iNode = localMaps[mapI]->parentIndex;
+            jNode = mapI;
+            tfToArray(localMaps[mapI]->parentOffset, constraint);
+            copyM(localMaps[mapI]->parentInfo, info);
+            //cout << "Info for loop " << iNode << " " << jNode << ": ";
+            //for (int y = 0; y < 6; y++) {
+            //   for (int x = 0; x < 6; x++) {
+            //      cout << info[y][x] << " ";
+            //   }
+            //}
+            //cout << endl;
+
+
+         } else {
+            //Constraint is a loop closing constraint
+            int conI = cI - startLoopConstraint;
+            iNode = loopConstraints[conI]->i;
+            jNode = loopConstraints[conI]->j;
+            tfToArray(loopConstraints[conI]->offset, constraint);
+            copyM(loopConstraints[conI]->info, info);
+            //cout << "Info for constraint " << iNode << " " << jNode << ": ";
+            //for (int y = 0; y < 6; y++) {
+            //   for (int x = 0; x < 6; x++) {
+            //      cout << info[y][x] << " ";
+            //   }
+            //}
+            //cout << endl;
+         }
+         if (numI == 0) {
+            cout << "^^^^^ Maps: " << iNode << " " << jNode << ": " << constraint[3] << " " << constraint[4] <<
+               " " << constraint[5] << "  " << constraint[2] << " " << constraint[1] << " " << constraint[0] << endl;
+         }
+         tfToArray(localMaps[iNode]->pose, posI);
+         tfToArray(localMaps[jNode]->pose, posJ);
+
+         double cr = cos(posI[0]);
+         double cp = cos(posI[1]);
+         double cy = cos(posI[2]);
+         double sr = sin(posI[0]);
+         double sp = sin(posI[1]);
+         double sy = sin(posI[2]);
+
+         double xd = posJ[3] - posI[3];
+         double yd = posJ[4] - posI[4];
+         double zd = posJ[5] - posI[5];
+
+         memset(A, 0, sizeof(double) * 36);
+         memset(B, 0, sizeof(double) * 36);
+         
+         numericPartJacobian(posI, posJ, APart, BPart);
+         /*cout << "A part: " << APart[0][0] << " " << APart[0][1] << " " << APart[0][2] <<
+            " " << APart[1][0]  << " " << APart[1][1] << " " << APart[1][2] << " " << APart[1][3] 
+            << " " << APart[2][0] << " " << APart[2][1] << " " << APart[2][2] << endl;
+         cout << "B part: " << BPart[0][0] << " " << BPart[0][1] << " " << BPart[0][2] <<
+            " " << BPart[1][0]  << " " << BPart[1][1] << " " << BPart[1][2] << " " << BPart[1][3] 
+            << " " << BPart[2][0] << " " << BPart[2][1] << " " << BPart[2][2] << endl;*/
+         for (int j = 0; j < 3; j++) {
+            for (int i = 0; i < 3; i++) {
+               A[j][i] = APart[j][i];
+               B[j][i] = BPart[j][i];
+               //if (i == j) {
+               //   A[j][i] = -1;
+               //   B[j][i] = 1;
+               //}
+               
+            }
+         }
+
+         A[3][0] = 0;
+         A[4][0] = (sp*cr*cy+sr*sy)*xd + (sp*cr*sy-sr*cy)*yd + cp*cr*zd;
+         A[5][0] = (-sp*sr*cy+cr*sy)*xd + (-cr*cy-sp*sr*sy)*yd - cp*sr*zd;
+         A[3][1] = -sp*cy*xd - sp*sy*yd - cp*zd;
+         A[4][1] = cp*sr*cy*xd + cp*sr*sy*yd - sp*sr*zd;
+         A[5][1] = cp*cr*cy*xd + cp*cr*sy*yd - sp*cr*zd;
+         A[3][2] = -cp*sy*xd + cp*cy*yd;
+         A[4][2] = (-sp*sr*sy-cr*cy)*xd + (sp*sr*cy-cr*sy)*yd;
+         A[5][2] = (-sp*cr*sy+sr*cy)*xd + (sp*cr*cy+sr*sy)*yd;
+
+         A[3][3] = -cp*cy;
+         A[4][3] = -sp*sr*cy + cr*sy;
+         A[5][3] = -sp*cr*cy - sr*sy;
+         A[3][4] = -cp*sy;
+         A[4][4] = -sp*sr*sy-cr*cy;
+         A[5][4] = -sp*cr*sy+sr*cy;
+         A[3][5] = sp;
+         A[4][5] = -cp*sr;
+         A[5][5] = -cp*cr;
+         
+         B[3][3] = cp*cy;
+         B[4][3] = sp*sr*cy - cr*sy;
+         B[5][3] = sr*sy + sp*cr*cy;
+         B[3][4] = cp*sy;
+         B[4][4] = cr*cy + sp*sr*sy;
+         B[5][4] = sp*cr*sy - sr*cy;
+         B[3][5] = -sp;
+         B[4][5] = cp*sr;
+         B[5][5] = cp*cr;
+         //numericJacobian(posI, posJ, A, B);
+
+         tfToArray(localMaps[iNode]->pose.inverse() * localMaps[jNode]->pose, error);
+         for (int i = 0; i < 6; i++) {
+            error[i] -= constraint[i];
+            if (i < 3) {
+               ANGNORM(error[i]);
+            }
+         }
+         //if (numI == 0) {
+            cout << "Error: " << error[3] << " " << error[4] <<
+               " " << error[5] << "  " << error[2] << " " << error[1] << " " << error[0] << endl;
+         //}
+
+         transpose6x6Matrix(A, AT);
+         transpose6x6Matrix(B, BT);
+
+         double tempVecA[6];
+         double tempVecB[6];
+         mult6x6Matrix(AT, info, temp);
+         mult6x6Vector(temp, error, tempVecA);
+
+         mult6x6Matrix(temp, A, ATA);
+         mult6x6Matrix(temp, B, ATB);
+
+         mult6x6Matrix(BT, info, temp);
+         mult6x6Vector(temp, error, tempVecB);
+
+         mult6x6Matrix(temp, A, BTA);
+         mult6x6Matrix(temp, B, BTB);
+
+         for (int i = 0; i < 6; i++) {
+            b[iNode * 6 + i] -= tempVecA[i];
+            b[jNode * 6 + i] -= tempVecB[i];
+         }
+
+         //row is i, column is p, value is x
+         for (int j = 0; j < 6; j++) {
+            for (int i = 0; i < 6; i++) {
+               sparseH->x[iNode * 36 + j * 6 + i] += ATA[i][j];
+               sparseH->x[jNode * 36 + j * 6 + i] += BTB[i][j];
+
+               sparseH->i[count] = iNode * 6 + i;
+               sparseH->p[count] = jNode * 6 + j;
+               sparseH->x[count] = ATB[i][j];
+               count++;
+               sparseH->i[count] = jNode * 6 + i;
+               sparseH->p[count] = iNode * 6 + j;
+               sparseH->x[count] = BTA[i][j];
+               count++;
+            }
+         }
+      }
+      sparseH->nz = count;
+   
+      //Compress H into sparse column form
+      cs *compH = cs_compress(sparseH);
+      //Solve the linear system
+      int retVal = cs_lusol(0, compH, b, 1);
+      if (retVal != 1) {
+         cout << "Solving matrix failed " << retVal << endl;
+         break;
+      }
+
+      for (int x = 0; x < numMaps; x++) {
+         cout << "Map " << x << " moved: " << b[x*6+3] << " " << b[x*6+4] << " " << b[x*6+5] << "  " 
+            << b[x*6+2] << " " << b[x*6+1] << " " << b[x*6+0] << endl;
+
+         if (b[x * 6] > 100) {
+            cout << "ERROR: BIIIGGGG Angle " << b[x * 6] << endl;
+            return;
+         }
+         ANGNORM(b[x*6]);
+         ANGNORM(b[x*6 + 1]);
+         ANGNORM(b[x*6 + 2]);
+
+         double tPos[6];
+         tfToArray(localMaps[x]->pose, tPos);
+         for (int y = 0; y < 6; y++) {
+            tPos[y] += b[x*6 + y];
+            if (y < 3) {
+               ANGNORM(tPos[y]);
+            }
+
+            if (fabs(b[x*6 + y]) > maxMove[y]) {
+               maxMove[y] = fabs(b[x*6 + y]);
+            }
+         }
+         Pose p;
+         p.position.x = tPos[3];
+         p.position.y = tPos[4];
+         p.position.z = tPos[5];
+         p.setYPR(tPos[2], tPos[1], tPos[0]);
+         localMaps[x]->pose = p.toTF();
+
+         //tf::Vector3 incVec(b[x*6 + 3], b[x*6 + 4], b[x*6 + 5]);
+         //tf::Matrix3x3 incMat;
+         //incMat.setEulerYPR(b[x*6 + 2], b[x*6 + 1], b[x*6]);
+         //tf::Transform inc(incMat, incVec);
+         //localMaps[x]->pose = inc * localMaps[x]->pose;
       }
       if (maxMove[0] < MaxOptMoveYPR && maxMove[1] < MaxOptMoveYPR && maxMove[2] < MaxOptMoveYPR &&
           maxMove[3] < MaxOptMoveXYZ && maxMove[4] < MaxOptMoveXYZ && maxMove[5] < MaxOptMoveXYZ) {
@@ -838,16 +1235,248 @@ void GraphSlamFull3D::optimiseGlobalMap() {
    }
 }
 
+
 //ri and rj are in r,p,y order!!
-/*void GraphSlamFull3D::numericPartJacobian(double ri[3], double rj[3], double A[3][3], double B[3][3]) {
+void GraphSlamFull3D::numericPartJacobian(double *ri, double *rj, double A[3][3], double B[3][3]) {
 
-   double h = 0.001;
+   double h = 0.0001;
+
+   double up[3], down[3];
    tf::Matrix3x3 matI, matJ;
-   tf::Matrix3x3 res;
+   tf::Matrix3x3 resUp, resDown;
+   
    matJ.setEulerYPR(rj[2], rj[1], rj[0]);
-   matI.setEulerYPR(ri[2], ri[1], ri[0]);
+   matI.setEulerYPR(ri[2], ri[1], ri[0] + h);
+   resUp = matI.transpose() * matJ;
+   resUp.getEulerYPR(up[2], up[1], up[0]);
+   matI.setEulerYPR(ri[2], ri[1], ri[0] - h);
+   resDown = matI.transpose() * matJ;
+   resDown.getEulerYPR(down[2], down[1], down[0]);
+   A[0][0] = (up[0] - down[0]) / (2.0 * h);
+   A[1][0] = (up[1] - down[1]) / (2.0 * h);
+   A[2][0] = (up[2] - down[2]) / (2.0 * h);
 
-}*/
+   matI.setEulerYPR(ri[2], ri[1] + h, ri[0]);
+   resUp = matI.transpose() * matJ;
+   resUp.getEulerYPR(up[2], up[1], up[0]);
+   matI.setEulerYPR(ri[2], ri[1] - h, ri[0]);
+   resDown = matI.transpose() * matJ;
+   resDown.getEulerYPR(down[2], down[1], down[0]);
+   A[0][1] = (up[0] - down[0]) / (2.0 * h);
+   A[1][1] = (up[1] - down[1]) / (2.0 * h);
+   A[2][1] = (up[2] - down[2]) / (2.0 * h);
+
+   matI.setEulerYPR(ri[2] + h, ri[1], ri[0]);
+   resUp = matI.transpose() * matJ;
+   resUp.getEulerYPR(up[2], up[1], up[0]);
+   matI.setEulerYPR(ri[2] - h, ri[1], ri[0]);
+   resDown = matI.transpose() * matJ;
+   resDown.getEulerYPR(down[2], down[1], down[0]);
+   A[0][2] = (up[0] - down[0]) / (2.0 * h);
+   A[1][2] = (up[1] - down[1]) / (2.0 * h);
+   A[2][2] = (up[2] - down[2]) / (2.0 * h);
+
+   matI.setEulerYPR(ri[2], ri[1], ri[0]);
+   matJ.setEulerYPR(rj[2], rj[1], rj[0] + h);
+   resUp = matI.transpose() * matJ;
+   resUp.getEulerYPR(up[2], up[1], up[0]);
+   matJ.setEulerYPR(rj[2], rj[1], rj[0] - h);
+   resDown = matI.transpose() * matJ;
+   resDown.getEulerYPR(down[2], down[1], down[0]);
+   B[0][0] = (up[0] - down[0]) / (2.0 * h);
+   B[1][0] = (up[1] - down[1]) / (2.0 * h);
+   B[2][0] = (up[2] - down[2]) / (2.0 * h);
+
+   matJ.setEulerYPR(rj[2], rj[1] + h, rj[0]);
+   resUp = matI.transpose() * matJ;
+   resUp.getEulerYPR(up[2], up[1], up[0]);
+   matJ.setEulerYPR(rj[2], rj[1] - h, rj[0]);
+   resDown = matI.transpose() * matJ;
+   resDown.getEulerYPR(down[2], down[1], down[0]);
+   B[0][1] = (up[0] - down[0]) / (2.0 * h);
+   B[1][1] = (up[1] - down[1]) / (2.0 * h);
+   B[2][1] = (up[2] - down[2]) / (2.0 * h);
+
+   matJ.setEulerYPR(rj[2] + h, rj[1], rj[0]);
+   resUp = matI.transpose() * matJ;
+   resUp.getEulerYPR(up[2], up[1], up[0]);
+   matJ.setEulerYPR(rj[2] - h, rj[1], rj[0]);
+   resDown = matI.transpose() * matJ;
+   resDown.getEulerYPR(down[2], down[1], down[0]);
+   B[0][2] = (up[0] - down[0]) / (2.0 * h);
+   B[1][2] = (up[1] - down[1]) / (2.0 * h);
+   B[2][2] = (up[2] - down[2]) / (2.0 * h);
+}
+
+void GraphSlamFull3D::numericJacobian(double *ri, double *rj, double A[6][6], double B[6][6]) {
+   double h = 0.001;
+
+   double up[6], down[6];
+
+   tf::Transform res;
+   //Do A first
+   tf::Matrix3x3 matJ;
+   matJ.setEulerYPR(rj[2], rj[1], rj[0]);
+   tf::Vector3 vecJ(rj[3], rj[4], rj[5]);
+   tf::Transform tJ(matJ, vecJ);
+
+   tf::Matrix3x3 matI;
+   matI.setEulerYPR(ri[2], ri[1], ri[0] + h);
+   tf::Vector3 vecI(ri[3], ri[4], ri[5]);
+   tf::Transform tI(matI, vecI);
+   res = tI.inverse() * tJ;
+   tfToArray(res, up);
+   matI.setEulerYPR(ri[2], ri[1], ri[0] - h);
+   tI.setBasis(matI);
+   res = tI.inverse() * tJ;
+   tfToArray(res, down);
+   for (int i = 0; i < 6; i++) {
+      A[i][0] = (up[i] - down[i]) / (2.0 * h);
+   }
+
+   matI.setEulerYPR(ri[2], ri[1] + h, ri[0]);
+   tI.setBasis(matI);
+   res = tI.inverse() * tJ;
+   tfToArray(res, up);
+   matI.setEulerYPR(ri[2], ri[1] - h, ri[0]);
+   tI.setBasis(matI);
+   res = tI.inverse() * tJ;
+   tfToArray(res, down);
+   for (int i = 0; i < 6; i++) {
+      A[i][1] = (up[i] - down[i]) / (2.0 * h);
+   }
+
+   matI.setEulerYPR(ri[2] + h, ri[1], ri[0]);
+   tI.setBasis(matI);
+   res = tI.inverse() * tJ;
+   tfToArray(res, up);
+   matI.setEulerYPR(ri[2] - h, ri[1], ri[0]);
+   tI.setBasis(matI);
+   res = tI.inverse() * tJ;
+   tfToArray(res, down);
+   for (int i = 0; i < 6; i++) {
+      A[i][2] = (up[i] - down[i]) / (2.0 * h);
+   }
+
+   matI.setEulerYPR(ri[2], ri[1], ri[0]);
+   tI.setBasis(matI);
+   vecI.setValue(ri[3] + h, ri[4], ri[5]);
+   tI.setOrigin(vecI);
+   res = tI.inverse() * tJ;
+   tfToArray(res, up);
+   vecI.setValue(ri[3] - h, ri[4], ri[5]);
+   tI.setOrigin(vecI);
+   res = tI.inverse() * tJ;
+   tfToArray(res, down);
+   for (int i = 0; i < 6; i++) {
+      A[i][3] = (up[i] - down[i]) / (2.0 * h);
+   }
+
+   tI.setBasis(matI);
+   vecI.setValue(ri[3], ri[4] + h, ri[5]);
+   tI.setOrigin(vecI);
+   res = tI.inverse() * tJ;
+   tfToArray(res, up);
+   vecI.setValue(ri[3], ri[4] - h, ri[5]);
+   tI.setOrigin(vecI);
+   res = tI.inverse() * tJ;
+   tfToArray(res, down);
+   for (int i = 0; i < 6; i++) {
+      A[i][4] = (up[i] - down[i]) / (2.0 * h);
+   }
+
+   tI.setBasis(matI);
+   vecI.setValue(ri[3], ri[4], ri[5]+ h);
+   tI.setOrigin(vecI);
+   res = tI.inverse() * tJ;
+   tfToArray(res, up);
+   vecI.setValue(ri[3], ri[4], ri[5] - h);
+   tI.setOrigin(vecI);
+   res = tI.inverse() * tJ;
+   tfToArray(res, down);
+   for (int i = 0; i < 6; i++) {
+      A[i][5] = (up[i] - down[i]) / (2.0 * h);
+   }
+
+   vecI.setValue(ri[3], ri[4], ri[5]);
+   tI.setOrigin(vecI);
+   
+   matJ.setEulerYPR(rj[2], rj[1], rj[0] + h);
+   tJ.setBasis(matJ);
+   res = tI.inverse() * tJ;
+   tfToArray(res, up);
+   matJ.setEulerYPR(rj[2], rj[1], rj[0] - h);
+   tJ.setBasis(matJ);
+   res = tI.inverse() * tJ;
+   tfToArray(res, down);
+   for (int i = 0; i < 6; i++) {
+      B[i][0] = (up[i] - down[i]) / (2.0 * h);
+   }
+
+   matJ.setEulerYPR(rj[2], rj[1] + h, rj[0]);
+   tJ.setBasis(matJ);
+   res = tI.inverse() * tJ;
+   tfToArray(res, up);
+   matJ.setEulerYPR(rj[2], rj[1] - h, rj[0]);
+   tJ.setBasis(matJ);
+   res = tI.inverse() * tJ;
+   tfToArray(res, down);
+   for (int i = 0; i < 6; i++) {
+      B[i][1] = (up[i] - down[i]) / (2.0 * h);
+   }
+
+   matJ.setEulerYPR(rj[2] + h, rj[1], rj[0]);
+   tJ.setBasis(matJ);
+   res = tI.inverse() * tJ;
+   tfToArray(res, up);
+   matJ.setEulerYPR(rj[2] - h, rj[1], rj[0]);
+   tJ.setBasis(matJ);
+   res = tI.inverse() * tJ;
+   tfToArray(res, down);
+   for (int i = 0; i < 6; i++) {
+      B[i][2] = (up[i] - down[i]) / (2.0 * h);
+   }
+
+   matJ.setEulerYPR(rj[2], rj[1], rj[0]);
+   tJ.setBasis(matJ);
+
+   vecJ.setValue(rj[3] + h, rj[4], rj[5]);
+   tJ.setOrigin(vecJ);
+   res = tI.inverse() * tJ;
+   tfToArray(res, up);
+   vecJ.setValue(rj[3] - h, rj[4], rj[5]);
+   tJ.setOrigin(vecJ);
+   res = tI.inverse() * tJ;
+   tfToArray(res, down);
+   for (int i = 0; i < 6; i++) {
+      B[i][3] = (up[i] - down[i]) / (2.0 * h);
+   }
+
+   vecJ.setValue(rj[3], rj[4] + h, rj[5]);
+   tJ.setOrigin(vecJ);
+   res = tI.inverse() * tJ;
+   tfToArray(res, up);
+   vecJ.setValue(rj[3], rj[4] - h, rj[5]);
+   tJ.setOrigin(vecJ);
+   res = tI.inverse() * tJ;
+   tfToArray(res, down);
+   for (int i = 0; i < 6; i++) {
+      B[i][4] = (up[i] - down[i]) / (2.0 * h);
+   }
+
+   vecJ.setValue(rj[3], rj[4], rj[5] + h);
+   tJ.setOrigin(vecJ);
+   res = tI.inverse() * tJ;
+   tfToArray(res, up);
+   vecJ.setValue(rj[3], rj[4], rj[5] - h);
+   tJ.setOrigin(vecJ);
+   res = tI.inverse() * tJ;
+   tfToArray(res, down);
+   for (int i = 0; i < 6; i++) {
+      B[i][5] = (up[i] - down[i]) / (2.0 * h);
+   }
+
+}
 
 vector<LocalMapInfoPtr> GraphSlamFull3D::getNewMapPositions() {
    vector<LocalMapInfoPtr> newPositions;

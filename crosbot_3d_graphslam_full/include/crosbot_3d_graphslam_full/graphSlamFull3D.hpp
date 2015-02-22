@@ -152,6 +152,16 @@ private:
 
    void optimiseGlobalMap();
 
+   void optimiseGlobalMapg2o();
+   void tfToLongArray(tf::Transform trans, double arr[7]);
+   tf::Transform longArrayToTF(double arr[7]);
+
+   //Estimates numerically the Jacobian at the top left of A and B. 
+   //TODO: really slow - should speed up
+   void numericPartJacobian(double *ri, double *rj, double A[3][3], double B[3][3]);
+   
+   void numericJacobian(double *ri, double *rj, double A[6][6], double B[6][6]);
+
    vector<LocalMapInfoPtr> getNewMapPositions();
 
    //Converts a tf to an array of r,p,y,x,y,z.

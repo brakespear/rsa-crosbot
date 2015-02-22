@@ -14,6 +14,9 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(PCL REQUIRED)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 find_package(SuiteSparse REQUIRED)
+find_package(CSparse REQUIRED)
+find_package(Cholmod REQUIRED)
+find_package(G2O REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -88,7 +91,7 @@ catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES crosbot_3d_graphslam_full
   CATKIN_DEPENDS crosbot crosbot_graphslam roscpp std_msgs tf
-  DEPENDS suitesparse-dev
+  DEPENDS suitesparse-dev g2o
 )
 
 ###########
@@ -99,7 +102,7 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(include
-  ${catkin_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS} ${CSPARSE_INCLUDE_DIR} ${PCL_INCLUDE_DIRS} ${libg2o_INCLUDE_DIRS} ${suitesparse_INCLUDE_DIRS} ${CHOLMOD_INCLUDE_DIR}
 )
 
 ## Declare a cpp library
@@ -116,7 +119,7 @@ add_executable(crosbot_3d_graphslam_full src/main.cpp src/graphSlamFull3D.cpp sr
 
 ## Specify libraries to link a library or executable target against
  target_link_libraries(crosbot_3d_graphslam_full
-   ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${SuiteSparse_LIBRARIES}
+   ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${SuiteSparse_LIBRARIES} ${G2O_LIBRARIES} ${CHOLMOD_LIBRARIES}
  )
 
 #############
