@@ -130,7 +130,7 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
 
 
          
-   int numPoints = localMapInfo->cloud->cloud.size();
+   /*int numPoints = localMapInfo->cloud->cloud.size();
    cout << "outputting current map: " << endl;
    FILE *f = fopen("curMap.pcd", "w");
    fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F \nCOUNT 1 1 1 \nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
@@ -151,7 +151,7 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
       p = diff * p;
       fprintf(f, "%f %f %f\n", p.x(), p.y(), p.z());
    }
-   fclose(f);
+   fclose(f);*/
 
 
 
@@ -175,7 +175,7 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
          
       
    
-   numPoints = localMaps[mapI]->cloud->size();
+   /*numPoints = localMaps[mapI]->cloud->size();
    f = fopen("otherMapAl.pcd", "w");
    fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F \nCOUNT 1 1 1 \nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
    for (int i = 0; i < numPoints;i++) {
@@ -186,7 +186,7 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
       p = change * p;
       fprintf(f, "%f %f %f\n", p.x(), p.y(), p.z());
    }
-   fclose(f);
+   fclose(f);*/
          
          cout << "About to optimise" << endl;
          optimiseGlobalMapg2o();

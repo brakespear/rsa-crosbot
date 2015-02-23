@@ -116,6 +116,12 @@ private:
    int SkipNumCheckBlocks;
    //When the movement in an iteration falls below this, it will stop
    double MoveThresh;
+   //Should odometry be used as a guess?
+   bool UseOdometry;
+   //Should the points just be added to the map or should they be aligned first?
+   bool UseICP;
+   //Only align in Z
+   bool UseICPZOnly;
 
    double DistThresh;
    double DotThresh;

@@ -110,6 +110,10 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("FilterScalePixel", FilterScalePixel, 0.5);
    paramNH.param<int>("SkipNumCheckBlocks", SkipNumCheckBlocks, 4);
    paramNH.param<double>("MoveThresh", MoveThresh, 0.001);
+   paramNH.param<bool>("UseOdometry", UseOdometry, true);
+   paramNH.param<bool>("UseICP", UseICP, true);
+   paramNH.param<bool>("UseICPZOnly", UseICPZOnly, false);
+
 
    paramNH.param<double>("DistThresh", DistThresh, 0.0005);
    paramNH.param<double>("DotThresh", DotThresh, 0.7);
@@ -250,10 +254,12 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
    convertFrame(depthImage, rgbImage);
 
-   tf::Transform temp = icpFullPose.toTF() * oldICP.inverse();
-   oldICP = icpPose.toTF();
-   tf::Transform newFullPose = temp * oldICP;
-   icpFullPose = newFullPose;
+   if (UseOdometry) {
+      tf::Transform temp = icpFullPose.toTF() * oldICP.inverse();
+      oldICP = icpPose.toTF();
+      tf::Transform newFullPose = temp * oldICP;
+      icpFullPose = newFullPose;
+   }
    //tf::Transform newFullPose = icpFullPose.toTF();
 
    double y,p,r;
@@ -270,13 +276,19 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    calculateNormals();
 
    //icp itself
+   clFlush(opencl_manager->getCommandQueue());
    ros::WallTime t1 = ros::WallTime::now();
-   //alignICP(sensorPose.toTF(), newFullPose);
-   //alignRayTraceICP(sensorPose.toTF(), newFullPose);
-   //alignZOnlyICP(sensorPose.toTF(), newFullPose);
+   if (UseICP) {
+      if (UseICPZOnly) {
+         alignZOnlyICP(sensorPose.toTF(), icpFullPose.toTF());
+      } else {
+         //alignICP(sensorPose.toTF(), icpFullPose.toTF());
+         alignRayTraceICP(sensorPose.toTF(), icpFullPose.toTF());
+      }
+   }
    ros::WallTime t2 = ros::WallTime::now();
    ros::WallDuration totalTime = t2 - t1;
-   cout << "Time of align icp: " << totalTime.toSec() * 1000.0f << endl;
+   cout << "Total time of align icp: " << totalTime.toSec() * 1000.0f << endl;
 
    t1 = ros::WallTime::now();
    //add frame
@@ -1128,8 +1140,15 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
 void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transform newPose) {
    tf::Transform start = newPose * sensorPose;
 
+   ros::WallTime t1 = ros::WallTime::now();
+
    predictSurface(start);
    outputDebuggingImage(start);
+   
+   ros::WallTime t2 = ros::WallTime::now();
+   ros::WallDuration totalTime = t2 - t1;
+   cout << "Total time of predict surface: " << totalTime.toSec() * 1000.0f << endl;
+   t1 = ros::WallTime::now();
 
    int kernelI = RAY_TRACE_ICP;
 
@@ -1340,6 +1359,9 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
    if (!failed) {
       icpFullPose = curTrans * sensorPose.inverse();
    }
+   t2 = ros::WallTime::now();
+   totalTime = t2 - t1;
+   cout << "Total time of icp aligning (" << i << "its): " << totalTime.toSec() * 1000.0f << endl;
 }
 
 
