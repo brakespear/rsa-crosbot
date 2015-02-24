@@ -122,6 +122,17 @@ private:
    bool UseICP;
    //Only align in Z
    bool UseICPZOnly;
+   //Minimum number of points used for ICP matching
+   int MinICPCount;
+   //Max movement of ICP allowed
+   double MaxMoveXYZ;
+   double MaxMoveRPY;
+   //Number of icp fails in a row before frame are added to the map anyway
+   int FailCount;
+   //If a x,y,th value of the raw icp scaling results falls below this, only look at the 
+   //r,p and z values of the alignment
+   double MinScale;
+
 
    double DistThresh;
    double DotThresh;
@@ -217,6 +228,8 @@ private:
    int highestBlockNum;
    //The ICP pose from the previous frame
    tf::Transform oldICP;
+   //Number of fails in a row
+   int numFails;
 
    //local map infos
    LocalMapInfoPtr newLocalMapInfo;

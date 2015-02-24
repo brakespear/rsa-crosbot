@@ -81,6 +81,8 @@ PositionTrackFull3D::PositionTrackFull3D() {
    newLocalMapInfo = NULL;
    currentLocalMapInfo = NULL;
 
+   numFails = FailCount;
+
 
    f = fopen("res.txt", "w");
 
@@ -115,6 +117,11 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<bool>("UseOdometry", UseOdometry, true);
    paramNH.param<bool>("UseICP", UseICP, true);
    paramNH.param<bool>("UseICPZOnly", UseICPZOnly, false);
+   paramNH.param<int>("MinICPCount", MinICPCount, 100);
+   paramNH.param<double>("MaxMoveXYZ", MaxMoveXYZ, 0.3);
+   paramNH.param<double>("MaxMoveRPY", MaxMoveRPY, 0.3);
+   paramNH.param<int>("FailCount", FailCount, 10);
+   paramNH.param<double>("MinScale", MinScale, 8000);
 
 
    paramNH.param<double>("DistThresh", DistThresh, 0.0005);
@@ -292,44 +299,46 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    ros::WallDuration totalTime = t2 - t1;
    cout << "Total time of align icp: " << totalTime.toSec() * 1000.0f << endl;
 
-   t1 = ros::WallTime::now();
-   //add frame
-   tf::Transform offset = icpFullPose.toTF() * sensorPose.toTF();
-   checkBlocksExist(numDepthPoints, offset);
-   readBuffer(clLocalMapCommon, CL_TRUE, numActiveBlocksOffset, 
-         sizeof(int), &numActiveBlocks, 0, 0, 0, "Reading num active blocks");
-   //cout << "Number of blocks are: " << numActiveBlocks << endl;
-   if (numActiveBlocks > MaxNumActiveBlocks) {
-      numActiveBlocks = MaxNumActiveBlocks;
-   }
+   if (numFails == 0 || numFails > FailCount) {
+      t1 = ros::WallTime::now();
+      //add frame
+      tf::Transform offset = icpFullPose.toTF() * sensorPose.toTF();
+      checkBlocksExist(numDepthPoints, offset);
+      readBuffer(clLocalMapCommon, CL_TRUE, numActiveBlocksOffset, 
+            sizeof(int), &numActiveBlocks, 0, 0, 0, "Reading num active blocks");
+      //cout << "Number of blocks are: " << numActiveBlocks << endl;
+      if (numActiveBlocks > MaxNumActiveBlocks) {
+         numActiveBlocks = MaxNumActiveBlocks;
+      }
 
-   t2 = ros::WallTime::now();
-   totalTime = t2 - t1;
-   cout << "Time of half adding points: " << totalTime.toSec() * 1000.0f << endl;
-   t1 = ros::WallTime::now();
+      t2 = ros::WallTime::now();
+      totalTime = t2 - t1;
+      cout << "Time of half adding points: " << totalTime.toSec() * 1000.0f << endl;
+      t1 = ros::WallTime::now();
 
-   //cout << "numActiveBlocks are: " << numActiveBlocks << endl;
-   addRequiredBlocks();
+      //cout << "numActiveBlocks are: " << numActiveBlocks << endl;
+      addRequiredBlocks();
 
-   clFinish(opencl_manager->getCommandQueue());
-   t2 = ros::WallTime::now();
-   totalTime = t2 - t1;
-   cout << "Time of adding blocks: " << totalTime.toSec() * 1000.0f << endl;
-   t1 = ros::WallTime::now();
+      clFinish(opencl_manager->getCommandQueue());
+      t2 = ros::WallTime::now();
+      totalTime = t2 - t1;
+      cout << "Time of adding blocks: " << totalTime.toSec() * 1000.0f << endl;
+      t1 = ros::WallTime::now();
 
-   addFrame(offset);
+      addFrame(offset);
 
    
-   readBuffer(clLocalMapCommon, CL_TRUE, highestBlockNumOffset,
-         sizeof(int), &highestBlockNum, 0, 0, 0, "Reading highest block num");
-   t2 = ros::WallTime::now();
-   totalTime = t2 - t1;
-   cout << "Time of adding points: " << totalTime.toSec() * 1000.0f << endl;
-   //cout << "Highest block num is: " << highestBlockNum << " cent is: " << mapCentre.x <<
-   //  " " << mapCentre.y << " " << mapCentre.z << endl;
+      readBuffer(clLocalMapCommon, CL_TRUE, highestBlockNumOffset,
+          sizeof(int), &highestBlockNum, 0, 0, 0, "Reading highest block num");
+      t2 = ros::WallTime::now();
+      totalTime = t2 - t1;
+      cout << "Time of adding points: " << totalTime.toSec() * 1000.0f << endl;
+      //cout << "Highest block num is: " << highestBlockNum << " cent is: " << mapCentre.x <<
+      //  " " << mapCentre.y << " " << mapCentre.z << endl;
 
-   //cout << "pose is: " << icpPose.position.x << " " << icpPose.position.y << " " <<
-   //   icpPose.position.z << endl;
+      //cout << "pose is: " << icpPose.position.x << " " << icpPose.position.y << " " <<
+      //   icpPose.position.z << endl;
+   }
 
    //extract points
    ocl_int3 newMapCentre;
@@ -1204,6 +1213,11 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
       totalMovement[i] = 0;
    }
 
+   
+   bool limit = false;
+   if (scale[3] < MinScale || scale[4] < MinScale || scale[5] < MinScale) {
+      limit = true;
+   }
 
    int i;
    bool cont = true;
@@ -1281,7 +1295,7 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
 
       readBuffer(clLocalMapCommon, CL_TRUE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
             rawResults, 0, 0, 0, "Reading the icp results");
-      A[0][0] = rawResults[0];
+      /*A[0][0] = rawResults[0];
       A[1][0] = rawResults[1];
       A[1][1] = rawResults[2];
       A[2][0] = rawResults[3];
@@ -1312,7 +1326,7 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
       solveCholesky(A, b, x);
 
       cout << "Standard results: " << x[0] << " " << x[1] << " " << x[2] << " " << x[3] << " " << x[4]
-         << " " << x[5] << endl;
+         << " " << x[5] << endl;*/
 
       ///////
       memset(reg, 0, sizeof(float) * 36);
@@ -1322,6 +1336,7 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
          if (scale[j] > max) {
             max = scale[j];
          }
+
       }
       for (int j = 0; j < 6; j++) {
          //tempScale[j] = ((scale[j]) / numDepthPoints) * rawResults[27];
@@ -1368,6 +1383,8 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
       b[4] = rawResults[25] - offset[5];
       b[5] = rawResults[26] - offset[6];
 
+      int count = rawResults[27];
+
       /*cout << "Raw results: ";
       for (int j = 0; j < NUM_RESULTS; j++) {
          cout << rawResults[j] << " ";
@@ -1400,7 +1417,7 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
          //if (j >= 3) {
          //   x[j] = 0;
          //}
-         if (fabs(totalMovement[j]) > 0.6) {
+         if ((j < 3 && fabs(totalMovement[j]) > MaxMoveRPY) || (j >= 3 && fabs(totalMovement[j]) > MaxMoveXYZ)) {
             cout << "******Moved too far" << endl;
             valid = false;
             break;
@@ -1414,11 +1431,11 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
          failed = true;
          break;
       }
-      /*if (rawResults[27] < 4000) {
-         cout << "***Alignment failed: " << rawResults[27] << endl;
+      if (count < MinICPCount) {
+         cout << "***Alignment failed: " << count << endl;
          failed = true;
          break;
-      }*/
+      }
 
       //x[5] = 0;
       //x[0] = 0;
@@ -1426,7 +1443,6 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
 
       tf::Vector3 incVec(x[3], x[4], x[5]);
       tf::Matrix3x3 incMat(1, x[2], -x[1], -x[2], 1, x[0], x[1], -x[0], 1);
-      //tf::Matrix3x3 incMat(1, -x[2], x[1], x[2], 1, -x[0], -x[1], x[0], 1);
       //tf::Matrix3x3 incMat;
       //incMat.setEulerYPR(x[2], x[1], x[0]);
       tf::Transform inc(incMat, incVec);
@@ -1437,17 +1453,6 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
       //cout << incPose.position.x << " " << incPose.position.y << " " << incPose.position.z << " : " 
       //   << y << " " << p << " " << r << " : " << rawResults[27] << " " << endl;
       
-      //Pose po = curTrans;
-      //po.position.x += x[3];
-      //po.position.y += x[4];
-      //po.position.z += x[5];
-      //po.getYPR(y,p,r);
-      //y += x[2];
-      //p += x[1];
-      //r += x[0];
-      //po.setYPR(y,p,r);
-      //curTrans = po.toTF();
-
       //tf::Vector3 tt = curTrans.getOrigin();
       //curTrans = inc * curTrans;
       //curTrans.setOrigin(tt);
@@ -1472,17 +1477,20 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
    cout << "End pose is: " << endPose.position.x << " " << endPose.position.y << " " <<
        endPose.position.z << "  " << y << " " << p << " " << r << endl;
    if (!failed) {
-      //icpFullPose = curTrans * sensorPose.inverse();
-      /*tf::Transform newPose = curTrans * sensorPose.inverse();
-      double yn, rn, pn, yo, ro, po;
-      icpFullPose.toTF().getBasis().getEulerYPR(yo,po,ro);
-      tf::Matrix3x3 newB = newPose.getBasis();
-      newB.getEulerYPR(yn,pn,rn);
-      yn = yo;
-      newB.setEulerYPR(yn,pn,rn);
-      newPose.setBasis(newB);
-      icpFullPose = newPose;*/
-      icpFullPose = curTrans;
+      if (limit) {
+         cout << "^^^^Uncertain of x,y,y, limiting movement" << endl;
+         double yn, rn, pn, yo, ro, po;
+         Pose newPose = curTrans;
+         newPose.getYPR(yn,pn,rn);
+         icpFullPose.getYPR(yo,po,ro);
+         icpFullPose.position.z = newPose.position.z;
+         icpFullPose.setYPR(yo,pn,rn);
+      } else {
+         icpFullPose = curTrans;
+      }
+      numFails = 0;
+   } else {
+      numFails++;
    }
    t2 = ros::WallTime::now();
    totalTime = t2 - t1;
