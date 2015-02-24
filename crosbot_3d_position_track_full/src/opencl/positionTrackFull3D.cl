@@ -518,6 +518,11 @@ __kernel void addFrame(constant oclPositionTrackConfig *config, global int *bloc
             if (isnan(localMapCells[blockI].distance[cIndex])) {
                localMapCells[blockI].distance[cIndex] = tsdfVal;
                localMapCells[blockI].weight[cIndex] = weightVal;
+               
+               //if (v < 460) {
+               //   pointI = config->ImageWidth * (v+20) + u;
+               //}
+               
                localMapCells[blockI].r[cIndex] = colourP->r[pointI];
                localMapCells[blockI].g[cIndex] = colourP->g[pointI];
                localMapCells[blockI].b[cIndex] = colourP->b[pointI];
@@ -525,6 +530,10 @@ __kernel void addFrame(constant oclPositionTrackConfig *config, global int *bloc
                float weightPrev = localMapCells[blockI].weight[cIndex];
                localMapCells[blockI].distance[cIndex] = (localMapCells[blockI].distance[cIndex] * weightPrev +
                      tsdfVal * weightVal) / (weightPrev + weightVal);
+               
+               //if (v < 460) {
+               //   pointI = config->ImageWidth * (v+20) + u;
+               //}
                
                localMapCells[blockI].r[cIndex] = (unsigned char)((weightPrev * 
                         (float)localMapCells[blockI].r[cIndex] +
