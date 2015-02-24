@@ -1768,9 +1768,12 @@ __kernel void rayTraceICP(constant oclPositionTrackConfig *config,
             //float scale = dotProd / sqrt(dist2);
             float scale = dotProd;
             //float scale = 1.0f;
-            float a = (normal.z * transP.y - normal.y * transP.z) * scale;
-            float b = (normal.x * transP.z - normal.z * transP.x) * scale;
-            float c = (normal.y * transP.x - normal.x * transP.y) * scale;
+            //float a = (normal.z * transP.y - normal.y * transP.z) * scale;
+            //float b = (normal.x * transP.z - normal.z * transP.x) * scale;
+            //float c = (normal.y * transP.x - normal.x * transP.y) * scale;
+            float a = (normal.y * transP.z - normal.z * transP.y) * scale;
+            float b = (normal.z * transP.x - normal.x * transP.z) * scale;
+            float c = (normal.x * transP.y - normal.y * transP.x) * scale;
             float d = normal.x * scale;
             float e = normal.y * scale;
             float f = normal.z * scale;
@@ -1863,6 +1866,64 @@ kernel void combineICPResults(global oclLocalMapCommon *common, global float *te
    }   
 }
 
+__kernel void scaleRayTraceICP(constant oclPositionTrackConfig *config, 
+      global oclDepthPoints *predNormals, global float *tempStore,
+      const int numPoints, const int numGroups) {
+   int gIndex = get_global_id(0);
+   int lIndex = get_local_id(0);
+   int wIndex = lIndex % WARP_SIZE;
+
+   int groupNum = get_group_id(0);
+
+   local float results[WARP_SIZE][6];
+
+   int i;
+   if (lIndex < WARP_SIZE) {
+      for (i = 0; i < 6; i++) {
+         results[lIndex][i] = 0.0f;
+      }
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+
+   if (gIndex < numPoints && !isnan(predNormals->x[gIndex])) {
+      float3 normal = (float3)(predNormals->x[gIndex], predNormals->y[gIndex], predNormals->z[gIndex]);
+      normal = fabs(normal);
+
+      atomicFloatAddLocal(&(results[wIndex][0]), normal.y + normal.z);
+      atomicFloatAddLocal(&(results[wIndex][1]), normal.x + normal.z); 
+      atomicFloatAddLocal(&(results[wIndex][2]), normal.x+ normal.y);
+      atomicFloatAddLocal(&(results[wIndex][3]), normal.x);
+      atomicFloatAddLocal(&(results[wIndex][4]), normal.y); 
+      atomicFloatAddLocal(&(results[wIndex][5]), normal.z);
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+   if (lIndex < 16 ) {
+      for(i = 0; i < 6; i++) {
+         results[lIndex][i] += results[lIndex + 16][i];
+      }
+   }
+   if (lIndex < 8) {
+      for(i = 0; i < 6; i++) {
+         results[lIndex][i] += results[lIndex + 8][i];
+      }
+   }
+   if (lIndex < 4) {
+      for(i = 0; i < 6; i++) {
+         results[lIndex][i] += results[lIndex + 4][i];
+      }
+   }
+   if (lIndex < 2) {
+      for(i = 0; i < 6; i++) {
+         results[lIndex][i] += results[lIndex + 2][i];
+      }
+   }
+   barrier(CLK_LOCAL_MEM_FENCE);
+   if (lIndex < 6) {
+      tempStore[groupNum + lIndex * numGroups] = results[0][lIndex] + results[1][lIndex];
+   }
+
+}
+
 kernel void scaleICP(constant oclPositionTrackConfig *config,
       global oclLocalMapCommon *common, global oclDepthPoints *points,
       global oclDepthPoints *normals, global float *tempStore, 
@@ -1943,14 +2004,14 @@ kernel void combineScaleICPResults(global oclLocalMapCommon *common, global floa
       results[index] = res;
    }
    barrier(CLK_LOCAL_MEM_FENCE);
-   int i;
+   /*int i;
    float max = 0.0f;
    for (i = 0; i < 6; i++) {
       if (results[i] > max) {
          max = results[i];
       }
-   }
-   common->icpScale[index] = results[index] / max;
+   }*/
+   common->icpScale[index] = results[index];
    /*if (index >= 3) {
       common->icpScale[index] = 0.001f;
    } else {

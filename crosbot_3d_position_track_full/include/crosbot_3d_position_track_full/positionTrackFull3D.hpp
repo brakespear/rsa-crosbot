@@ -197,6 +197,7 @@ private:
    size_t numBlocksToDeleteOffset;
    size_t highestBlockNumOffset;
    size_t icpResultsOffset;
+   size_t icpScaleResultsOffset;
    cl_mem clPointCloud; //Also predPoints
    cl_mem clColours;  //Also tempStore
    cl_mem clNormals; //Also predNormals
@@ -257,9 +258,13 @@ private:
 
 
    void scaleICP(int numGroups, tf::Transform trans);
+   void scaleRayTraceICP(int numGroups, float scale[6]);
 
    //Solve Ax = b. Requires A to be symmetric. Only looks at bottom left of A
    void solveCholesky(float A[DOF][DOF], float b[DOF], float x[DOF]);
+
+   void mult6x6Vector(float A[DOF][DOF], float b[DOF], float res[DOF]);
+   void multVectorTrans(float vec[DOF], float res[DOF][DOF]);
 
    /*
     * GPU helper methods
