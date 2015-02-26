@@ -270,7 +270,7 @@ private:
    void combineICPResults(int numGroups, int numResults);
 
 
-   void scaleICP(int numGroups, tf::Transform trans);
+   void scaleICP(int numGroups, tf::Transform trans, float scale[6]);
    void scaleRayTraceICP(int numGroups, float scale[6]);
 
    //Solve Ax = b. Requires A to be symmetric. Only looks at bottom left of A

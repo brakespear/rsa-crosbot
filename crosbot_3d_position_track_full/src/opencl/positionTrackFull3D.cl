@@ -1147,7 +1147,8 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
       global oclDepthPoints *points, global oclDepthPoints *normals, 
       global float *tempStore, const int numPoints, const int numGroups,
       const int3 cent, const float3 origin, const float3 rotation0, 
-      const float3 rotation1, const float3 rotation2) {
+      const float3 rotation1, const float3 rotation2,
+      const float dotProdThresh, const float distanceThresh) {
 
    int gIndex = get_global_id(0);
    int lIndex = get_local_id(0);
@@ -1212,12 +1213,19 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
                int bINew = blocks[bIndex];
 
                float3 newNormal = getNormal(config, blocks, localMapCells, cent, bIndexNew, cIndexNew);
+               
+               /*float dist2 = (transP.x - vm.x) * (transP.x - vm.x) + 
+                        (transP.y - vm.y) * (transP.y - vm.y) + 
+                        (transP.z - vm.z) * (transP.z - vm.z);*/
+               float dist2 = localMapCells[bINew].distance[cIndexNew] * localMapCells[bINew].distance[cIndexNew];
+               float dotProd = dot(frameNormal, normal);
 
                if (fabs(localMapCells[bINew].distance[cIndexNew]) <
                      fabs(localMapCells[bI].distance[cIndex]) &&
-                     fabs(localMapCells[bINew].distance[cIndexNew]) < 0.025f &&
+                     //fabs(localMapCells[bINew].distance[cIndexNew]) < 0.025f &&
+                     dist2 < distanceThresh &&
                      //fabs(localMapCells[bI].distance[cIndex]) < 0.3f &&
-                     dot(frameNormal, newNormal) > 0.8f) {
+                     dotProd > dotProdThresh) {
 
 
             //   normal = getNormal(config, blocks, localMapCells, cent, bIndexNew, cIndexNew);
@@ -1280,9 +1288,10 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
 
             //float scale = dot(frameNormal, normal) / localMapCells[bI].distance[cIndex];
             float scale = localMapCells[bI].weight[cIndex] * dot(frameNormal, normal) / localMapCells[bI].distance[cIndex];
-            float a = (normal.z * transP.y - normal.y * transP.z) * scale;
-            float b = (normal.x * transP.z - normal.z * transP.x) * scale;
-            float c = (normal.y * transP.x - normal.x * transP.y) * scale;
+            //float scale = dotProd;
+            float a = (normal.y * transP.z - normal.z * transP.y) * scale;
+            float b = (normal.z * transP.x - normal.x * transP.z) * scale;
+            float c = (normal.x * transP.y - normal.y * transP.x) * scale;
             float d = normal.x * scale;
             float e = normal.y * scale;
             float f = normal.z * scale;
@@ -1294,56 +1303,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
             float e = normal.y * common->icpScale[4];
             float f = normal.z * common->icpScale[5];
 
-            float at = normal.z * transP.y - normal.y * transP.z;
-            float bt = normal.x * transP.z - normal.z * transP.x;
-            float ct = normal.y * transP.x - normal.x * transP.y;
-            float dt = normal.x;
-            float et = normal.y;
-            float ft = normal.z;
-
-            float a = at * common->icpScale[0] * common->icpScale[0] +
-                      bt * common->icpScale[0] * common->icpScale[1] +
-                      ct * common->icpScale[0] * common->icpScale[2] +
-                      dt * common->icpScale[0] * common->icpScale[3] +
-                      et * common->icpScale[0] * common->icpScale[4] +
-                      ft * common->icpScale[0] * common->icpScale[5];
-            float b = at * common->icpScale[1] * common->icpScale[0] +
-                      bt * common->icpScale[1] * common->icpScale[1] +
-                      ct * common->icpScale[1] * common->icpScale[2] +
-                      dt * common->icpScale[1] * common->icpScale[3] +
-                      et * common->icpScale[1] * common->icpScale[4] +
-                      ft * common->icpScale[1] * common->icpScale[5];
-            float c = at * common->icpScale[2] * common->icpScale[0] +
-                      bt * common->icpScale[2] * common->icpScale[1] +
-                      ct * common->icpScale[2] * common->icpScale[2] +
-                      dt * common->icpScale[2] * common->icpScale[3] +
-                      et * common->icpScale[2] * common->icpScale[4] +
-                      ft * common->icpScale[2] * common->icpScale[5];
-            float d = at * common->icpScale[3] * common->icpScale[0] +
-                      bt * common->icpScale[3] * common->icpScale[1] +
-                      ct * common->icpScale[3] * common->icpScale[2] +
-                      dt * common->icpScale[3] * common->icpScale[3] +
-                      et * common->icpScale[3] * common->icpScale[4] +
-                      ft * common->icpScale[3] * common->icpScale[5];
-            float e = at * common->icpScale[4] * common->icpScale[0] +
-                      bt * common->icpScale[4] * common->icpScale[1] +
-                      ct * common->icpScale[4] * common->icpScale[2] +
-                      dt * common->icpScale[4] * common->icpScale[3] +
-                      et * common->icpScale[4] * common->icpScale[4] +
-                      ft * common->icpScale[4] * common->icpScale[5];
-            float f = at * common->icpScale[5] * common->icpScale[0] +
-                      bt * common->icpScale[5] * common->icpScale[1] +
-                      ct * common->icpScale[5] * common->icpScale[2] +
-                      dt * common->icpScale[5] * common->icpScale[3] +
-                      et * common->icpScale[5] * common->icpScale[4] +
-                      ft * common->icpScale[5] * common->icpScale[5];*/
-             
-                     
-
-
-
-
-            /*float normScale = normal.x * (vm.x - transP.x) + 
+            float normScale = normal.x * (vm.x - transP.x) + 
                               normal.y * (vm.y - transP.y) +
                               normal.z * (vm.z - transP.z);*/
             float normScale = (normal.x * (vm.x - transP.x) + 
@@ -1379,7 +1339,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
             atomicFloatAddLocal(&(results[wIndex][26]), normScale * f);
 
             atomic_inc(&(goodCount[wIndex]));
-            atomicFloatAddLocal(&(results[wIndex][27]), localMapCells[bI].distance[cIndex]);
+            //atomicFloatAddLocal(&(results[wIndex][27]), localMapCells[bI].distance[cIndex]);
             //}
             }
             }
@@ -1417,7 +1377,7 @@ __kernel void fastICP(constant oclPositionTrackConfig *config, global int *block
       tempStore[groupNum + lIndex * numGroups] = results[0][lIndex] + results[1][lIndex];
    }
    if (lIndex == 0) {
-      tempStore[groupNum + 28 * numGroups] = goodCount[0] + goodCount[1];
+      tempStore[groupNum + 27 * numGroups] = goodCount[0] + goodCount[1];
    }
 
 }
@@ -1618,7 +1578,7 @@ __kernel void predictSurface(constant oclPositionTrackConfig *config, global int
          ray = transformPoint(ray, zero, rotation0, rotation1, rotation2);
          ray = fast_normalize(ray);
 
-         transP -= ray * config->CellSize * 20;
+         //transP -= ray * config->CellSize * 20;
          bIndex = getBlockIndex(config, transP, cent, centMod);
          if (bIndex < 0 || blocks[bIndex] < 0) {
             return;
@@ -1633,14 +1593,14 @@ __kernel void predictSurface(constant oclPositionTrackConfig *config, global int
          /*if (isnan(prevDist)) {
             return;
          }*/
-         if (prevDist < 0) {
+         if (isnan(prevDist) || prevDist < 0) {
             ray *= -1.0f;
          }
-         float3 increment = ray * config->CellSize;
+         float3 increment = ray * config->CellSize * 2;
 
 
          float3 wrapPos = pos;
-         for (int numSteps = 0; numSteps < 40; numSteps++) {
+         for (int numSteps = 0; numSteps < 20; numSteps++) {
             pos += increment;
             if (pos.x < 0 || pos.y < 0 || pos.z < 0 || pos.x >= config->BlockSize ||
                   pos.y >= config->BlockSize || pos.z >= config->BlockSize) {
@@ -1668,12 +1628,12 @@ __kernel void predictSurface(constant oclPositionTrackConfig *config, global int
             }
 
 
-            /*int indX = pos.x / config->CellSize;
+            int indX = pos.x / config->CellSize;
             int indY = pos.y / config->CellSize;
             int indZ = pos.z / config->CellSize;
             cIndex = indZ * config->NumCellsWidth * config->NumCellsWidth + 
                indY * config->NumCellsWidth + indX;
-            float newDist = localMapCells[bI].distance[cIndex];*/
+            //float newDist = localMapCells[bI].distance[cIndex];
             float newDist = trilinearInterp(config, blocks, localMapCells, cent, bIndex, pos);
 
             if (isnan(newDist) || isnan(prevDist)) {

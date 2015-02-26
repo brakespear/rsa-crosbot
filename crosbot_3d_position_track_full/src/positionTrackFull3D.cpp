@@ -967,57 +967,101 @@ void PositionTrackFull3D::calculateNormals() {
 }
 
 void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPose) {
-
-   int globalSize = getGlobalWorkSize(numDepthPoints);
-   int numGroups = globalSize / LocalSize;
-
+   ros::WallTime t1 = ros::WallTime::now();
+   tf::Transform start = newPose * sensorPose;
+   int nGroups = getGlobalWorkSize(numDepthPoints) / LocalSize;
+   float scale[6];
+   scaleICP(nGroups, start, scale);
+   
+   ros::WallTime t2 = ros::WallTime::now();
+   ros::WallDuration totalTime = t2 - t1;
+   cout << "Total time of scale: " << totalTime.toSec() * 1000.0f << endl;
+   t1 = ros::WallTime::now();
+   
    int kernelI = FAST_ICP;
+   
+   int numPoints = (imageWidth / 4) * (imageHeight / 4);
+   int globalSize = getGlobalWorkSize(numPoints);
+   int numGroups = globalSize / LocalSize;
+  
+   float distThresh = DistThresh4;
+   float dotThresh = DotThresh4;
+   
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clLocalMapBlocks);
    opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clLocalMapCells);
    opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clLocalMapCommon);
-   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
-   opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clNormalsFrame);
+   opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrameXYZ4);
+   opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clNormalsFrame4);
    opencl_task->setArg(6, kernelI, sizeof(cl_mem), &clColours); //tempStore
-   opencl_task->setArg(7, kernelI, sizeof(int), &numDepthPoints);
+   opencl_task->setArg(7, kernelI, sizeof(int), &numPoints);
    opencl_task->setArg(8, kernelI, sizeof(int), &numGroups);
    opencl_task->setArg(9, kernelI, sizeof(ocl_int3), &mapCentre);
-
-   ocl_float zero[NUM_RESULTS];
-   memset(zero, 0, sizeof(ocl_float) * NUM_RESULTS);
+   
+   opencl_task->setArg(14, kernelI, sizeof(float), &dotThresh);
+   opencl_task->setArg(15, kernelI, sizeof(float), &distThresh);
+   
    ocl_float rawResults[NUM_RESULTS];
 
    float A[DOF][DOF];
    float b[DOF];
    float x[DOF];
+   float reg[DOF][DOF];
 
-   tf::Transform start = newPose * sensorPose;
+   start = newPose;
    tf::Transform curTrans = start;
-   
-   //scaleICP(numGroups, curTrans);
-   readBuffer(clLocalMapCommon, CL_TRUE, icpResultsOffset + sizeof(float) * NUM_RESULTS, sizeof(ocl_float) * 6, 
-            rawResults, 0, 0, 0, "Reading the icp scale results");
-   /*cout << "Scale is: " << rawResults[0] << " " << rawResults[1] << " " << rawResults[2] << " " <<
-      rawResults[3] << " " << rawResults[4] << " " << rawResults[5] << endl;*/
-
    Pose startPose = curTrans;
    double y,p,r;
    startPose.getYPR(y,p,r);
-
    cout << "Start pose is: " << startPose.position.x << " " << startPose.position.y << " " <<
-         startPose.position.z << " " << y << " " << p << " " << r << endl;
+         startPose.position.z << "  " << y << " " << p << " " << r << endl;
+
+   float totalMovement[6];
+   for (int i = 0; i < 6; i++) {
+      totalMovement[i] = 0;
+   }
+
+   
+   bool limit = false;
+   if (scale[3] < MinScale || scale[4] < MinScale || scale[5] < MinScale) {
+      limit = true;
+   }
 
    int i;
-   for (i = 0; i < 5; i++) {
+   bool cont = true;
+   bool failed = false;
+   for (i = 0; i < 10 && cont; i++) {
 
-      //writeBuffer(clLocalMapCommon, CL_FALSE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
-      //      zero, 0, 0, 0, "Zeroing the icp results array");
-      /*Pose curPose = curTrans;
-      cout << "Now pose is: " << curPose.position.x << " " << curPose.position.y << " " <<
-         curPose.position.z << endl;*/
+      if (i == 4) {
+         numPoints = (imageWidth / 2) * (imageHeight / 2);
+         globalSize = getGlobalWorkSize(numPoints);
+         numGroups = globalSize / LocalSize;
+         distThresh = DistThresh2;
+         dotThresh = DotThresh2;
+         
+         opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrameXYZ2);
+         opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clNormalsFrame2);
+         opencl_task->setArg(7, kernelI, sizeof(int), &numPoints);
+         opencl_task->setArg(8, kernelI, sizeof(int), &numGroups);
+         opencl_task->setArg(14, kernelI, sizeof(float), &dotThresh);
+         opencl_task->setArg(15, kernelI, sizeof(float), &distThresh);
+      } else if (i == 7) {
+         globalSize = getGlobalWorkSize(numDepthPoints);
+         numGroups = globalSize / LocalSize;
+         distThresh = DistThresh;
+         dotThresh = DotThresh;
+         
+         opencl_task->setArg(4, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
+         opencl_task->setArg(5, kernelI, sizeof(cl_mem), &clNormalsFrame);
+         opencl_task->setArg(7, kernelI, sizeof(int), &numDepthPoints);
+         opencl_task->setArg(8, kernelI, sizeof(int), &numGroups);
+         opencl_task->setArg(14, kernelI, sizeof(float), &dotThresh);
+         opencl_task->setArg(15, kernelI, sizeof(float), &distThresh);
+      }
 
-      tf::Matrix3x3 basis = curTrans.getBasis();
-      tf::Vector3 origin = curTrans.getOrigin();
+      tf::Transform temp = curTrans * sensorPose;
+      tf::Matrix3x3 basis = temp.getBasis();
+      tf::Vector3 origin = temp.getOrigin();
 
       ocl_float3 clBasis[3];
       ocl_float3 clOrigin;
@@ -1041,7 +1085,7 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
       readBuffer(clLocalMapCommon, CL_TRUE, icpResultsOffset, sizeof(ocl_float) * NUM_RESULTS, 
             rawResults, 0, 0, 0, "Reading the icp results");
 
-      A[0][0] = rawResults[0];
+      /*A[0][0] = rawResults[0];
       A[1][0] = rawResults[1];
       A[1][1] = rawResults[2];
       A[2][0] = rawResults[3];
@@ -1077,7 +1121,7 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
 
       //cout << "Num points used: " << rawResults[28] << " average distance:" << rawResults[27]/rawResults[28] << endl; 
 
-      solveCholesky(A, b, x);
+      solveCholesky(A, b, x);*/
 
       /*float check[6];
       check[0] = rawResults[0] * x[0] + rawResults[1] * x[1] + rawResults[3] * x[2] +
@@ -1097,6 +1141,75 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
          cout << check[j] << " " << b[j] << endl;
       }*/
 
+      memset(reg, 0, sizeof(float) * 36);
+      float tempScale[6];
+      float max = 0;
+      for (int j = 0; j < 6; j++) {
+         if (scale[j] > max) {
+            max = scale[j];
+         }
+
+      }
+      for (int j = 0; j < 6; j++) {
+         //tempScale[j] = ((scale[j]) / numDepthPoints) * rawResults[27];
+         //tempScale[j] = 1 - (scale[j] / numDepthPoints);
+         tempScale[j] = 1.0f / (scale[j] / numDepthPoints);
+         tempScale[j] = pow(tempScale[j], 2);
+         tempScale[j] *= 1.0f;
+      }
+      cout << "Temp scale: " << tempScale[0] << " " << tempScale[1] << " " << tempScale[2]
+         << " " << tempScale[3] << " " << tempScale[4] << " " << tempScale[5] << endl;
+      multVectorTrans(tempScale, reg);
+      //reg[0][0] = reg[1][1] = reg[2][2] = reg[3][3] = reg[4][4] = reg[5][5] = 1;
+
+
+      A[0][0] = rawResults[0] + reg[0][0];
+      A[1][0] = rawResults[1] + reg[1][0];
+      A[1][1] = rawResults[2] + reg[1][1];
+      A[2][0] = rawResults[3] + reg[2][0];
+      A[2][1] = rawResults[4] + reg[2][1];
+      A[2][2] = rawResults[5] + reg[2][2];
+      A[3][0] = rawResults[6] + reg[3][0];
+      A[3][1] = rawResults[7] + reg[3][1];
+      A[3][2] = rawResults[8] + reg[3][2];
+      A[3][3] = rawResults[9] + reg[3][3];
+      A[4][0] = rawResults[10] + reg[4][0];
+      A[4][1] = rawResults[11] + reg[4][1];
+      A[4][2] = rawResults[12] + reg[4][2];
+      A[4][3] = rawResults[13] + reg[4][3];
+      A[4][4] = rawResults[14] + reg[4][4];
+      A[5][0] = rawResults[15] + reg[5][0];
+      A[5][1] = rawResults[16] + reg[5][1];
+      A[5][2] = rawResults[17] + reg[5][2];
+      A[5][3] = rawResults[18] + reg[5][3];
+      A[5][4] = rawResults[19] + reg[5][4];
+      A[5][5] = rawResults[20] + reg[5][5];
+
+      float offset[6];
+      mult6x6Vector(reg, totalMovement, offset);
+      offset[0] = offset[1] = offset[2] = offset[3] = offset[4] = offset[5] = 0;
+      b[0] = rawResults[21] - offset[0];
+      b[1] = rawResults[22] - offset[1];
+      b[2] = rawResults[23] - offset[3];
+      b[3] = rawResults[24] - offset[4];
+      b[4] = rawResults[25] - offset[5];
+      b[5] = rawResults[26] - offset[6];
+
+      int count = rawResults[27];
+
+      /*cout << "Raw results: ";
+      for (int j = 0; j < NUM_RESULTS; j++) {
+         cout << rawResults[j] << " ";
+      }
+      cout << endl;*/
+
+      solveCholesky(A, b, x);
+      cout << "Modified results: " << x[0] << " " << x[1] << " " << x[2] << " " << x[3] << " " << x[4]
+         << " " << x[5] << endl;
+
+      cout << "Total movement: " << totalMovement[0] << " " << totalMovement[1] << " " << totalMovement[2] << " "
+          << totalMovement[3] << " " << totalMovement[4] << " " << totalMovement[5] << endl;
+
       /*cout << "Results: ";
       for (int j = 0; j < DOF; j++) {
          cout << x[j] << " ";
@@ -1104,46 +1217,96 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
       cout << endl;*/
 
       bool valid = true;
+      cont = false;
       for (int j = 0; j < DOF; j++) {
          if (isnan(x[j])) {
             valid = false;
          }
-         //x[j] /= (float)(i + 1);
+         if (fabs(x[j]) > MoveThresh) {
+            cont = true;
+         }
+         totalMovement[j] += x[j];
+         //if (j >= 3) {
+         //   x[j] = 0;
+         //}
+         if ((j < 3 && fabs(totalMovement[j]) > MaxMoveRPY) || (j >= 3 && fabs(totalMovement[j]) > MaxMoveXYZ)) {
+            cout << "******Moved too far" << endl;
+            valid = false;
+            break;
+         }
+      }
+      if (i < 5) {
+         cont = true;
       }
       if (!valid) {
-         cout << "Alignment failed" << endl;
+         cout << "********Alignment failed" << endl;
+         failed = true;
+         break;
+      }
+      if (count < MinICPCount) {
+         cout << "***Alignment failed: " << count << endl;
+         failed = true;
          break;
       }
 
-      tf::Vector3 incVec(x[3], x[4], x[5]);
-      //tf::Matrix3x3 incMat(1, x[2], -x[1], -x[2], 1, x[0], x[1], -x[0], 1);
-      //tf::Matrix3x3 incMat(1, -x[2], x[1], x[2], 1, -x[0], -x[1], x[0], 1);
-      tf::Matrix3x3 incMat;
-      incMat.setEulerYPR(x[2], x[1], x[0]);
-      tf::Transform inc(incMat, incVec);
-      Pose incPose = inc;
-      //double r,p,y;
-      incPose.getYPR(y,p,r);
-      cout << incPose.position.x << " " << incPose.position.y << " " << incPose.position.z << " : " 
-         << y << " " << p << " " << r << " : " << rawResults[28] << " " << 
-         rawResults[27]/rawResults[28] << endl;
+      //x[5] = 0;
+      //x[0] = 0;
+      //x[1] = 0;
 
-      //cout << y << " " << p << " " << r << "  " << x[0] << " " << x[1] << " " << x[2] << endl;
-      //y = 0, p = 0, r = 0;
-      //y = 0;
-      //incPose.setYPR(y,p,r);
-      //incPose.position.x = 0;
-      //incPose.position.y = 0;
-      //incPose.position.z = 0;
-      //inc = incPose.toTF();
+      tf::Vector3 incVec(x[3], x[4], x[5]);
+      tf::Matrix3x3 incMat(1, x[2], -x[1], -x[2], 1, x[0], x[1], -x[0], 1);
+      //tf::Matrix3x3 incMat;
+      //incMat.setEulerYPR(x[2], x[1], x[0]);
+      tf::Transform inc(incMat, incVec);
+      
+      Pose incPose = inc;
+      incPose.getYPR(y,p,r);
+
+      //cout << incPose.position.x << " " << incPose.position.y << " " << incPose.position.z << " : " 
+      //   << y << " " << p << " " << r << " : " << rawResults[27] << " " << endl;
+      
+      //tf::Vector3 tt = curTrans.getOrigin();
+      //curTrans = inc * curTrans;
+      //curTrans.setOrigin(tt);
+
+      //tf::Transform before = curTrans;
+      //curTrans = inc * curTrans;
+      //curTrans.setOrigin(before.getOrigin());
+
+      //Pose pos = inc;
+      //pos.getYPR(y,p,r);
+      //p = 0;
+      //r = 0;
+      //pos.setYPR(y,p,r);
+      //pos.position.z = 0;
+      //inc = pos.toTF();
+
+
       curTrans = inc * curTrans;
    }
    Pose endPose = curTrans;
    endPose.getYPR(y,p,r);
    cout << "End pose is: " << endPose.position.x << " " << endPose.position.y << " " <<
-       endPose.position.z << " " << y << " " << p << " " << r << endl;
-   icpFullPose = curTrans * sensorPose.inverse();
-
+       endPose.position.z << "  " << y << " " << p << " " << r << endl;
+   if (!failed) {
+      if (limit) {
+         cout << "^^^^Uncertain of x,y,y, limiting movement" << endl;
+         double yn, rn, pn, yo, ro, po;
+         Pose newPose = curTrans;
+         newPose.getYPR(yn,pn,rn);
+         icpFullPose.getYPR(yo,po,ro);
+         icpFullPose.position.z = newPose.position.z;
+         icpFullPose.setYPR(yo,pn,rn);
+      } else {
+         icpFullPose = curTrans;
+      }
+      numFails = 0;
+   } else {
+      numFails++;
+   }
+   t2 = ros::WallTime::now();
+   totalTime = t2 - t1;
+   cout << "Total time of icp aligning (" << i << "its): " << totalTime.toSec() * 1000.0f << endl;
 }
 
 
@@ -1655,7 +1818,7 @@ void PositionTrackFull3D::combineICPResults(int numGroups, int numResults) {
 
 }
 
-void PositionTrackFull3D::scaleICP(int numGroups, tf::Transform trans) {
+void PositionTrackFull3D::scaleICP(int numGroups, tf::Transform trans, float scale[6]) {
    tf::Matrix3x3 basis = trans.getBasis();
 
    ocl_float3 clBasis[3];
@@ -1682,6 +1845,10 @@ void PositionTrackFull3D::scaleICP(int numGroups, tf::Transform trans) {
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clColours); //tempStore
    opencl_task->setArg(2, kernelI, sizeof(int), &numGroups);
    opencl_task->queueKernel(kernelI, 1, LocalSize, LocalSize, 0, NULL, NULL, false);
+   readBuffer(clLocalMapCommon, CL_TRUE, icpScaleResultsOffset, sizeof(ocl_float) * 6, 
+         scale, 0, 0, 0, "Reading the scale icp results");
+   cout << "Scale results are: " << scale[0] << " " << scale[1] << " " << scale[2] << " " 
+      << scale[3] << " " << scale[4] << " " << scale[5] << endl;
 }
 
 void PositionTrackFull3D::alignZOnlyICP(tf::Transform sensorPose, tf::Transform newPose) {
