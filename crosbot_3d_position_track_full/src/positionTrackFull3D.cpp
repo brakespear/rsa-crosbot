@@ -81,7 +81,6 @@ PositionTrackFull3D::PositionTrackFull3D() {
    newLocalMapInfo = NULL;
    currentLocalMapInfo = NULL;
 
-   numFails = FailCount;
 
 
    f = fopen("res.txt", "w");
@@ -109,7 +108,7 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("SliceMult", SliceMult, 2);
    paramNH.param<int>("MaxPointsFrac", MaxPointsFrac, 1);
    paramNH.param<bool>("ReExtractBlocks", ReExtractBlocks, false);
-   paramNH.param<double>("DepthDistThreshold", DepthDistThreshold, 0.2);
+   paramNH.param<double>("DepthDistThreshold", DepthDistThreshold, 0.05);
    paramNH.param<int>("FilterWindowSize", FilterWindowSize, 4);
    paramNH.param<double>("FilterScalePixel", FilterScalePixel, 0.5);
    paramNH.param<int>("SkipNumCheckBlocks", SkipNumCheckBlocks, 4);
@@ -120,7 +119,7 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("MinICPCount", MinICPCount, 100);
    paramNH.param<double>("MaxMoveXYZ", MaxMoveXYZ, 0.3);
    paramNH.param<double>("MaxMoveRPY", MaxMoveRPY, 0.3);
-   paramNH.param<int>("FailCount", FailCount, 10);
+   paramNH.param<int>("FailCount", FailCount, 50);
    paramNH.param<double>("MinScale", MinScale, 8000);
 
 
@@ -142,6 +141,8 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    
    int maxPointsPerBlock = SliceMult * NumCellsWidth * NumCellsWidth;
    MaxPoints = maxPointsPerBlock * NumBlocksAllocated / MaxPointsFrac; //numBlocks
+   
+   numFails = FailCount;
 
 }
 
@@ -1506,12 +1507,12 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
          //tempScale[j] = 1 - (scale[j] / numDepthPoints);
          tempScale[j] = 1.0f / (scale[j] / numDepthPoints);
          tempScale[j] = pow(tempScale[j], 2);
-         tempScale[j] *= 1.0f;
+         tempScale[j] *= 1000.0f;
       }
       cout << "Temp scale: " << tempScale[0] << " " << tempScale[1] << " " << tempScale[2]
          << " " << tempScale[3] << " " << tempScale[4] << " " << tempScale[5] << endl;
       multVectorTrans(tempScale, reg);
-      //reg[0][0] = reg[1][1] = reg[2][2] = reg[3][3] = reg[4][4] = reg[5][5] = 1;
+      //reg[0][0] = reg[1][1] = reg[2][2] = reg[3][3] = reg[4][4] = reg[5][5] = 0;
 
 
       A[0][0] = rawResults[0] + reg[0][0];
@@ -1541,10 +1542,10 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
       offset[0] = offset[1] = offset[2] = offset[3] = offset[4] = offset[5] = 0;
       b[0] = rawResults[21] - offset[0];
       b[1] = rawResults[22] - offset[1];
-      b[2] = rawResults[23] - offset[3];
-      b[3] = rawResults[24] - offset[4];
-      b[4] = rawResults[25] - offset[5];
-      b[5] = rawResults[26] - offset[6];
+      b[2] = rawResults[23] - offset[2];
+      b[3] = rawResults[24] - offset[3];
+      b[4] = rawResults[25] - offset[4];
+      b[5] = rawResults[26] - offset[5];
 
       int count = rawResults[27];
 
