@@ -1980,7 +1980,9 @@ kernel void combineScaleICPResults(global oclLocalMapCommon *common, global floa
          max = results[i];
       }
    }*/
-   common->icpScale[index] = results[index];
+   if (index < 6) {
+      common->icpScale[index] = results[index];
+   }
    /*if (index >= 3) {
       common->icpScale[index] = 0.001f;
    } else {

@@ -33,8 +33,8 @@
       <param name="rgb_sub" value="/camera/rgb/image_color" />
       <!--param name="depth_sub" value="/camera/depth_registered/image_raw" /-->
       <param name="depth_sub" value="/camera/depth/image" />
-      <param name="UseLocalMaps" value="false" />
-      <param name="OutputCurrentMap" value="true" />
+      <param name="UseLocalMaps" value="true" />
+      <param name="OutputCurrentMap" value="false" />
       <param name="PublishTransform" value="true" />
       <param name="PublishMessage" value="true" />
       <param name="SkipNumCheckBlocks" value="4" />
@@ -57,7 +57,7 @@
       <param name="UseOdometry" value="true" />
 	</node>
 
-   <!--node pkg="crosbot_graphslam" type="crosbot_graphslam" name="crosbot_graphslam">
+   <node pkg="crosbot_graphslam" type="crosbot_graphslam" name="crosbot_graphslam">
 		<param name="base_frame" value="base_footprint" />
       <param name="icp_frame" value="icp_z" />
       <param name="InformationScaleFactor" value ="100000" />
@@ -66,17 +66,17 @@
       <param name="MaxErrorTheta" value ="0.3" />
       <param name="FinalMinGoodCount" value ="110" />
       <param name="UseTempLoopClosures" value ="false" />
-	</node-->
-  <!--node pkg="image_view" type="image_view" name="globalmap_view">
+	</node>
+  <node pkg="image_view" type="image_view" name="globalmap_view">
       <remap from="image" to="globalImage" />
-	</node-->
+	</node>
 
 
-   <!--node pkg="crosbot_3d_graphslam_full" type="crosbot_3d_graphslam_full" name="crosbot_3d_graphslam_full" output="screen">
-	</node-->
+   <node pkg="crosbot_3d_graphslam_full" type="crosbot_3d_graphslam_full" name="crosbot_3d_graphslam_full" output="screen">
+	</node>
 
-   <!--node pkg="crosbot_3d_graphslam_display" type="crosbot_3d_graphslam_display" name="crosbot_3d_graphslam_display" output="screen" launch-prefix="nice -n 10">
+   <node pkg="crosbot_3d_graphslam_display" type="crosbot_3d_graphslam_display" name="crosbot_3d_graphslam_display" output="screen" launch-prefix="nice -n 10">
       <param name="CreateMesh" value ="false" />
-   </node-->
+   </node>
 
 </launch>	
