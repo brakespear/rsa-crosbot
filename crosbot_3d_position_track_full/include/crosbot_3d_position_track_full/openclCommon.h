@@ -61,6 +61,7 @@ typedef struct {
    ocl_int FilterWindowSize;
    ocl_float FilterScalePixel;
    ocl_int SkipNumCheckBlocks;
+   ocl_int MaxRayTrace;
 } oclPositionTrackConfig;
 
 typedef struct {

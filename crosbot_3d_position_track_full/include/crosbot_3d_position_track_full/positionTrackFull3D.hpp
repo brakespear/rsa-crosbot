@@ -114,6 +114,8 @@ private:
    double FilterScalePixel;
    //How many pixels will be skipped in the checkBlocks kernel
    int SkipNumCheckBlocks;
+   //Maximum number of cells the ray trace will go for
+   int MaxRayTrace;
    //When the movement in an iteration falls below this, it will stop
    double MoveThresh;
    //Should odometry be used as a guess?
@@ -132,6 +134,15 @@ private:
    //If a x,y,th value of the raw icp scaling results falls below this, only look at the 
    //r,p and z values of the alignment
    double MinScale;
+   //Maximum number of ICP iterations that will be performed
+   int MaxICPIterations;
+   //Minimum number of ICP iterations
+   int MinICPIterations;
+   //Number of itratons for each pyramid stage
+   int NumICPIterations4;
+   int NumICPIterations2;
+   //Amount to scale the regularisation term in ICP
+   double ScaleRegularisation;
 
 
    double DistThresh;

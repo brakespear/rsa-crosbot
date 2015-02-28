@@ -112,6 +112,7 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("FilterWindowSize", FilterWindowSize, 4);
    paramNH.param<double>("FilterScalePixel", FilterScalePixel, 0.5);
    paramNH.param<int>("SkipNumCheckBlocks", SkipNumCheckBlocks, 4);
+   paramNH.param<int>("MaxRayTrace", MaxRayTrace, 20);
    paramNH.param<double>("MoveThresh", MoveThresh, 0.001);
    paramNH.param<bool>("UseOdometry", UseOdometry, true);
    paramNH.param<bool>("UseICP", UseICP, true);
@@ -121,6 +122,11 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("MaxMoveRPY", MaxMoveRPY, 0.3);
    paramNH.param<int>("FailCount", FailCount, 50);
    paramNH.param<double>("MinScale", MinScale, 8000);
+   paramNH.param<int>("MaxICPIterations", MaxICPIterations, 10);
+   paramNH.param<int>("MinICPIterations", MinICPIterations, 5);
+   paramNH.param<int>("NumICPIterations4", NumICPIterations4, 4);
+   paramNH.param<int>("NumICPIterations2", NumICPIterations2, 7);
+   paramNH.param<double>("ScaleRegularisation", ScaleRegularisation, 1);
 
 
    paramNH.param<double>("DistThresh", DistThresh, 0.0005);
@@ -219,6 +225,7 @@ void PositionTrackFull3D::setupGPU() {
    positionTrackConfig.FilterWindowSize = FilterWindowSize;
    positionTrackConfig.FilterScalePixel = FilterScalePixel;
    positionTrackConfig.SkipNumCheckBlocks = SkipNumCheckBlocks;
+   positionTrackConfig.MaxRayTrace = MaxRayTrace;
    clPositionTrackConfig = opencl_manager->deviceAlloc(sizeof(oclPositionTrackConfig),
          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &positionTrackConfig);
 
@@ -1382,18 +1389,20 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
    if (scale[3] < MinScale || scale[4] < MinScale || scale[5] < MinScale) {
       limit = true;
    }
+   double scaleOff = 16;
 
    int i;
    bool cont = true;
    bool failed = false;
-   for (i = 0; i < 10 && cont; i++) {
+   for (i = 0; i < MaxICPIterations && cont; i++) {
 
-      if (i == 4) {
+      if (i == NumICPIterations4) {
          numPoints = (imageWidth / 2) * (imageHeight / 2);
          globalSize = getGlobalWorkSize(numPoints);
          numGroups = globalSize / LocalSize;
          distThresh = DistThresh2;
          dotThresh = DotThresh2;
+         scaleOff = 4;
          
          opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clDepthFrameXYZ2);
          opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clNormalsFrame2);
@@ -1401,11 +1410,12 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
          opencl_task->setArg(8, kernelI, sizeof(int), &numGroups);
          opencl_task->setArg(17, kernelI, sizeof(float), &dotThresh);
          opencl_task->setArg(18, kernelI, sizeof(float), &distThresh);
-      } else if (i == 7) {
+      } else if (i == NumICPIterations2) {
          globalSize = getGlobalWorkSize(numDepthPoints);
          numGroups = globalSize / LocalSize;
          distThresh = DistThresh;
          dotThresh = DotThresh;
+         scaleOff = 1;
          
          opencl_task->setArg(2, kernelI, sizeof(cl_mem), &clDepthFrameXYZ);
          opencl_task->setArg(3, kernelI, sizeof(cl_mem), &clNormalsFrame);
@@ -1507,7 +1517,7 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
          //tempScale[j] = 1 - (scale[j] / numDepthPoints);
          tempScale[j] = 1.0f / (scale[j] / numDepthPoints);
          tempScale[j] = pow(tempScale[j], 2);
-         tempScale[j] *= 1000.0f;
+         tempScale[j] *= (ScaleRegularisation / scaleOff);
       }
       cout << "Temp scale: " << tempScale[0] << " " << tempScale[1] << " " << tempScale[2]
          << " " << tempScale[3] << " " << tempScale[4] << " " << tempScale[5] << endl;
@@ -1587,7 +1597,7 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
             break;
          }
       }
-      if (i < 5) {
+      if (i < MinICPIterations) {
          cont = true;
       }
       if (!valid) {

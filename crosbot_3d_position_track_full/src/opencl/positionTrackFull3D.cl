@@ -1600,7 +1600,7 @@ __kernel void predictSurface(constant oclPositionTrackConfig *config, global int
 
 
          float3 wrapPos = pos;
-         for (int numSteps = 0; numSteps < 20; numSteps++) {
+         for (int numSteps = 0; numSteps < config->MaxRayTrace; numSteps++) {
             pos += increment;
             if (pos.x < 0 || pos.y < 0 || pos.z < 0 || pos.x >= config->BlockSize ||
                   pos.y >= config->BlockSize || pos.z >= config->BlockSize) {
