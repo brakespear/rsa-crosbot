@@ -131,18 +131,24 @@ private:
    pcl::PointCloud<pcl::PointNormal>::Ptr addPointsToCloud(
          PointCloudPtr cloud, PointCloudPtr normal);
 
+   pcl::PointCloud<pcl::PointNormal>::Ptr getMapICloud(int mapI, int mapJ);
+   pcl::PointCloud<pcl::PointNormal>::Ptr getMapJCloud(int mapJ, int mapI);
+
    inline pcl::PointNormal getClosestPoint(pcl::KdTreeFLANN<pcl::PointNormal> &kdTree, 
          pcl::PointCloud<pcl::PointNormal>::Ptr cloud, tf::Vector3 p);
 
    void calculateInfo(pcl::KdTreeFLANN<pcl::PointNormal> &kdTree,
-         pcl::PointCloud<pcl::PointNormal>::Ptr cloud, int otherI, tf::Transform diff,
+         pcl::PointCloud<pcl::PointNormal>::Ptr cloud,
+         pcl::PointCloud<pcl::PointNormal>::Ptr otherCloud, tf::Transform diff,
          double info[6][6]);
 
    tf::Transform performICP(pcl::KdTreeFLANN<pcl::PointNormal> &kdTree,
-         pcl::PointCloud<pcl::PointNormal>::Ptr cloud, int otherI, tf::Transform initTrans);
+         pcl::PointCloud<pcl::PointNormal>::Ptr cloud, 
+         pcl::PointCloud<pcl::PointNormal>::Ptr otherCloud, tf::Transform initTrans);
 
    int performICPIteration(pcl::KdTreeFLANN<pcl::PointNormal> &kdTree,
-         pcl::PointCloud<pcl::PointNormal>::Ptr cloud, int otherI, tf::Transform trans,
+         pcl::PointCloud<pcl::PointNormal>::Ptr cloud, 
+         pcl::PointCloud<pcl::PointNormal>::Ptr otherCloud, tf::Transform trans,
          double A[6][6], double b[6], double distThresh, double dotThresh, int numSkip);
 
    void solveCholesky(double A[6][6], double b[6], double x[6]);

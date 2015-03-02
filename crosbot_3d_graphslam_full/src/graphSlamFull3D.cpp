@@ -85,12 +85,19 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
 
    if (parentIndex != -1) {
    
-      pcl::KdTreeFLANN<pcl::PointNormal> kdTree;
-      kdTree.setEpsilon(KDTreeEpsilon);
-      kdTree.setInputCloud(cloud);
+      //TODO: get the proper info
+      for (int j = 0; j < 6; j++) {
+         for (int i = 0; i < 6; i++) {
+            if (j == i) {
+               localMaps[currentIndex]->parentInfo[j][i] = 1;
+            } else {
+               localMaps[currentIndex]->parentInfo[j][i] = 0;
+            }
+         }
+      }
 
-      tf::Transform diff = localMaps[currentIndex]->pose.inverse() * localMaps[parentIndex]->pose;
-      calculateInfo(kdTree, cloud, parentIndex, diff, localMaps[currentIndex]->parentInfo);
+      //tf::Transform diff = localMaps[currentIndex]->pose.inverse() * localMaps[parentIndex]->pose;
+      //calculateInfo(kdTree, cloud, localMaps[parentIndex]->cloud, diff, localMaps[currentIndex]->parentInfo);
       if (parentIndex + 1 == currentIndex) {
          localMaps[currentIndex]->parentOffset = localMaps[parentIndex]->icpPose.inverse() * localMaps[currentIndex]->icpPose;
       } else {
@@ -126,7 +133,7 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
          int mapI = loopConstraints[startNewConstraints]->i;
          int mapJ = loopConstraints[startNewConstraints]->j;
          //TODO: get transform from loop close service??
-         tf::Transform diff = localMaps[mapJ]->pose.inverse() * localMaps[mapI]->pose;
+         tf::Transform diff = localMaps[mapI]->pose.inverse() * localMaps[mapJ]->pose;
          cout << "Matching maps: " << mapI << " " << mapJ << endl;
          double y,p,r;
          Pose pp = diff;
@@ -134,65 +141,73 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
          cout << "Pose initial: " << pp.position.x << " " << pp.position.y << " " << pp.position.z << 
             " " << y << " " << p << " " << r << endl;
 
+         pcl::PointCloud<pcl::PointNormal>::Ptr mapICloud = getMapICloud(mapI, mapJ);
+         pcl::PointCloud<pcl::PointNormal>::Ptr mapJCloud = getMapJCloud(mapJ, mapI);
 
          
-   int numPoints = localMapInfo->cloud->cloud.size();
-   cout << "outputting current map: " << endl;
-   FILE *f = fopen("curMap.pcd", "w");
-   fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F \nCOUNT 1 1 1 \nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
-   for (int i = 0; i < numPoints;i++) {
-      fprintf(f, "%f %f %f\n", localMapInfo->cloud->cloud[i].x, localMapInfo->cloud->cloud[i].y, 
-            localMapInfo->cloud->cloud[i].z);
-   }
-   fclose(f);
-   cout << "done" << endl;
-   numPoints = localMaps[mapI]->cloud->size();
-   f = fopen("otherMap.pcd", "w");
-   fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F \nCOUNT 1 1 1 \nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
-   for (int i = 0; i < numPoints;i++) {
-      tf::Vector3 p;
-      p[0] = (*(localMaps[mapI]->cloud))[i].x;
-      p[1] = (*(localMaps[mapI]->cloud))[i].y;
-      p[2] = (*(localMaps[mapI]->cloud))[i].z;
-      p = diff * p;
-      fprintf(f, "%f %f %f\n", p.x(), p.y(), p.z());
-   }
-   fclose(f);
+         //Debugging
+         int numPoints = mapICloud->size();
+         cout << "outputting previous map: " << endl;
+         FILE *f = fopen("otherMap.pcd", "w");
+         fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F \nCOUNT 1 1 1 \nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
+         for (int i = 0; i < numPoints;i++) {
+            fprintf(f, "%f %f %f\n", (*mapICloud)[i].x, (*mapICloud)[i].y, 
+                  (*mapICloud)[i].z);
+         }
+         fclose(f);
+         cout << "done" << endl;
+         numPoints = mapJCloud->size();
+         f = fopen("curMap.pcd", "w");
+         fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F \nCOUNT 1 1 1 \nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
+         for (int i = 0; i < numPoints;i++) {
+            tf::Vector3 p;
+            p[0] = (*mapJCloud)[i].x;
+            p[1] = (*mapJCloud)[i].y;
+            p[2] = (*mapJCloud)[i].z;
+            p = diff * p;
+            fprintf(f, "%f %f %f\n", p.x(), p.y(), p.z());
+         }
+         fclose(f);
 
 
 
+         pcl::KdTreeFLANN<pcl::PointNormal> kdTree;
+         kdTree.setEpsilon(KDTreeEpsilon);
+         kdTree.setInputCloud(mapICloud);
 
          
          cout << "About to perform ICP" << endl; 
-         tf::Transform change = performICP(kdTree, cloud, mapI, diff);
+         tf::Transform change = performICP(kdTree, mapICloud, mapJCloud, diff);
          cout << "Performed ICP" << endl;
-         calculateInfo(kdTree, cloud, mapI, change, loopConstraints[startNewConstraints]->info);
+         calculateInfo(kdTree, mapICloud, mapJCloud, change, loopConstraints[startNewConstraints]->info);
          //loopConstraints[startNewConstraints]->offset = localMaps[mapI]->pose.inverse() *
          //   localMaps[mapJ]->pose * change;
-         loopConstraints[startNewConstraints]->offset = change.inverse();
+         loopConstraints[startNewConstraints]->offset = change; //.inverse();
   
          
          pp = change;
          pp.getYPR(y,p,r);
          cout << "Pose change: " << pp.position.x << " " << pp.position.y << " " << pp.position.z <<
             " " << y << " " << p << " " << r << endl;
-         loopConstraints[startNewConstraints]->offset = pp.toTF().inverse();
+         //loopConstraints[startNewConstraints]->offset = pp.toTF();//.inverse();
   
          
       
-   
-   numPoints = localMaps[mapI]->cloud->size();
-   f = fopen("otherMapAl.pcd", "w");
-   fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F \nCOUNT 1 1 1 \nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
-   for (int i = 0; i < numPoints;i++) {
-      tf::Vector3 p;
-      p[0] = (*(localMaps[mapI]->cloud))[i].x;
-      p[1] = (*(localMaps[mapI]->cloud))[i].y;
-      p[2] = (*(localMaps[mapI]->cloud))[i].z;
-      p = change * p;
-      fprintf(f, "%f %f %f\n", p.x(), p.y(), p.z());
-   }
-   fclose(f);
+         //More debugging
+         numPoints = mapJCloud->size();
+         f = fopen("curMapAl.pcd", "w");
+         fprintf(f, "VERSION .7\nFIELDS x y z\nSIZE 4 4 4 \nTYPE F F F \nCOUNT 1 1 1 \nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA ascii\n", numPoints, numPoints);
+         for (int i = 0; i < numPoints;i++) {
+            tf::Vector3 p;
+            p[0] = (*mapJCloud)[i].x;
+            p[1] = (*mapJCloud)[i].y;
+            p[2] = (*mapJCloud)[i].z;
+            p = change * p;
+            fprintf(f, "%f %f %f\n", p.x(), p.y(), p.z());
+         }
+         fclose(f);
+
+
          
          cout << "About to optimise" << endl;
          optimiseGlobalMapg2o();
@@ -273,6 +288,93 @@ pcl::PointCloud<pcl::PointNormal>::Ptr GraphSlamFull3D::addPointsToCloud(
    return out;
 }
 
+pcl::PointCloud<pcl::PointNormal>::Ptr GraphSlamFull3D::getMapICloud(int mapI, int mapJ) {
+   pcl::PointCloud<pcl::PointNormal>::Ptr out(new pcl::PointCloud<pcl::PointNormal>(*(localMaps[mapI]->cloud)));
+
+   int curSize = out->size();
+   if (mapI > 0) {
+      int before = mapI - 1;
+      int size = localMaps[before]->cloud->size();
+      out->resize(curSize + size);
+      tf::Transform trans = localMaps[mapI]->icpPose.inverse() * localMaps[before]->icpPose;
+      for(int i = 0; i < size; i++) {
+         int index = curSize + i;
+         pcl::PointNormal p;
+         tf::Vector3 newPos((*(localMaps[before]->cloud))[i].x, (*(localMaps[before]->cloud))[i].y,
+               (*(localMaps[before]->cloud))[i].z);
+         newPos = trans * newPos;
+         p.x = newPos.x();
+         p.y = newPos.y();
+         p.z = newPos.z();
+         trans.setOrigin(tf::Vector3(0,0,0));
+         tf::Vector3 newNorm((*(localMaps[before]->cloud))[i].normal_x, (*(localMaps[before]->cloud))[i].normal_y,
+               (*(localMaps[before]->cloud))[i].normal_z);
+         newNorm = trans * newNorm;
+         p.normal_x = newNorm.x();
+         p.normal_y = newNorm.y();
+         p.normal_z = newNorm.z();
+         (*out)[index] = p;
+      }
+      curSize = out->size();
+   }
+   if (mapI < mapJ - 1) {
+      int after = mapI + 1;
+      int size = localMaps[after]->cloud->size();
+      out->resize(curSize + size);
+      tf::Transform trans = localMaps[mapI]->icpPose.inverse() * localMaps[after]->icpPose;
+      for(int i = 0; i < size; i++) {
+         int index = curSize + i;
+         pcl::PointNormal p;
+         tf::Vector3 newPos((*(localMaps[after]->cloud))[i].x, (*(localMaps[after]->cloud))[i].y,
+               (*(localMaps[after]->cloud))[i].z);
+         newPos = trans * newPos;
+         p.x = newPos.x();
+         p.y = newPos.y();
+         p.z = newPos.z();
+         trans.setOrigin(tf::Vector3(0,0,0));
+         tf::Vector3 newNorm((*(localMaps[after]->cloud))[i].normal_x, (*(localMaps[after]->cloud))[i].normal_y,
+               (*(localMaps[after]->cloud))[i].normal_z);
+         newNorm = trans * newNorm;
+         p.normal_x = newNorm.x();
+         p.normal_y = newNorm.y();
+         p.normal_z = newNorm.z();
+         (*out)[index] = p;
+      }
+   }
+   return out;
+}
+
+pcl::PointCloud<pcl::PointNormal>::Ptr GraphSlamFull3D::getMapJCloud(int mapJ, int mapI) {
+   pcl::PointCloud<pcl::PointNormal>::Ptr out(new pcl::PointCloud<pcl::PointNormal>(*(localMaps[mapJ]->cloud)));
+
+   int curSize = out->size();
+   if (mapJ > mapI + 2) {
+      int before = mapJ - 1;
+      int size = localMaps[before]->cloud->size();
+      out->resize(curSize + size);
+      tf::Transform trans = localMaps[mapJ]->icpPose.inverse() * localMaps[before]->icpPose;
+      for(int i = 0; i < size; i++) {
+         int index = curSize + i;
+         pcl::PointNormal p;
+         tf::Vector3 newPos((*(localMaps[before]->cloud))[i].x, (*(localMaps[before]->cloud))[i].y,
+               (*(localMaps[before]->cloud))[i].z);
+         newPos = trans * newPos;
+         p.x = newPos.x();
+         p.y = newPos.y();
+         p.z = newPos.z();
+         trans.setOrigin(tf::Vector3(0,0,0));
+         tf::Vector3 newNorm((*(localMaps[before]->cloud))[i].normal_x, (*(localMaps[before]->cloud))[i].normal_y,
+               (*(localMaps[before]->cloud))[i].normal_z);
+         newNorm = trans * newNorm;
+         p.normal_x = newNorm.x();
+         p.normal_y = newNorm.y();
+         p.normal_z = newNorm.z();
+         (*out)[index] = p;
+      }
+   }
+   return out;
+}
+
 inline pcl::PointNormal GraphSlamFull3D::getClosestPoint(pcl::KdTreeFLANN<pcl::PointNormal> &kdTree, 
          pcl::PointCloud<pcl::PointNormal>::Ptr cloud, tf::Vector3 p) {
    pcl::PointNormal point;
@@ -293,7 +395,8 @@ inline pcl::PointNormal GraphSlamFull3D::getClosestPoint(pcl::KdTreeFLANN<pcl::P
 }
 
 void GraphSlamFull3D::calculateInfo(pcl::KdTreeFLANN<pcl::PointNormal> &kdTree,
-      pcl::PointCloud<pcl::PointNormal>::Ptr cloud, int otherI, tf::Transform diff,
+      pcl::PointCloud<pcl::PointNormal>::Ptr cloud, 
+      pcl::PointCloud<pcl::PointNormal>::Ptr otherCloud, tf::Transform diff,
       double info[6][6]) {
 
    for (int j = 0; j < 6; j++) {
@@ -306,7 +409,6 @@ void GraphSlamFull3D::calculateInfo(pcl::KdTreeFLANN<pcl::PointNormal> &kdTree,
    }
 
    /*int count = 0;
-   pcl::PointCloud<pcl::PointNormal>::Ptr otherCloud = localMaps[otherI]->cloud;
    int size = otherCloud->size();
    for (int i = 0; i < size; i += SkipPoints) {
       tf::Vector3 p((*otherCloud)[i].x, (*otherCloud)[i].y, (*otherCloud)[i].z);
@@ -337,7 +439,8 @@ void GraphSlamFull3D::calculateInfo(pcl::KdTreeFLANN<pcl::PointNormal> &kdTree,
 }
 
 tf::Transform GraphSlamFull3D::performICP(pcl::KdTreeFLANN<pcl::PointNormal> &kdTree,
-         pcl::PointCloud<pcl::PointNormal>::Ptr cloud, int otherI, tf::Transform initTrans) {
+         pcl::PointCloud<pcl::PointNormal>::Ptr cloud, 
+         pcl::PointCloud<pcl::PointNormal>::Ptr otherCloud, tf::Transform initTrans) {
 
    bool cont = true;
    bool failed = false;
@@ -358,7 +461,7 @@ tf::Transform GraphSlamFull3D::performICP(pcl::KdTreeFLANN<pcl::PointNormal> &kd
          numSkip = SkipPoints;
       }
 
-      int goodCount = performICPIteration(kdTree, cloud, otherI, trans, A, b, distThresh, dotThresh,
+      int goodCount = performICPIteration(kdTree, cloud, otherCloud, trans, A, b, distThresh, dotThresh,
             numSkip);
 
       solveCholesky(A, b, x);
@@ -397,7 +500,8 @@ tf::Transform GraphSlamFull3D::performICP(pcl::KdTreeFLANN<pcl::PointNormal> &kd
 }
 
 int GraphSlamFull3D::performICPIteration(pcl::KdTreeFLANN<pcl::PointNormal> &kdTree,
-         pcl::PointCloud<pcl::PointNormal>::Ptr cloud, int otherI, tf::Transform trans,
+         pcl::PointCloud<pcl::PointNormal>::Ptr cloud, 
+         pcl::PointCloud<pcl::PointNormal>::Ptr otherCloud, tf::Transform trans,
          double AOut[6][6], double bOut[6], double distThresh, double dotThresh, int numSkip) {
 
    for (int y = 0; y < 6; y++) {
@@ -408,7 +512,6 @@ int GraphSlamFull3D::performICPIteration(pcl::KdTreeFLANN<pcl::PointNormal> &kdT
    }
 
    int goodCount = 0;
-   pcl::PointCloud<pcl::PointNormal>::Ptr otherCloud = localMaps[otherI]->cloud;
    int size = otherCloud->size();
    for (int i = 0; i < size; i += numSkip) {
       tf::Vector3 p((*otherCloud)[i].x, (*otherCloud)[i].y, (*otherCloud)[i].z);

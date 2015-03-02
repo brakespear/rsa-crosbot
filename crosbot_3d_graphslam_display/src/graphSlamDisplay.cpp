@@ -588,6 +588,7 @@ void GraphSlamDisplay::outputPoseToFile(string fileName) {
          tf::Transform point = mapTrans * maps[i].poseHistory[j].toTF();
          tf::Vector3 pVec = point.getOrigin();
          tf::Quaternion pQuat = point.getRotation();
+         pQuat.normalize();
          ostringstream tt;
          tt << maps[i].timeHistory[j].toROS();
          const char *st = tt.str().c_str();
