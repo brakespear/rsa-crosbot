@@ -97,6 +97,11 @@ private:
    PointCloud points;
 
    /*
+    * icpPose of preivous map. Used to adjust map positions
+    */
+   tf::Transform prevIcpPose;
+
+   /*
     * Local maps vector
     */
    vector<LocalMap> maps;

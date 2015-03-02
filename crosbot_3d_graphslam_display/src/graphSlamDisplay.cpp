@@ -54,7 +54,15 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
    cloud->resize(localMapPoints->cloud->cloud.size());
    normals->resize(localMapPoints->normals->cloud.size());
 
-   tf::Transform mapPose = localMapPoints->pose.toTF();
+   tf::Transform mapPose;
+   if (maps.size() == 0) {
+      mapPose = localMapPoints->pose.toTF();
+   } else {
+      tf::Transform changePose = prevIcpPose.inverse() * localMapPoints->icpPose.toTF();
+      tf::Transform mapPose = maps[maps.size()-1].pose.toTF() * changePose;
+   }
+   prevIcpPose = localMapPoints->icpPose.toTF();
+
 
    for (int i = 0; i < localMapPoints->cloud->cloud.size(); i++) {
       Point point = mapPose * localMapPoints->cloud->cloud[i].toTF();
@@ -162,7 +170,7 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
 
       viewerLock.lock();
       LocalMap newMap;
-      newMap.pose = localMapPoints->pose;
+      newMap.pose = mapPose;
       newMap.poseHistory = localMapPoints->poseHistory;
       newMap.timeHistory = localMapPoints->timeHistory;
       cout << "sizes are: " << localMapPoints->poseHistory.size() << " " << newMap.poseHistory.size() << endl;
@@ -206,7 +214,7 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
    } else {
       cout << "ERROR: Creating an empty mesh" << endl;
       LocalMap newMap;
-      newMap.pose = localMapPoints->pose;
+      newMap.pose = mapPose;
       newMap.poseHistory = localMapPoints->poseHistory;
       newMap.timeHistory = localMapPoints->timeHistory;
       if (CreateMesh) {
