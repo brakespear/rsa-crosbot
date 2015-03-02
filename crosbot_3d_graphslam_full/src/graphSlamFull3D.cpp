@@ -91,7 +91,13 @@ void GraphSlamFull3D::newLocalMap(LocalMapInfoPtr localMapInfo) {
 
       tf::Transform diff = localMaps[currentIndex]->pose.inverse() * localMaps[parentIndex]->pose;
       calculateInfo(kdTree, cloud, parentIndex, diff, localMaps[currentIndex]->parentInfo);
-      localMaps[currentIndex]->parentOffset = localMaps[parentIndex]->icpPose.inverse() * localMaps[currentIndex]->icpPose;
+      if (parentIndex + 1 == currentIndex) {
+         localMaps[currentIndex]->parentOffset = localMaps[parentIndex]->icpPose.inverse() * localMaps[currentIndex]->icpPose;
+      } else {
+         tf::Transform movement = localMaps[currentIndex - 1]->icpPose.inverse() * localMaps[currentIndex]->icpPose;
+         tf::Transform mapDiff = localMaps[parentIndex]->pose.inverse() * localMaps[currentIndex - 1]->pose;
+         localMaps[currentIndex]->parentOffset = mapDiff * movement;
+      }
       localMaps[currentIndex]->pose = localMaps[parentIndex]->pose * localMaps[currentIndex]->parentOffset;
 
 
