@@ -455,6 +455,12 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
       timeHistory.clear();
       poseHistory.clear();
 
+      //Just in case no points were extracted, make sure here is a (empty) cloud
+      if (currentLocalMapInfo->cloud == NULL) {
+         currentLocalMapInfo->cloud = new PointCloud();
+         currentLocalMapInfo->normals = new PointCloud();
+      }
+
       positionTrack3DNode->publishLocalMap(currentLocalMapInfo);
       currentLocalMapInfo = newLocalMapInfo;
       //currentLocalMapICPPose = newLocalMapICPPose;
@@ -2069,6 +2075,10 @@ void PositionTrackFull3D::forceMapPub() {
          transformPoints(numPoints, true, trans);
          addPointsToLocalMap(numPoints);
       }
+   }
+   if (currentLocalMapInfo->cloud == NULL) {
+      currentLocalMapInfo->cloud = new PointCloud();
+      currentLocalMapInfo->normals = new PointCloud();
    }
    currentLocalMapInfo->poseHistory.resize(poseHistory.size());
    for (int i = 0; i < poseHistory.size(); i++) {
