@@ -59,7 +59,7 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       mapPose = localMapPoints->pose.toTF();
    } else {
       tf::Transform changePose = prevIcpPose.inverse() * localMapPoints->icpPose.toTF();
-      tf::Transform mapPose = maps[maps.size()-1].pose.toTF() * changePose;
+      mapPose = maps[maps.size()-1].pose.toTF() * changePose;
    }
    prevIcpPose = localMapPoints->icpPose.toTF();
 
