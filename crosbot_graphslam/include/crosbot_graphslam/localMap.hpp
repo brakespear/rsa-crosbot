@@ -36,6 +36,11 @@ public:
    std::vector<Pose> poseHistory;
    std::vector<Time> timeHistory;
 
+   /*
+    * Original icp pose of the local map
+    */
+   Pose icpPose;
+
    LocalMapInfo(): index(-1) {}
    LocalMapInfo(Pose pose, uint32_t index): pose(pose), index(index) {}
    LocalMapInfo(Pose pose, uint32_t index, PointCloudPtr cloud): 
@@ -47,6 +52,7 @@ public:
       index = msg.index;
       timestamp = msg.header.stamp;
       pose = msg.pose;
+      icpPose = msg.icpPose;
 
       if(msg.cloud.size() == 1) {
          cloud = new PointCloud(msg.cloud[0]);
@@ -85,6 +91,7 @@ public:
       rval->index = index;
       rval->header.stamp = timestamp.toROS();
       rval->pose = pose.toROS();
+      rval->icpPose = icpPose.toROS();
 
       rval->cloud.push_back(*(cloud->toROS1()));
       rval->normals.push_back(*(normals->toROS1()));
@@ -105,6 +112,7 @@ public:
       rval->index = index;
       rval->header.stamp = timestamp.toROS();
       rval->pose = pose.toROS();
+      rval->icpPose = icpPose.toROS();
 
       return rval;
    }

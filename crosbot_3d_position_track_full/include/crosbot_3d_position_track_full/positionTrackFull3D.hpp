@@ -250,14 +250,14 @@ private:
    //local map infos
    LocalMapInfoPtr newLocalMapInfo;
    LocalMapInfoPtr currentLocalMapInfo;
-   Pose currentLocalMapICPPose;
-   Pose newLocalMapICPPose;
+   //Pose currentLocalMapICPPose;
+   //Pose newLocalMapICPPose;
 
    //Store of pose history to be sent with local map
    vector<Pose> poseHistory;
    vector<Time> timeHistory;
 
-   FILE *f;
+   //FILE *f;
 
    void setupGPU();
    void initialiseImages();

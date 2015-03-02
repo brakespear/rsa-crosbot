@@ -186,6 +186,8 @@ private:
    //bool tempO;
    bool alreadyOutput;
 
+   Pose curIcpPose;
+
    //debugging for timings
    ros::WallDuration totalTime;
    int numIterations;

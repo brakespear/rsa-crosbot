@@ -81,9 +81,7 @@ PositionTrackFull3D::PositionTrackFull3D() {
    newLocalMapInfo = NULL;
    currentLocalMapInfo = NULL;
 
-
-
-   f = fopen("res.txt", "w");
+   //f = fopen("res.txt", "w");
 
 }
 
@@ -173,7 +171,7 @@ PositionTrackFull3D::~PositionTrackFull3D() {
 }
 
 void PositionTrackFull3D::stop() {
-   fclose(f);
+   //fclose(f);
 }
 
 void PositionTrackFull3D::initialiseFrame(const sensor_msgs::ImageConstPtr& depthImage, 
@@ -379,8 +377,15 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
          }
 
          if (numPoints > 0) {
+            tf::Transform trans;
+            if (currentLocalMapInfo == NULL) {
+               Pose zero;
+               trans = zero.toTF();
+            } else {
+               trans = currentLocalMapInfo->icpPose.toTF().inverse();
+            }
 
-            tf::Transform trans = currentLocalMapICPPose.toTF().inverse();
+            //tf::Transform trans = currentLocalMapICPPose.toTF().inverse();
             transformPoints(numPoints, true, trans);
             addPointsToLocalMap(numPoints);
          }
@@ -437,13 +442,14 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
       //copy extracted points
       //add points and normals to currentLocalMapInfo
 
-      currentLocalMapInfo->pose = currentLocalMapICPPose; //Test this
-
+      //currentLocalMapInfo->pose = currentLocalMapICPPose; //Test this
 
       currentLocalMapInfo->poseHistory.resize(poseHistory.size());
+      //tf::Transform correction = currentLocalMapICPPose.toTF().inverse();
+      tf::Transform correction = currentLocalMapInfo->icpPose.toTF().inverse();
+
       for (int i = 0; i < poseHistory.size(); i++) {
-         currentLocalMapInfo->poseHistory[i] = currentLocalMapICPPose.toTF().inverse() 
-            * poseHistory[i]. toTF();
+         currentLocalMapInfo->poseHistory[i] = correction * poseHistory[i]. toTF();
       }
       currentLocalMapInfo->timeHistory = timeHistory;
       timeHistory.clear();
@@ -451,27 +457,21 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
       positionTrack3DNode->publishLocalMap(currentLocalMapInfo);
       currentLocalMapInfo = newLocalMapInfo;
-      currentLocalMapICPPose = newLocalMapICPPose;
+      //currentLocalMapICPPose = newLocalMapICPPose;
    }
    mapCentre = newMapCentre;
 
 
    //Extract pose
-   ostringstream tt;
-   //tt << ros::Time::now();
-   tt << depthImage->header.stamp;
-   const char *st = tt.str().c_str();
-   tf::Transform tTrans = icpFullPose.toTF();
-   tf::Vector3 tVec = tTrans.getOrigin();
-   tf::Quaternion tQuat = tTrans.getRotation();
-   fprintf(f, "%s %lf %lf %lf %lf %lf %lf %lf\n", st, tVec[0], tVec[1], tVec[2], tQuat.x(),
-         tQuat.y(), tQuat.z(), tQuat.w());
+   //ostringstream tt;
+   //tt << depthImage->header.stamp;
+   //const char *st = tt.str().c_str();
+   //tf::Transform tTrans = icpFullPose.toTF();
+   //tf::Vector3 tVec = tTrans.getOrigin();
+   //tf::Quaternion tQuat = tTrans.getRotation();
+   //fprintf(f, "%s %lf %lf %lf %lf %lf %lf %lf\n", st, tVec[0], tVec[1], tVec[2], tQuat.x(),
+   //      tQuat.y(), tQuat.z(), tQuat.w());
 
-
-   //questions:
-   //- how to extract points? - for graph slam and for next iteration of position tracking?
-   //- how to do the icp? directly use tdsf or use extracted points?
-   //- what preprocessing do I want to do?
    return icpFullPose;
 }
 
@@ -2028,10 +2028,10 @@ void PositionTrackFull3D::newLocalMap(LocalMapInfoPtr localM) {
    cout << "Received info about new local map" << endl;
    if (currentLocalMapInfo == NULL) {
       currentLocalMapInfo = localM;
-      currentLocalMapICPPose = icpFullPose;
+      //currentLocalMapICPPose = icpFullPose;
    } else {
       newLocalMapInfo = localM;
-      newLocalMapICPPose = icpFullPose;
+      //newLocalMapICPPose = icpFullPose;
    }
 }
 
@@ -2039,11 +2039,15 @@ void PositionTrackFull3D::forceMapPub() {
    markAllForExtraction();
    int numBlocksToExtract;
 
+   //tf::Transform trans = currentLocalMapICPPose.toTF().inverse();
+   tf::Transform trans;
    if (currentLocalMapInfo == NULL) {
       Pose zero;
       currentLocalMapInfo = new LocalMapInfo(zero, 0);
+      trans = zero.toTF();
    } else {
-      currentLocalMapInfo->pose = currentLocalMapICPPose; //Test this
+      //currentLocalMapInfo->pose = currentLocalMapICPPose; //Test this
+      trans = currentLocalMapInfo->icpPose.toTF().inverse();
    }
 
    readBuffer(clLocalMapCommon, CL_TRUE, numBlocksToExtractOffset,
@@ -2062,15 +2066,13 @@ void PositionTrackFull3D::forceMapPub() {
       }
 
       if (numPoints > 0) {
-         tf::Transform trans = currentLocalMapICPPose.toTF().inverse();
          transformPoints(numPoints, true, trans);
          addPointsToLocalMap(numPoints);
       }
    }
    currentLocalMapInfo->poseHistory.resize(poseHistory.size());
    for (int i = 0; i < poseHistory.size(); i++) {
-      currentLocalMapInfo->poseHistory[i] = currentLocalMapICPPose.toTF().inverse() 
-          * poseHistory[i]. toTF();
+      currentLocalMapInfo->poseHistory[i] = trans * poseHistory[i]. toTF();
    }
    currentLocalMapInfo->timeHistory = timeHistory;
 

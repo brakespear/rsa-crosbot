@@ -153,12 +153,14 @@ void GraphSlamCPU::initialiseTrack(Pose icpPose, PointCloudPtr cloud) {
    slamPose.position.z = icpPose.position.z;
    localMaps[0].globalPose = slamPose;
    LocalMapInfo newMap(slamPose, 0);
+   newMap.icpPose = icpPose;
    graphSlamNode->publishLocalMapInfo(newMap);
 }
 
 void GraphSlamCPU::updateTrack(Pose icpPose, PointCloudPtr cloud, ros::Time stamp) {
    //cout << "The icp pose from slam is: " << icpPose << endl;
 
+   curIcpPose = icpPose;
    didOptimise = false;
    ros::WallTime t1 = ros::WallTime::now();
 
@@ -830,6 +832,7 @@ void GraphSlamCPU::finishMap(double angleError, double icpTh, Pose icpPose) {
    currentLocalMap = nextLocalMap;
 
    LocalMapInfo newMap(slamPose, currentLocalMap);
+   newMap.icpPose = curIcpPose;
    graphSlamNode->publishLocalMapInfo(newMap);
 
 }}
