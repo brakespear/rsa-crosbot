@@ -27,7 +27,7 @@ class GraphSlamFull3DNode;
 class LocalMaps {
 public:
 
-   tf::Transform initialPose;
+   tf::Transform icpPose;
    tf::Transform pose;
    pcl::PointCloud<pcl::PointNormal>::Ptr cloud;
 
