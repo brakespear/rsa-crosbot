@@ -163,6 +163,9 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       viewerLock.lock();
       LocalMap newMap;
       newMap.pose = localMapPoints->pose;
+      newMap.poseHistory = localMapPoints->poseHistory;
+      newMap.timeHistory = localMapPoints->timeHistory;
+      cout << "sizes are: " << localMapPoints->poseHistory.size() << " " << newMap.poseHistory.size() << endl;
       if (CreateMesh) {
          newMap.mesh = triangles;
          currentMesh = triangles;
@@ -204,6 +207,8 @@ void GraphSlamDisplay::addMap(LocalMapInfoPtr localMapPoints) {
       cout << "ERROR: Creating an empty mesh" << endl;
       LocalMap newMap;
       newMap.pose = localMapPoints->pose;
+      newMap.poseHistory = localMapPoints->poseHistory;
+      newMap.timeHistory = localMapPoints->timeHistory;
       if (CreateMesh) {
          newMap.mesh = new pcl::PolygonMesh();
       } else {
@@ -558,7 +563,32 @@ void GraphSlamDisplay::outputMapToFile(string fileName) {
       for (int i = 0; i < maps.size(); i++) {
          fullCloud += *(maps[i].cloud);
       }
+      int numPoints = fullCloud.points.size();
+      fullCloud.width = numPoints;
+      fullCloud.height = 1;
+      fullCloud.is_dense = true;
+      pcl::io::savePCDFileASCII (fileName, fullCloud);
+      cout << "Finished saving mpa to file!!" << endl;
    }
+}
+
+void GraphSlamDisplay::outputPoseToFile(string fileName) {
+   FILE *f = fopen(fileName.c_str(), "w");
+   for (int i = 0; i < maps.size(); i++) {
+      tf::Transform mapTrans = maps[i].pose.toTF();
+      for (int j = 0; j < maps[i].poseHistory.size(); j++) {
+         tf::Transform point = mapTrans * maps[i].poseHistory[j].toTF();
+         tf::Vector3 pVec = point.getOrigin();
+         tf::Quaternion pQuat = point.getRotation();
+         ostringstream tt;
+         tt << maps[i].timeHistory[j].toROS();
+         const char *st = tt.str().c_str();
+         fprintf(f, "%s %lf %lf %lf %lf %lf %lf %lf\n", st, pVec[0], pVec[1], pVec[2], pQuat.x(),
+            pQuat.y(), pQuat.z(), pQuat.w());
+      }
+   }
+   fclose(f);
+   cout << "Finished saving pose history to file!" << endl;
 }
 
 void GraphSlamDisplay::run() {

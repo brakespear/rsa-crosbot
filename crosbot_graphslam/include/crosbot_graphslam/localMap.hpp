@@ -33,6 +33,9 @@ public:
 
    PointCloudPtr normals;
 
+   std::vector<Pose> poseHistory;
+   std::vector<Time> timeHistory;
+
    LocalMapInfo(): index(-1) {}
    LocalMapInfo(Pose pose, uint32_t index): pose(pose), index(index) {}
    LocalMapInfo(Pose pose, uint32_t index, PointCloudPtr cloud): 
@@ -51,6 +54,15 @@ public:
 
       if (msg.normals.size() == 1) {
          normals = new PointCloud(msg.normals[0]);
+      }
+
+      if (msg.poseHistory.size() > 0) {
+         poseHistory.resize(msg.poseHistory.size());
+         timeHistory.resize(msg.poseHistory.size());
+         for (int i = 0; i < msg.poseHistory.size(); i++) {
+            poseHistory[i] = msg.poseHistory[i].pose;
+            timeHistory[i] = msg.poseHistory[i].header.stamp;
+         }
       }
 
       return *this;
@@ -76,6 +88,14 @@ public:
 
       rval->cloud.push_back(*(cloud->toROS1()));
       rval->normals.push_back(*(normals->toROS1()));
+
+      if (poseHistory.size() > 0) {
+         rval->poseHistory.resize(poseHistory.size());
+         for (int i = 0; i < poseHistory.size(); i++) {
+            rval->poseHistory[i].header.stamp = timeHistory[i].toROS();
+            rval->poseHistory[i].pose = poseHistory[i].toROS();
+         }
+      }
 
       return rval;
    }

@@ -43,7 +43,7 @@ private:
    /*
     * ROS config params
     */
-   string local_map_sub, optimise_map_sub, save_map_sub;
+   string local_map_sub, optimise_map_sub, save_map_sub, save_pose_sub;
    string point_cloud_pub;
 
    /*
@@ -52,6 +52,7 @@ private:
    ros::Subscriber localMapSub;
    ros::Subscriber optimiseMapSub;
    ros::Subscriber saveMapSub;
+   ros::Subscriber savePoseSub;
    ros::Publisher pointCloudPub;
 
    
@@ -68,9 +69,16 @@ private:
    void callbackOptimiseMap(const crosbot_graphslam::LocalMapMsgListConstPtr& localMapMsgList);
    
    /*
-    * Callback for saving the current global map to a file in vtk format
+    * Callback for saving the current global map to a file in vtk or pcd format
+    * (vtk if using mesh, otherwise pcd)
     */
    void callbackSaveMap(const std_msgs::String& filename);
+
+   /*
+    * Callback for saving the current pose history to a file
+    */
+   void callbackSavePose(const std_msgs::String& filename);
+
 
    /*
     * Publishes the entire point cloud

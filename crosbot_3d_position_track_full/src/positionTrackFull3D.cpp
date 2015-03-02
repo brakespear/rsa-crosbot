@@ -148,7 +148,7 @@ void PositionTrackFull3D::initialise(ros::NodeHandle &nh) {
    int maxPointsPerBlock = SliceMult * NumCellsWidth * NumCellsWidth;
    MaxPoints = maxPointsPerBlock * NumBlocksAllocated / MaxPointsFrac; //numBlocks
    
-   numFails = FailCount;
+   numFails = FailCount + 1;
 
 }
 
@@ -303,6 +303,10 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
          alignRayTraceICP(sensorPose.toTF(), icpFullPose.toTF());
       }
    }
+
+   poseHistory.push_back(icpFullPose);
+   timeHistory.push_back(depthImage->header.stamp);
+
    ros::WallTime t2 = ros::WallTime::now();
    ros::WallDuration totalTime = t2 - t1;
    cout << "Total time of align icp: " << totalTime.toSec() * 1000.0f << endl;
@@ -432,6 +436,18 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
       //transform to be relative to currentLocalMapICPPose
       //copy extracted points
       //add points and normals to currentLocalMapInfo
+
+      currentLocalMapInfo->pose = currentLocalMapICPPose; //Test this
+
+
+      currentLocalMapInfo->poseHistory.resize(poseHistory.size());
+      for (int i = 0; i < poseHistory.size(); i++) {
+         currentLocalMapInfo->poseHistory[i] = currentLocalMapICPPose.toTF().inverse() 
+            * poseHistory[i]. toTF();
+      }
+      currentLocalMapInfo->timeHistory = timeHistory;
+      timeHistory.clear();
+      poseHistory.clear();
 
       positionTrack3DNode->publishLocalMap(currentLocalMapInfo);
       currentLocalMapInfo = newLocalMapInfo;
@@ -2017,6 +2033,48 @@ void PositionTrackFull3D::newLocalMap(LocalMapInfoPtr localM) {
       newLocalMapInfo = localM;
       newLocalMapICPPose = icpFullPose;
    }
+}
+
+void PositionTrackFull3D::forceMapPub() {
+   markAllForExtraction();
+   int numBlocksToExtract;
+
+   if (currentLocalMapInfo == NULL) {
+      Pose zero;
+      currentLocalMapInfo = new LocalMapInfo(zero, 0);
+   } else {
+      currentLocalMapInfo->pose = currentLocalMapICPPose; //Test this
+   }
+
+   readBuffer(clLocalMapCommon, CL_TRUE, numBlocksToExtractOffset,
+         sizeof(int), &numBlocksToExtract, 0, 0, 0, "reading num of blocks to extract");
+   if (UseLocalMaps && numBlocksToExtract > 0) {
+      cout << "Saving points to the local map. Extracting " << numBlocksToExtract <<
+        " blocks" << endl;
+      extractPoints(numBlocksToExtract, true);
+
+      int numPoints;
+      readBuffer(clLocalMapCommon, CL_TRUE, numPointsOffset,
+         sizeof(int), &numPoints, 0, 0, 0, "reading num of points extracted");
+      cout << numPoints << " were extracted. max: " << MaxPoints << endl;
+      if (numPoints > MaxPoints) {
+         numPoints = MaxPoints;
+      }
+
+      if (numPoints > 0) {
+         tf::Transform trans = currentLocalMapICPPose.toTF().inverse();
+         transformPoints(numPoints, true, trans);
+         addPointsToLocalMap(numPoints);
+      }
+   }
+   currentLocalMapInfo->poseHistory.resize(poseHistory.size());
+   for (int i = 0; i < poseHistory.size(); i++) {
+      currentLocalMapInfo->poseHistory[i] = currentLocalMapICPPose.toTF().inverse() 
+          * poseHistory[i]. toTF();
+   }
+   currentLocalMapInfo->timeHistory = timeHistory;
+
+   positionTrack3DNode->publishLocalMap(currentLocalMapInfo);
 }
 
 inline int PositionTrackFull3D::getGlobalWorkSize(int numThreads) {

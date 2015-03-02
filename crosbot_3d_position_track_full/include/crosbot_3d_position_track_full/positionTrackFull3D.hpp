@@ -65,6 +65,11 @@ public:
     */
    void newLocalMap(LocalMapInfoPtr localM);
 
+   /*
+    * Force the current map to be published
+    */
+   void forceMapPub();
+   
    PositionTrackFull3DNode *positionTrack3DNode;
    bool UseLocalMaps;
 
@@ -248,6 +253,9 @@ private:
    Pose currentLocalMapICPPose;
    Pose newLocalMapICPPose;
 
+   //Store of pose history to be sent with local map
+   vector<Pose> poseHistory;
+   vector<Time> timeHistory;
 
    FILE *f;
 

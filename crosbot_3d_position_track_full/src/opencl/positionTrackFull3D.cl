@@ -579,7 +579,7 @@ __kernel void markForExtraction(constant oclPositionTrackConfig *config,
 
       int3 diff = newCent - oldCent;
 
-      //Unwarp indexes
+      //Unwrap indexes
       if (oldCentMod.x > offXY && x < oldCentMod.x - offXY) {
          x += config->NumBlocksWidth;
       } else if (oldCentMod.x < offXY && x >= oldCentMod.x + offXY) {

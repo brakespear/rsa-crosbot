@@ -4,3 +4,4 @@ geometry_msgs/Pose pose
 
 sensor_msgs/PointCloud[] cloud
 sensor_msgs/PointCloud[] normals
+geometry_msgs/PoseStamped[] poseHistory

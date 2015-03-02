@@ -20,6 +20,7 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <std_msgs/String.h>
 
 #include <crosbot/data.hpp>
 #include <crosbot/utils.hpp>
@@ -70,6 +71,7 @@ private:
    string local_map_sub, local_map_pub;
    string map_points_pub;
    string z_pub;
+   string force_map_pub;
 
    /*
     * Other config params
@@ -97,6 +99,7 @@ private:
    ros::Publisher mapPointsPub;
    ros::Subscriber cameraInfoSub;
    ros::Subscriber localMapSub;
+   ros::Subscriber forceMapSub;
    tf::TransformListener tfListener;
    tf::TransformBroadcaster tfPub;
 
@@ -124,6 +127,8 @@ private:
    void callbackCameraInfo(const sensor_msgs::CameraInfo& camInfo);
 
    void callbackLocalMap(const crosbot_graphslam::LocalMapMsgConstPtr& localMapInfo);
+
+   void callbackForceMap(const std_msgs::String& ignore);
 
    //Gets the transform message of a pose
    geometry_msgs::TransformStamped getTransform(const Pose& pose, 

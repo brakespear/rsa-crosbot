@@ -75,6 +75,11 @@ public:
     * Saves the current global map to a file in vtk format
     */
    void outputMapToFile(string fileName);
+   
+   /*
+    * Saves the pose history to a file
+    */
+   void outputPoseToFile(string fileName);
 
 private:
    //Structure for storing each local map.
@@ -82,6 +87,8 @@ private:
       Pose pose;
       pcl::PolygonMesh *mesh;
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud;
+      vector<Pose> poseHistory;
+      vector<Time> timeHistory;
    } LocalMap;
 
    /*

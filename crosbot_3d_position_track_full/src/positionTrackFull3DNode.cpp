@@ -34,6 +34,7 @@ void PositionTrackFull3DNode::initialise(ros::NodeHandle& nh) {
    paramNH.param<std::string>("local_map_pub", local_map_pub, "localMapPoints");
    paramNH.param<std::string>("map_points_pub", map_points_pub, "icpMapPoints");
    paramNH.param<std::string>("z_pub", z_pub, "z_values");
+   paramNH.param<std::string>("force_map_pub", force_map_pub, "forceMapPub");
 
    paramNH.param<bool>("PublishTransform", PublishTransform, true);
    paramNH.param<bool>("PublishMessage", PublishMessage, true);
@@ -59,6 +60,7 @@ void PositionTrackFull3DNode::initialise(ros::NodeHandle& nh) {
    if (UseLocalMaps) {
       localMapSub = nh.subscribe(local_map_sub, 10, &PositionTrackFull3DNode::callbackLocalMap, this);
       localMapPub = nh.advertise<crosbot_graphslam::LocalMapMsg>(local_map_pub, 10);
+      forceMapSub = nh.subscribe(force_map_pub, 1, &PositionTrackFull3DNode::callbackForceMap, this);
    }
    if (OutputCurrentMap) {
       mapPointsPub = nh.advertise<sensor_msgs::PointCloud2>(map_points_pub, 1);
@@ -192,6 +194,10 @@ void PositionTrackFull3DNode::publishAllPoints() {
    allPointsMsg.row_step = allPointsMsg.data.size();
    allPointsMsg.width = allPointsMsg.row_step / allPointsMsg.point_step;
    mapPointsPub.publish(allPointsMsg);
+}
+
+void PositionTrackFull3DNode::callbackForceMap(const std_msgs::String& ignore) {
+   position_track_3d.forceMapPub();
 }
 
 geometry_msgs::TransformStamped PositionTrackFull3DNode::getTransform(const Pose& pose, std::string childFrame, 
