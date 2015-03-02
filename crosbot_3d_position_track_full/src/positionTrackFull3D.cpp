@@ -7,6 +7,8 @@
 
 #include <crosbot_3d_position_track_full/positionTrackFull3D.hpp>
 
+#include <sstream>
+
 
 using namespace std;
 using namespace crosbot;
@@ -81,7 +83,8 @@ PositionTrackFull3D::PositionTrackFull3D() {
    newLocalMapInfo = NULL;
    currentLocalMapInfo = NULL;
 
-   //f = fopen("res.txt", "w");
+   f = fopen("frames.txt", "w");
+   fprintf(f, "160 120\n");
 
 }
 
@@ -171,7 +174,7 @@ PositionTrackFull3D::~PositionTrackFull3D() {
 }
 
 void PositionTrackFull3D::stop() {
-   //fclose(f);
+   fclose(f);
 }
 
 void PositionTrackFull3D::initialiseFrame(const sensor_msgs::ImageConstPtr& depthImage, 
@@ -289,6 +292,9 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    //bilateralFilter();
    downsampleDepth();
    calculateNormals();
+
+//Debugging only!!
+   printFrames(depthImage->header.stamp, sensorPose.toTF());
 
    //icp itself
    clFlush(opencl_manager->getCommandQueue());
@@ -2087,6 +2093,54 @@ void PositionTrackFull3D::forceMapPub() {
    currentLocalMapInfo->timeHistory = timeHistory;
 
    positionTrack3DNode->publishLocalMap(currentLocalMapInfo);
+}
+
+void PositionTrackFull3D::printFrames(ros::Time stamp, tf::Transform sensorPose) {
+   
+   tf::Transform rot = sensorPose;
+   rot.setOrigin(tf::Vector3(0,0,0));
+   int maxPoints = 160 * 120;
+   int numPoints = 0;
+
+   if ((stamp - lastTime).toSec() > 1.0) {
+
+      oclDepthPoints points;
+      points.x = (ocl_float *) malloc(sizeof(float) * numDepthPoints * 3);
+      points.y = &(points.x[numDepthPoints]);
+      points.z = &(points.x[numDepthPoints * 2]);
+      oclDepthPoints normals;
+      normals.x = (ocl_float *) malloc(sizeof(float) * 640 * 480 * 3);
+      normals.y = &(normals.x[numDepthPoints]);
+      normals.z = &(normals.x[numDepthPoints * 2]);
+      readBuffer(clDepthFrameXYZ4, CL_FALSE, 0, sizeDepthFrameXYZ, points.x, 0, 0, 0, 
+         "Copying downsampled points to CPU");
+      readBuffer(clNormalsFrame4, CL_TRUE, 0, sizeDepthFrameXYZ, normals.x, 0, 0, 0, 
+         "Copying downsampled normals to CPU");
+
+      for (int i = 0; i < maxPoints; i++) {
+         if (!isnan(points.x[i])) {
+            numPoints++;
+         }
+      }
+      ostringstream tt;
+      tt << stamp;
+      const char *st = tt.str().c_str();
+      fprintf(f, "%s %d", st, numPoints);
+      for (int i = 0; i < maxPoints; i++) {
+         if (!isnan(points.x[i])) {
+            tf::Vector3 p(points.x[i], points.y[i], points.z[i]);
+            tf::Vector3 n(normals.x[i], normals.y[i], normals.z[i]);
+            p = sensorPose * p;
+            n = rot * n;
+            fprintf(f, " %lf %lf %lf %lf %lf %lf", p.x(), p.y(), p.z(), n.x(), n.y(), n.z());
+         }
+      }
+      fprintf(f, "\n");
+
+      free(points.x);
+      free(normals.x);
+      lastTime = stamp;
+   }
 }
 
 inline int PositionTrackFull3D::getGlobalWorkSize(int numThreads) {

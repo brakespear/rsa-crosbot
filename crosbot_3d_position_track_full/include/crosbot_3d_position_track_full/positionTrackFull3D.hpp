@@ -257,7 +257,8 @@ private:
    vector<Pose> poseHistory;
    vector<Time> timeHistory;
 
-   //FILE *f;
+   FILE *f;
+   ros::Time lastTime;
 
    void setupGPU();
    void initialiseImages();
@@ -297,6 +298,9 @@ private:
 
    void mult6x6Vector(float A[DOF][DOF], float b[DOF], float res[DOF]);
    void multVectorTrans(float vec[DOF], float res[DOF][DOF]);
+
+   //Should not be used, testing only
+   void printFrames(ros::Time stamp, tf::Transform sensorPose);
 
    /*
     * GPU helper methods
