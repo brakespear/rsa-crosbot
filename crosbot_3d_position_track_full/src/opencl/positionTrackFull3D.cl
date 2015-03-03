@@ -320,6 +320,10 @@ void markBlockActive(constant oclPositionTrackConfig *config, global int *blocks
             //Note: concurrency doesn't really matter here - as long as one
             //add works
             localMapCells[blockI].occupied[cIndex]++;
+
+            if (config->ReExtractBlocks) {
+               localMapCells[blockI].haveExtracted = 0;
+            }
          }
       }
    }
@@ -429,9 +433,9 @@ __kernel void addRequiredBlocks(constant oclPositionTrackConfig *config,
          blocks[bIndex] = cellIndex;
       }
       common->activeBlocks[index] = cellIndex;
-      if (config->ReExtractBlocks && cellIndex >= 0) {
-         localMapCells[cellIndex].haveExtracted = 0;
-      }
+      //if (config->ReExtractBlocks && cellIndex >= 0) {
+      //   localMapCells[cellIndex].haveExtracted = 0;
+      //}
    }
 }
 

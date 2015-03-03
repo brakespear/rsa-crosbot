@@ -297,6 +297,8 @@ pcl::PointCloud<pcl::PointNormal>::Ptr GraphSlamFull3D::getMapICloud(int mapI, i
       int size = localMaps[before]->cloud->size();
       out->resize(curSize + size);
       tf::Transform trans = localMaps[mapI]->icpPose.inverse() * localMaps[before]->icpPose;
+      tf::Transform transNorm = trans;
+      transNorm.setOrigin(tf::Vector3(0,0,0));
       for(int i = 0; i < size; i++) {
          int index = curSize + i;
          pcl::PointNormal p;
@@ -306,10 +308,9 @@ pcl::PointCloud<pcl::PointNormal>::Ptr GraphSlamFull3D::getMapICloud(int mapI, i
          p.x = newPos.x();
          p.y = newPos.y();
          p.z = newPos.z();
-         trans.setOrigin(tf::Vector3(0,0,0));
          tf::Vector3 newNorm((*(localMaps[before]->cloud))[i].normal_x, (*(localMaps[before]->cloud))[i].normal_y,
                (*(localMaps[before]->cloud))[i].normal_z);
-         newNorm = trans * newNorm;
+         newNorm = transNorm * newNorm;
          p.normal_x = newNorm.x();
          p.normal_y = newNorm.y();
          p.normal_z = newNorm.z();
@@ -322,6 +323,8 @@ pcl::PointCloud<pcl::PointNormal>::Ptr GraphSlamFull3D::getMapICloud(int mapI, i
       int size = localMaps[after]->cloud->size();
       out->resize(curSize + size);
       tf::Transform trans = localMaps[mapI]->icpPose.inverse() * localMaps[after]->icpPose;
+      tf::Transform transNorm = trans;
+      transNorm.setOrigin(tf::Vector3(0,0,0));
       for(int i = 0; i < size; i++) {
          int index = curSize + i;
          pcl::PointNormal p;
@@ -331,10 +334,9 @@ pcl::PointCloud<pcl::PointNormal>::Ptr GraphSlamFull3D::getMapICloud(int mapI, i
          p.x = newPos.x();
          p.y = newPos.y();
          p.z = newPos.z();
-         trans.setOrigin(tf::Vector3(0,0,0));
          tf::Vector3 newNorm((*(localMaps[after]->cloud))[i].normal_x, (*(localMaps[after]->cloud))[i].normal_y,
                (*(localMaps[after]->cloud))[i].normal_z);
-         newNorm = trans * newNorm;
+         newNorm = transNorm * newNorm;
          p.normal_x = newNorm.x();
          p.normal_y = newNorm.y();
          p.normal_z = newNorm.z();
@@ -353,6 +355,8 @@ pcl::PointCloud<pcl::PointNormal>::Ptr GraphSlamFull3D::getMapJCloud(int mapJ, i
       int size = localMaps[before]->cloud->size();
       out->resize(curSize + size);
       tf::Transform trans = localMaps[mapJ]->icpPose.inverse() * localMaps[before]->icpPose;
+      tf::Transform transNorm = trans;
+      transNorm.setOrigin(tf::Vector3(0,0,0));
       for(int i = 0; i < size; i++) {
          int index = curSize + i;
          pcl::PointNormal p;
@@ -362,10 +366,9 @@ pcl::PointCloud<pcl::PointNormal>::Ptr GraphSlamFull3D::getMapJCloud(int mapJ, i
          p.x = newPos.x();
          p.y = newPos.y();
          p.z = newPos.z();
-         trans.setOrigin(tf::Vector3(0,0,0));
          tf::Vector3 newNorm((*(localMaps[before]->cloud))[i].normal_x, (*(localMaps[before]->cloud))[i].normal_y,
                (*(localMaps[before]->cloud))[i].normal_z);
-         newNorm = trans * newNorm;
+         newNorm = transNorm * newNorm;
          p.normal_x = newNorm.x();
          p.normal_y = newNorm.y();
          p.normal_z = newNorm.z();
