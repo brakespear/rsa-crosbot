@@ -83,8 +83,8 @@ PositionTrackFull3D::PositionTrackFull3D() {
    newLocalMapInfo = NULL;
    currentLocalMapInfo = NULL;
 
-   f = fopen("frames.txt", "w");
-   fprintf(f, "160 120\n");
+   //f = fopen("frames.txt", "w");
+   //fprintf(f, "160 120\n");
 
 }
 
@@ -174,7 +174,7 @@ PositionTrackFull3D::~PositionTrackFull3D() {
 }
 
 void PositionTrackFull3D::stop() {
-   fclose(f);
+   //fclose(f);
 }
 
 void PositionTrackFull3D::initialiseFrame(const sensor_msgs::ImageConstPtr& depthImage, 
@@ -294,7 +294,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    calculateNormals();
 
 //Debugging only!!
-   printFrames(depthImage->header.stamp, sensorPose.toTF());
+   //printFrames(depthImage->header.stamp, sensorPose.toTF());
 
    //icp itself
    clFlush(opencl_manager->getCommandQueue());
