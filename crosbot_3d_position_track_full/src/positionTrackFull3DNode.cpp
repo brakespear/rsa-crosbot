@@ -122,6 +122,19 @@ void PositionTrackFull3DNode::callbackKinect(const sensor_msgs::ImageConstPtr& d
    		depthImage->header.stamp.sec, depthImage->header.stamp.nsec);
    	return;
    }
+   /*cout << "Success!!!!" << endl;
+   double yy,pp,rr;
+   sensorPose.getYPR(yy,pp,rr);
+   cout << sensorPose.position.x << " " << sensorPose.position.y << " " << sensorPose.position.z << " " <<
+      yy << " " << pp << " " << rr << endl;
+
+   sensorPose.position.x = 0.1;
+   sensorPose.position.y = -0.04;
+   sensorPose.position.z = 0.3;
+   double y = -1.57;
+   double p = 0;
+   double r = -1.57;
+   sensorPose.setYPR(y,p,r);*/
 
    bool outputMapPoints = false;
    if (OutputCurrentMap) {
