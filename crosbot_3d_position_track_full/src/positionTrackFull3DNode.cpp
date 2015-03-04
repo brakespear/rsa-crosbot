@@ -39,7 +39,7 @@ void PositionTrackFull3DNode::initialise(ros::NodeHandle& nh) {
    paramNH.param<bool>("PublishTransform", PublishTransform, true);
    paramNH.param<bool>("PublishMessage", PublishMessage, true);
    paramNH.param<int>("QueueSize", QueueSize, 5);
-   paramNH.param<bool>("UseLocalMaps", UseLocalMaps, false);
+   paramNH.param<bool>("UseLocalMaps", UseLocalMaps, true);
    position_track_3d.UseLocalMaps = UseLocalMaps;
    paramNH.param<bool>("OutputCurrentMap", OutputCurrentMap, true);
    paramNH.param<double>("OutputCurrentMapRate", OutputCurrentMapRate, 5000000); 
