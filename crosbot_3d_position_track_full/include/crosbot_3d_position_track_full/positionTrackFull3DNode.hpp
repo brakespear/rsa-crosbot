@@ -108,6 +108,10 @@ private:
    message_filters::Subscriber<sensor_msgs::Image> *rgbSub;
    message_filters::Synchronizer<SyncPolicy> *sync;
 
+   ros::Subscriber depthOnlySub;
+   sensor_msgs::Image *dummyImage;
+   ros::Time lastprocess;
+
    //debugging
    ros::Publisher outImagePub;
    ros::Time curTimeStamp;
@@ -123,6 +127,9 @@ private:
 
    void callbackKinect(const sensor_msgs::ImageConstPtr& depthImage, 
          const sensor_msgs::ImageConstPtr& rgbImage);
+
+   // Depth only subscription
+   void callbackKinect1(const sensor_msgs::ImageConstPtr& depthImage);
 
    void callbackCameraInfo(const sensor_msgs::CameraInfo& camInfo);
 
