@@ -15,6 +15,9 @@ find_package(catkin REQUIRED COMPONENTS roscpp)
 ## See http://ros.org/doc/groovy/api/catkin/html/user_guide/setup_dot_py.html
 # catkin_python_setup()
 
+# OpenCL Header file location
+set(OPENCL_INCLUDE "/opt/AMDAPPSDK-2.9-1/include")
+
 #######################################
 ## Declare ROS messages and services ##
 #######################################
@@ -48,7 +51,7 @@ find_package(catkin REQUIRED COMPONENTS roscpp)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-   INCLUDE_DIRS include
+   INCLUDE_DIRS include ${OPENCL_INCLUDE}
   LIBRARIES crosbot_gpu
   CATKIN_DEPENDS roscpp
 #  DEPENDS system_lib
@@ -62,8 +65,9 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(include
   ${catkin_INCLUDE_DIRS}
-  #/opt/AMDAPP/include
-  /usr/local/cuda/include
+  ${OPENCL_INCLUDE}
+  #/opt/AMDAPPSDK-2.9-1/include
+  #/usr/local/cuda/include
 )
 
 ## Declare a cpp library

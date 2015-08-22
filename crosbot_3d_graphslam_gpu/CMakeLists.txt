@@ -101,9 +101,9 @@ catkin_package(
 # include_directories(include)
 include_directories(include
   ${catkin_INCLUDE_DIRS}
+  ${crosbot_gpu_INCLUDE_DIRS}
   #/opt/AMDAPP/include
-  /usr/local/cuda/include
-
+  #/usr/local/cuda/include
 )
 
 ## Declare a cpp library

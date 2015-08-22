@@ -5,9 +5,9 @@ project(crosbot_3d_position_track_full)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  roscpp
   crosbot
   crosbot_gpu
-  roscpp
   sensor_msgs
   std_msgs
   tf
@@ -100,8 +100,9 @@ catkin_package(
 # include_directories(include)
 include_directories(include
   ${catkin_INCLUDE_DIRS}
-  #/opt/AMDAPP/include
-  /usr/local/cuda/include
+  ${crosbot_gpu_INCLUDE_DIRS}
+  #/opt/AMDAPPSDK-2.9-1/include
+  #/usr/local/cuda/include
 )
 
 ## Declare a cpp library
