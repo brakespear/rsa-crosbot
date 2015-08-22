@@ -221,6 +221,10 @@ public:
    void getOdomGuess(tf::Transform oldOdom, tf::Transform newOdom,
          tf::Transform icpCur, double &x, double &y, double &th);
 
+   /*
+    * Resets the map
+    */
+   virtual void resetMap() = 0; 
 private:
    //double yawOffset;
 

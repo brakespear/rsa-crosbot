@@ -25,6 +25,10 @@ public:
    void initialiseTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose);
    void updateTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose);
 
+   virtual void resetMap() {
+       ROS_WARN("OgmbicpGPU: resetMap not implemented");
+   }
+
    OgmbicpGPU();
    ~OgmbicpGPU();
 protected:

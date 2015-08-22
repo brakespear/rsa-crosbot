@@ -15,6 +15,7 @@
 #include <sensor_msgs/LaserScan.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Vector3.h>
+#include <std_msgs/String.h>
 
 #include <crosbot/data.hpp>
 #include <crosbot/utils.hpp>
@@ -55,6 +56,8 @@ private:
    string local_map_image_pub, local_map_pub;
    string recent_scans_srv;
 
+   string reset_map_sub;
+
 
    /*
     * ROS connections
@@ -62,6 +65,7 @@ private:
    ros::Subscriber scanSubscriber;
    ros::Subscriber orientationSubscriber;
    ros::Subscriber zSub;
+   ros::Subscriber resetMapSubscriber;
    tf::TransformListener tfListener;
    tf::TransformBroadcaster tfPub;
    ros::Publisher imagePub;
@@ -70,6 +74,7 @@ private:
 
    bool UseExternalZ;
    bool UseFloorHeight;
+
    Ogmbicp &pos_tracker;
    //Is it the initial scan?
    bool isInit;
@@ -89,6 +94,11 @@ private:
    //void callbackOrientation(const geometry_msgs::Quaternion& quat);
    void callbackOrientation(const geometry_msgs::QuaternionStamped& quat);
    void callbackZ(const geometry_msgs::Vector3& vec);
+
+   /*
+    * Callback to reset the position tracker
+    */
+   void callbackResetMap(const std_msgs::String& name);
 
    /*
     * Gets a transform from a pose

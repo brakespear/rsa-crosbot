@@ -29,6 +29,7 @@ public:
    void stop();
    void initialiseTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose);
    void updateTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose);
+   void resetMap();
 
    OgmbicpCPU();
    ~OgmbicpCPU();
@@ -52,6 +53,9 @@ private:
    int numIterations;
    int avNumIts;
    //int tt; //debugging
+
+   //Number of scans just to add to the map
+   int initScans;
 
    //Get the offset from an iteration of ogmbicp
    bool getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth, int &lastCount);

@@ -38,6 +38,7 @@ void OgmbicpCPU::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("CellSearchDistance", CellSearchDistance, 3);
 
    localMap = new PointMap3D(MapSize, CellSize, CellHeight);
+   initScans = InitialScans;
 
 }
 
@@ -86,9 +87,9 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose
          FloorHeight, MinAddHeight, MaxAddHeight, floorHeight);
    //cout << " " << zOffset << endl;
 
-   if (InitialScans > 0) {
+   if (initScans > 0) {
       localMap->addScan(scan, MaxObservations, LifeRatio, true);
-      InitialScans--;
+      initScans--;
       return;
    }
 
@@ -651,4 +652,14 @@ void OgmbicpCPU::getLocalMap(LocalMapPtr curMap) {
          //TODO: put in the flobsticle stuff here as well
       }
    }
+}
+
+void OgmbicpCPU::resetMap() {
+   delete localMap; 
+   localMap = new PointMap3D(MapSize, CellSize, CellHeight);
+   initScans = InitialScans;
+   px = py = pz = pth = 0;
+   Pose start;
+   curPose = start;
+
 }

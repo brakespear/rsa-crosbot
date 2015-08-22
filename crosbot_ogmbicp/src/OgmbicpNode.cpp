@@ -26,12 +26,13 @@ void OgmbicpNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("icp_frame", icp_frame, DEFAULT_ICPFRAME);
    paramNH.param<std::string>("base_frame", base_frame, DEFAULT_BASEFRAME);
    paramNH.param<std::string>("odom_frame", odom_frame, DEFAULT_ODOMFRAME);
-   paramNH.param<std::string>("scan_sub", scan_sub, "scan");
+   paramNH.param<std::string>("scan_sub", scan_sub, "/scan");
    paramNH.param<std::string>("z_sub", z_sub, "z_values");
    paramNH.param<std::string>("local_map_image_pub", local_map_image_pub, "localImage");
    paramNH.param<std::string>("local_map_pub", local_map_pub, "localGrid");
    paramNH.param<std::string>("recent_scans_srv", recent_scans_srv, "icpRecentScans");
-   paramNH.param<std::string>("orientation_sub", orientation_sub, "orientation");
+   paramNH.param<std::string>("orientation_sub", orientation_sub, "/orientation");
+   paramNH.param<std::string>("reset_map_sub", reset_map_sub, "resetMap");
    paramNH.param<bool>("UseExternalZ", UseExternalZ, false);
    paramNH.param<bool>("UseFloorHeight", UseFloorHeight, true);
 
@@ -46,6 +47,8 @@ void OgmbicpNode::initialise(ros::NodeHandle &nh) {
    if (UseExternalZ) {
       zSub = nh.subscribe(z_sub, 1, &OgmbicpNode::callbackZ, this);
    }
+
+   resetMapSubscriber = nh.subscribe(reset_map_sub, 1, &OgmbicpNode::callbackResetMap, this);
 }
 
 void OgmbicpNode::shutdown() {
@@ -167,6 +170,11 @@ void OgmbicpNode::callbackZ(const geometry_msgs::Vector3& vec) {
    } else {
       pos_tracker.floorHeight = NAN;
    }
+}
+
+void OgmbicpNode::callbackResetMap(const std_msgs::String& name) {
+   ROS_INFO("OgmbicpNode :: Resetting Map");
+   pos_tracker.resetMap();
 }
 
 geometry_msgs::TransformStamped OgmbicpNode::getTransform(const Pose& pose, std::string childFrame, 
