@@ -1044,7 +1044,7 @@ __kernel void bilateralFilter(constant oclPositionTrackConfig *config,
          int i,j;
          float sumWeight = 0.0f;
          float depth = 0.0f;
-         int valid = 1;
+         //int valid = 1;
          for (j = v - windowSize; j <= v + windowSize; j++) {
             for (i = u - windowSize; i <= u + windowSize; i++) {
                int iC = j * config->ImageWidth + i;
@@ -1567,7 +1567,7 @@ __kernel void predictSurface(constant oclPositionTrackConfig *config, global int
       int bIndex = getBlockIndex(config, transP, cent, centMod);
 
       if (bIndex >= 0 && blocks[bIndex] >= 0) {
-         int bI = blocks[bIndex];
+         //int bI = blocks[bIndex];
          
          //int cIndex = getCellIndex(config, transP);
          int cIndex;
@@ -1612,7 +1612,7 @@ __kernel void predictSurface(constant oclPositionTrackConfig *config, global int
                if (bIndex < 0 || blocks[bIndex] < 0) {
                   break;
                }
-               bI = blocks[bIndex];
+               //bI = blocks[bIndex];
 
                if (pos.x < 0) {
                   pos.x += config->BlockSize;
