@@ -15,8 +15,9 @@ int main(int argc, char **argv) {
 
    ros::NodeHandle nh;
 
-   PositionTrackFull3D positionTrackFull3D;
-   PositionTrackFull3DNode node(positionTrackFull3D);
+   //PositionTrackFull3D positionTrackFull3D;
+   //PositionTrackFull3DNode node(positionTrackFull3D);
+   PositionTrackFull3DNode node;
    node.initialise(nh);
 
    while (ros::ok()) {

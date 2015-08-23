@@ -1967,6 +1967,10 @@ void PositionTrackFull3D::alignZOnlyICP(tf::Transform sensorPose, tf::Transform 
 }
 
 void PositionTrackFull3D::outputDebuggingImage(tf::Transform trans) {
+   if (!positionTrack3DNode->debugImageEnabled()) {
+      return;
+   }
+
    int kernelI = OUTPUT_DEBUGGING_IMAGE;
    opencl_task->setArg(0, kernelI, sizeof(cl_mem), &clPositionTrackConfig);
    opencl_task->setArg(1, kernelI, sizeof(cl_mem), &clPointCloud); //predPoints

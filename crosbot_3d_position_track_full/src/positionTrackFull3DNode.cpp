@@ -13,8 +13,9 @@
 using namespace std;
 using namespace crosbot;
 
-PositionTrackFull3DNode::PositionTrackFull3DNode(PositionTrackFull3D& positionTrack): 
-   position_track_3d(positionTrack),
+//PositionTrackFull3DNode::PositionTrackFull3DNode(PositionTrackFull3D& positionTrack):
+PositionTrackFull3DNode::PositionTrackFull3DNode():
+   position_track_3d(NULL),
    depthOnly(false),
    sync(NULL),
    depthSub(NULL),
@@ -24,16 +25,38 @@ PositionTrackFull3DNode::PositionTrackFull3DNode(PositionTrackFull3D& positionTr
    OutputCurrentMapRate(0),
    QueueSize(1),
    PublishMessage(true),
-   PublishTransform(true)
+   PublishTransform(true),
+   EnableDebugImage(true)
 {
+   reset();
+}
+
+void PositionTrackFull3DNode::reset() {
    isInit = true;
    receivedCameraParams = false;
    lastPublishedPoints = ros::Time::now();
+}
 
-   position_track_3d.positionTrack3DNode = this;
+void PositionTrackFull3DNode::resetMap() {
+   ROS_INFO("***********************");
+   ROS_INFO("PositionTrackFull3DNode :: Resetting Map");
+   ROS_INFO("***********************");
+
+   // Shutdown
+   shutdown();
+
+   // Reset
+   reset();
+
+   // Initialise
+   initialise(nh3DConfig);
 }
 
 void PositionTrackFull3DNode::initialise(ros::NodeHandle& nh) {
+   // Store node handle
+   nh3DConfig = nh;
+
+   // Load config
    ros::NodeHandle paramNH("~");
    paramNH.param<std::string>("icp_frame", icp_frame, "/icp");
    paramNH.param<std::string>("base_frame", base_frame, "/base_link");
@@ -51,13 +74,15 @@ void PositionTrackFull3DNode::initialise(ros::NodeHandle& nh) {
    paramNH.param<bool>("PublishMessage", PublishMessage, true);
    paramNH.param<int>("QueueSize", QueueSize, 5);
    paramNH.param<bool>("UseLocalMaps", UseLocalMaps, true);
-   position_track_3d.UseLocalMaps = UseLocalMaps;
    paramNH.param<bool>("OutputCurrentMap", OutputCurrentMap, true);
    paramNH.param<double>("OutputCurrentMapRate", OutputCurrentMapRate, 5000000); 
 
-
-   position_track_3d.initialise(nh);
-   position_track_3d.start();
+   // Create 3D position tracker
+   position_track_3d = new PositionTrackFull3D();
+   position_track_3d->positionTrack3DNode = this;
+   position_track_3d->UseLocalMaps = UseLocalMaps;
+   position_track_3d->initialise(nh);
+   position_track_3d->start();
 
    if (PublishMessage) {
       zPub = nh.advertise<geometry_msgs::Vector3>(z_pub, 1);
@@ -116,24 +141,43 @@ void PositionTrackFull3DNode::initialise(ros::NodeHandle& nh) {
       allPointsMsg.point_step = sizeof(float) * 8;
    }
 
+   // Debugging
+   paramNH.param<bool>("EnableDebugImage", EnableDebugImage, true);
+   if (EnableDebugImage) {
+      outImagePub = nh.advertise<sensor_msgs::Image>("outImage", 1);
+   }
 
-   //Debugging
-   outImagePub = nh.advertise<sensor_msgs::Image>("outImage", 1);
+   // Map Reset
+   paramNH.param<std::string>("reset_map_sub", reset_map_sub, "resetMap");
+   resetMapSub = nh.subscribe(reset_map_sub, 1, &PositionTrackFull3DNode::callbackResetMap, this);
 }
 
 void PositionTrackFull3DNode::shutdown() {
-   position_track_3d.stop();
-   delete sync;
-   delete rgbSub;
-   delete depthSub;
+   // Shutdown subs
+   cameraInfoSub.shutdown();
+   if (depthOnly) {
+      depthOnlySub.shutdown();
+   } else {
+      delete sync;
+      delete rgbSub;
+      delete depthSub;
+   }
+   if (UseLocalMaps) localMapSub.shutdown();
+   if (UseLocalMaps) forceMapSub.shutdown();
+   if (OutputCurrentMap) mapPointsPub.shutdown();
+   resetMapSub.shutdown();
+
+   // Shutdown publishers
+   if (PublishMessage) zPub.shutdown();
+   if (UseLocalMaps) localMapPub.shutdown();
+   if (EnableDebugImage) outImagePub.shutdown();
+
+   // Stop position tracker and destroy
+   position_track_3d->stop();
+   delete position_track_3d;
 }
 
 void PositionTrackFull3DNode::callbackKinectDepthOnly(const sensor_msgs::ImageConstPtr& depthImage) {
-
-    /*if (ros::Time::now() - lastprocess < ros::Duration(0.1)) {
-        return;
-    }*/
-
    try {
       // Set rgb dummy image header
       //    Need to do nasty casting stuff so the header can change...
@@ -144,7 +188,6 @@ void PositionTrackFull3DNode::callbackKinectDepthOnly(const sensor_msgs::ImageCo
       tmpDummyImage->header.frame_id = depthImage->header.frame_id;
 
       callbackKinect(depthImage, dummyImage);
-      lastprocess = ros::Time::now();
    } catch (...) {
       ROS_ERROR("PositionTrackFull3DNode :: Error processing with only depth image");
    }
@@ -203,11 +246,11 @@ void PositionTrackFull3DNode::callbackKinect(const sensor_msgs::ImageConstPtr& d
    }
 
    if (isInit) {
-      position_track_3d.initialiseFrame(depthImage, rgbImage, sensorPose, icpPose);
+      position_track_3d->initialiseFrame(depthImage, rgbImage, sensorPose, icpPose);
       isInit = false;
    } else {
       float floorHeight = NAN;
-      Pose newIcpPose = position_track_3d.processFrame(depthImage, rgbImage, sensorPose, 
+      Pose newIcpPose = position_track_3d->processFrame(depthImage, rgbImage, sensorPose,
             icpPose, &floorHeight, outputMapPoints, allPointsMsg.data);
 
       if (PublishMessage) {
@@ -240,14 +283,14 @@ void PositionTrackFull3DNode::callbackCameraInfo(const sensor_msgs::CameraInfo& 
    double tx = cameraModel.Tx();
    double ty = cameraModel.Ty();
 
-   position_track_3d.setCameraParams(fx, fy, cx, cy, tx, ty);
+   position_track_3d->setCameraParams(fx, fy, cx, cy, tx, ty);
    receivedCameraParams = true;
    cameraInfoSub.shutdown();
 }
 
 void PositionTrackFull3DNode::callbackLocalMap(const crosbot_graphslam::LocalMapMsgConstPtr& localMapInfo) {
    LocalMapInfoPtr localM = new LocalMapInfo(localMapInfo);
-   position_track_3d.newLocalMap(localM);
+   position_track_3d->newLocalMap(localM);
 }
 
 void PositionTrackFull3DNode::publishLocalMap(LocalMapInfoPtr localMap) {
@@ -259,7 +302,7 @@ void PositionTrackFull3DNode::publishLocalMap(LocalMapInfoPtr localMap) {
 }
 
 void PositionTrackFull3DNode::publishAllPoints() {
-   cout << "********publishing points***************" << endl;
+   ROS_INFO("********publishing points***************");
    allPointsMsg.header.stamp = ros::Time::now();
    allPointsMsg.row_step = allPointsMsg.data.size();
    allPointsMsg.width = allPointsMsg.row_step / allPointsMsg.point_step;
@@ -267,7 +310,7 @@ void PositionTrackFull3DNode::publishAllPoints() {
 }
 
 void PositionTrackFull3DNode::callbackForceMap(const std_msgs::String& ignore) {
-   position_track_3d.forceMapPub();
+   position_track_3d->forceMapPub();
 }
 
 geometry_msgs::TransformStamped PositionTrackFull3DNode::getTransform(const Pose& pose, std::string childFrame, 
@@ -285,6 +328,16 @@ geometry_msgs::TransformStamped PositionTrackFull3DNode::getTransform(const Pose
    ts.transform.rotation.w = pose.orientation.w;
    return ts;
 
+}
+
+void PositionTrackFull3DNode::callbackResetMap(const std_msgs::String& name) {
+   if (name.data == "reset_map") {
+      resetMap();
+   }
+}
+
+bool PositionTrackFull3DNode::debugImageEnabled() {
+   return EnableDebugImage;
 }
 
 void PositionTrackFull3DNode::outputImage(vector<uint8_t>& data) {

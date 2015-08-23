@@ -36,7 +36,8 @@ class PositionTrackFull3D;
 class PositionTrackFull3DNode {
 public:
 
-   PositionTrackFull3DNode(PositionTrackFull3D&);
+   //PositionTrackFull3DNode(PositionTrackFull3D&);
+   PositionTrackFull3DNode();
 
    /*
     * Initialise the node
@@ -58,7 +59,10 @@ public:
     */
    void publishAllPoints();
 
-   //Debugging publisher
+   /*
+    * Debugging publisher
+    */
+   bool debugImageEnabled();
    void outputImage(vector<uint8_t> &data);
 
 
@@ -72,6 +76,7 @@ private:
    string map_points_pub;
    string z_pub;
    string force_map_pub;
+   string reset_map_sub;
 
    /*
     * Other config params
@@ -100,6 +105,7 @@ private:
    ros::Subscriber cameraInfoSub;
    ros::Subscriber localMapSub;
    ros::Subscriber forceMapSub;
+   ros::Subscriber resetMapSub;
    tf::TransformListener tfListener;
    tf::TransformBroadcaster tfPub;
 
@@ -109,23 +115,39 @@ private:
    message_filters::Subscriber<sensor_msgs::Image> *rgbSub;
    message_filters::Synchronizer<SyncPolicy> *sync;
 
+   /**
+    * Depth Only image processing
+    */
    bool depthOnly;
    ros::Subscriber depthOnlySub;
    sensor_msgs::ImageConstPtr dummyImage;
-   ros::Time lastprocess;
 
-   //debugging
+   /*
+    * Debugging
+    */
+   bool EnableDebugImage;
    ros::Publisher outImagePub;
    ros::Time curTimeStamp;
    string kinectFrame;
 
-
-   PositionTrackFull3D& position_track_3d;
+   // 3D position tracker
+   ros::NodeHandle nh3DConfig;
+   PositionTrackFull3D *position_track_3d;
 
    bool isInit;
    bool receivedCameraParams;
    ros::Time lastPublishedPoints;
    sensor_msgs::PointCloud2 allPointsMsg;
+
+   /**
+    * Common reset of fields of the class that are not set in ::initialise()
+    */
+   void reset();
+
+   /**
+    * Reset/Clear Map & Reset Position Tracker
+    */
+   void resetMap();
 
    void callbackKinect(const sensor_msgs::ImageConstPtr& depthImage, 
          const sensor_msgs::ImageConstPtr& rgbImage);
@@ -138,6 +160,11 @@ private:
    void callbackLocalMap(const crosbot_graphslam::LocalMapMsgConstPtr& localMapInfo);
 
    void callbackForceMap(const std_msgs::String& ignore);
+
+   /*
+    * Callback to reset the position tracker
+    */
+   void callbackResetMap(const std_msgs::String& name);
 
    //Gets the transform message of a pose
    geometry_msgs::TransformStamped getTransform(const Pose& pose, 
