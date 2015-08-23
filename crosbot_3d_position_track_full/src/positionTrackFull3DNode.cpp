@@ -135,6 +135,14 @@ void PositionTrackFull3DNode::callbackKinectDepthOnly(const sensor_msgs::ImageCo
     }*/
 
    try {
+      // Set rgb dummy image header
+      //    Need to do nasty casting stuff so the header can change...
+      //boost::shared_ptr< ::sensor_msgs::Image >
+      sensor_msgs::ImagePtr tmpDummyImage(boost::const_pointer_cast<sensor_msgs::Image>(dummyImage));
+      tmpDummyImage->header.seq = depthImage->header.seq;
+      tmpDummyImage->header.stamp = depthImage->header.stamp;
+      tmpDummyImage->header.frame_id = depthImage->header.frame_id;
+
       callbackKinect(depthImage, dummyImage);
       lastprocess = ros::Time::now();
    } catch (...) {
