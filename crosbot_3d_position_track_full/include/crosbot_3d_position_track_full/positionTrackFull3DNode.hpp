@@ -103,13 +103,15 @@ private:
    tf::TransformListener tfListener;
    tf::TransformBroadcaster tfPub;
 
+   // Kinect input Subscription
    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> SyncPolicy;   
    message_filters::Subscriber<sensor_msgs::Image> *depthSub;
    message_filters::Subscriber<sensor_msgs::Image> *rgbSub;
    message_filters::Synchronizer<SyncPolicy> *sync;
 
+   bool depthOnly;
    ros::Subscriber depthOnlySub;
-   sensor_msgs::Image *dummyImage;
+   sensor_msgs::ImageConstPtr dummyImage;
    ros::Time lastprocess;
 
    //debugging
@@ -129,7 +131,7 @@ private:
          const sensor_msgs::ImageConstPtr& rgbImage);
 
    // Depth only subscription
-   void callbackKinect1(const sensor_msgs::ImageConstPtr& depthImage);
+   void callbackKinectDepthOnly(const sensor_msgs::ImageConstPtr& depthImage);
 
    void callbackCameraInfo(const sensor_msgs::CameraInfo& camInfo);
 

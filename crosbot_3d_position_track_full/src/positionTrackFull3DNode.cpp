@@ -14,12 +14,23 @@ using namespace std;
 using namespace crosbot;
 
 PositionTrackFull3DNode::PositionTrackFull3DNode(PositionTrackFull3D& positionTrack): 
-   position_track_3d(positionTrack) {
-      isInit = true;
-      receivedCameraParams = false;
-      lastPublishedPoints = ros::Time::now();
+   position_track_3d(positionTrack),
+   depthOnly(false),
+   sync(NULL),
+   depthSub(NULL),
+   rgbSub(NULL),
+   UseLocalMaps(true),
+   OutputCurrentMap(true),
+   OutputCurrentMapRate(0),
+   QueueSize(1),
+   PublishMessage(true),
+   PublishTransform(true)
+{
+   isInit = true;
+   receivedCameraParams = false;
+   lastPublishedPoints = ros::Time::now();
 
-      position_track_3d.positionTrack3DNode = this;
+   position_track_3d.positionTrack3DNode = this;
 }
 
 void PositionTrackFull3DNode::initialise(ros::NodeHandle& nh) {
@@ -51,13 +62,34 @@ void PositionTrackFull3DNode::initialise(ros::NodeHandle& nh) {
    if (PublishMessage) {
       zPub = nh.advertise<geometry_msgs::Vector3>(z_pub, 1);
    }
-   cameraInfoSub = nh.subscribe(camera_info_sub, 1, &PositionTrackFull3DNode::callbackCameraInfo, this);
-   //depthSub = new message_filters::Subscriber<sensor_msgs::Image>(nh, depth_sub, QueueSize);
-   //rgbSub = new message_filters::Subscriber<sensor_msgs::Image> (nh, rgb_sub, QueueSize);
-   //sync = new message_filters::Synchronizer<SyncPolicy>(SyncPolicy(QueueSize), *depthSub, *rgbSub);
-   //sync->registerCallback(boost::bind(&PositionTrackFull3DNode::callbackKinect, this, _1, _2));
 
-   depthOnlySub = nh.subscribe(depth_sub, 1, &PositionTrackFull3DNode::callbackKinect1, this);
+   // Setup Kinect subscription
+   paramNH.param<bool>("depth_only", depthOnly, false);
+   cameraInfoSub = nh.subscribe(camera_info_sub, 1, &PositionTrackFull3DNode::callbackCameraInfo, this);
+   if (depthOnly) {
+      depthOnlySub = nh.subscribe(depth_sub, 1, &PositionTrackFull3DNode::callbackKinectDepthOnly, this);
+
+      int ImageHeight = 0;
+      int ImageWidth = 0;
+      paramNH.param<int>("ImageHeight", ImageHeight, 640);
+      paramNH.param<int>("ImageWidth", ImageWidth, 480);
+
+      // Dummy Image
+      //    See: http://docs.ros.org/api/sensor_msgs/html/msg/Image.html
+      sensor_msgs::Image *dummyImage = new sensor_msgs::Image();
+      dummyImage->height = ImageHeight;
+      dummyImage->width = ImageWidth;
+      dummyImage->is_bigendian = 0;
+      dummyImage->encoding = "rgb8";
+      dummyImage->step = 3*dummyImage->width;
+      dummyImage->data.resize(dummyImage->step * dummyImage->height, 0);
+      this->dummyImage = sensor_msgs::ImageConstPtr(dummyImage);
+   } else {
+       depthSub = new message_filters::Subscriber<sensor_msgs::Image>(nh, depth_sub, QueueSize);
+       rgbSub = new message_filters::Subscriber<sensor_msgs::Image> (nh, rgb_sub, QueueSize);
+       sync = new message_filters::Synchronizer<SyncPolicy>(SyncPolicy(QueueSize), *depthSub, *rgbSub);
+       sync->registerCallback(boost::bind(&PositionTrackFull3DNode::callbackKinect, this, _1, _2));
+   }
 
    if (UseLocalMaps) {
       localMapSub = nh.subscribe(local_map_sub, 10, &PositionTrackFull3DNode::callbackLocalMap, this);
@@ -87,15 +119,6 @@ void PositionTrackFull3DNode::initialise(ros::NodeHandle& nh) {
 
    //Debugging
    outImagePub = nh.advertise<sensor_msgs::Image>("outImage", 1);
-
-   // Dummy Image
-   /*sensor_msgs::Image *dummyImage = new sensor_msgs::Image();
-   dummyImage->height = 640; // TODO FROM CONFIG
-   dummyImage->width = 480;
-   dummyImage->is_bigendian = 0;
-   dummyImage->encoding = "rgb8";
-   dummyImage->step = 3*dummyImage->width;
-   dummyImage->data.resize(dummyImage->width * dummyImage->height, 0);*/
 }
 
 void PositionTrackFull3DNode::shutdown() {
@@ -105,40 +128,28 @@ void PositionTrackFull3DNode::shutdown() {
    delete depthSub;
 }
 
-void PositionTrackFull3DNode::callbackKinect1(const sensor_msgs::ImageConstPtr& depthImage) {
+void PositionTrackFull3DNode::callbackKinectDepthOnly(const sensor_msgs::ImageConstPtr& depthImage) {
 
     /*if (ros::Time::now() - lastprocess < ros::Duration(0.1)) {
         return;
     }*/
 
-    sensor_msgs::Image *dummyImage = new sensor_msgs::Image();
-    dummyImage->header = depthImage->header;
-    dummyImage->height = depthImage->height;
-    dummyImage->width = depthImage->width;
-    dummyImage->is_bigendian = 0;
-    dummyImage->encoding = "rgb8";
-    dummyImage->step = 3*dummyImage->width;
-    dummyImage->data.resize(dummyImage->width * dummyImage->height, 0);
-
-    sensor_msgs::ImageConstPtr dummyPtr(dummyImage);
-    try {
-        callbackKinect(depthImage, dummyPtr);
-        lastprocess = ros::Time::now();
-    } catch (...) {
-        ROS_ERROR("PositionTrackFull3DNode :: Error processing with only depth image");
-    }
+   try {
+      callbackKinect(depthImage, dummyImage);
+      lastprocess = ros::Time::now();
+   } catch (...) {
+      ROS_ERROR("PositionTrackFull3DNode :: Error processing with only depth image");
+   }
 }
 
 void PositionTrackFull3DNode::callbackKinect(const sensor_msgs::ImageConstPtr& depthImage, 
       const sensor_msgs::ImageConstPtr& rgbImage) {
 
-    ROS_INFO("Postrack3d: got image");
-
    curTimeStamp = depthImage->header.stamp;
    kinectFrame = rgbImage->header.frame_id;
 
    if (!receivedCameraParams) {
-       ROS_WARN("Postrack3d: no params recieved");
+      ROS_WARN("Postrack3d: camera params not yet received");
       return;
    }
    Pose icpPose;
@@ -148,17 +159,17 @@ void PositionTrackFull3DNode::callbackKinect(const sensor_msgs::ImageConstPtr& d
    try {
       tfListener.waitForTransform(base_frame, depthImage->header.frame_id,
              depthImage->header.stamp, ros::Duration(1, 0));
-  		tfListener.lookupTransform(base_frame,
-   				depthImage->header.frame_id, depthImage->header.stamp, kin2Base);
-  		sensorPose = kin2Base;
+        tfListener.lookupTransform(base_frame,
+               depthImage->header.frame_id, depthImage->header.stamp, kin2Base);
+        sensorPose = kin2Base;
 
       tfListener.waitForTransform(icp_frame, base_frame, depthImage->header.stamp, ros::Duration(1,0));
       tfListener.lookupTransform(icp_frame, base_frame, depthImage->header.stamp, base2Icp);
       icpPose = base2Icp;
    } catch (tf::TransformException& ex) {
- 		fprintf(stderr, "position track full 3d: Error getting transform. (%s) (%d.%d)\n", ex.what(),
-   		depthImage->header.stamp.sec, depthImage->header.stamp.nsec);
-   	return;
+       fprintf(stderr, "position track full 3d: Error getting transform. (%s) (%d.%d)\n", ex.what(),
+         depthImage->header.stamp.sec, depthImage->header.stamp.nsec);
+       return;
    }
    /*cout << "Success!!!!" << endl;
    double yy,pp,rr;
