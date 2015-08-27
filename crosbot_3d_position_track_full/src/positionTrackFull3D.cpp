@@ -282,11 +282,11 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
    double y,p,r;
    icpPose.getYPR(y,p,r);
-   cout << "icpPose: " << icpPose.position.x << " " << icpPose.position.y << " " <<
-      icpPose.position.z << " : " << y << " " << p << " " << r << endl;
+   //cout << "icpPose: " << icpPose.position.x << " " << icpPose.position.y << " " <<
+   //   icpPose.position.z << " : " << y << " " << p << " " << r << endl;
    icpFullPose.getYPR(y,p,r);
-   cout << "fullIcpPose: " << icpFullPose.position.x << " " << icpFullPose.position.y << " " <<
-      icpFullPose.position.z << " " << y << " " << p << " " << r << endl;
+   //cout << "fullIcpPose: " << icpFullPose.position.x << " " << icpFullPose.position.y << " " <<
+   //   icpFullPose.position.z << " " << y << " " << p << " " << r << endl;
 
    //preprocessing of points (only used for icp) - normals, filtering and different res's
    //bilateralFilter();
@@ -313,7 +313,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
    ros::WallTime t2 = ros::WallTime::now();
    ros::WallDuration totalTime = t2 - t1;
-   cout << "Total time of align icp: " << totalTime.toSec() * 1000.0f << endl;
+   //cout << "Total time of align icp: " << totalTime.toSec() * 1000.0f << endl;
 
    if (numFails == 0 || numFails > FailCount) {
       t1 = ros::WallTime::now();
@@ -329,7 +329,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
 
       t2 = ros::WallTime::now();
       totalTime = t2 - t1;
-      cout << "Time of half adding points: " << totalTime.toSec() * 1000.0f << endl;
+      //cout << "Time of half adding points: " << totalTime.toSec() * 1000.0f << endl;
       t1 = ros::WallTime::now();
 
       //cout << "numActiveBlocks are: " << numActiveBlocks << endl;
@@ -338,7 +338,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
       clFinish(opencl_manager->getCommandQueue());
       t2 = ros::WallTime::now();
       totalTime = t2 - t1;
-      cout << "Time of adding blocks: " << totalTime.toSec() * 1000.0f << endl;
+      //cout << "Time of adding blocks: " << totalTime.toSec() * 1000.0f << endl;
       t1 = ros::WallTime::now();
 
       addFrame(offset);
@@ -348,7 +348,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
           sizeof(int), &highestBlockNum, 0, 0, 0, "Reading highest block num");
       t2 = ros::WallTime::now();
       totalTime = t2 - t1;
-      cout << "Time of adding points: " << totalTime.toSec() * 1000.0f << endl;
+      //cout << "Time of adding points: " << totalTime.toSec() * 1000.0f << endl;
       //cout << "Highest block num is: " << highestBlockNum << " cent is: " << mapCentre.x <<
       //  " " << mapCentre.y << " " << mapCentre.z << endl;
 
@@ -435,7 +435,7 @@ Pose PositionTrackFull3D::processFrame(const sensor_msgs::ImageConstPtr& depthIm
    
       t2 = ros::WallTime::now();
       totalTime = t2 - t1;
-      cout << "Time of extracting points: " << totalTime.toSec() * 1000.0f << endl;
+      //cout << "Time of extracting points: " << totalTime.toSec() * 1000.0f << endl;
    }
    
    if (newMapCentre.x != mapCentre.x || newMapCentre.y != mapCentre.y ||
@@ -955,8 +955,8 @@ void PositionTrackFull3D::outputAllPoints(int numPoints, vector<uint8_t>& allPoi
       }
    }
    allPoints.resize(added * 32);
-   cout << "Number of points published: " << added << endl;
-   cout << "centre: " << mapCentre.x << " " << mapCentre.y << " " << mapCentre.z << endl;
+   //cout << "Number of points published: " << added << endl;
+   //cout << "centre: " << mapCentre.x << " " << mapCentre.y << " " << mapCentre.z << endl;
    free(ps);
    free(cols);
 
@@ -1011,7 +1011,7 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
    
    ros::WallTime t2 = ros::WallTime::now();
    ros::WallDuration totalTime = t2 - t1;
-   cout << "Total time of scale: " << totalTime.toSec() * 1000.0f << endl;
+   //cout << "Total time of scale: " << totalTime.toSec() * 1000.0f << endl;
    t1 = ros::WallTime::now();
    
    int kernelI = FAST_ICP;
@@ -1049,8 +1049,8 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
    Pose startPose = curTrans;
    double y,p,r;
    startPose.getYPR(y,p,r);
-   cout << "Start pose is: " << startPose.position.x << " " << startPose.position.y << " " <<
-         startPose.position.z << "  " << y << " " << p << " " << r << endl;
+   //cout << "Start pose is: " << startPose.position.x << " " << startPose.position.y << " " <<
+   //      startPose.position.z << "  " << y << " " << p << " " << r << endl;
 
    float totalMovement[6];
    for (int i = 0; i < 6; i++) {
@@ -1193,8 +1193,8 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
          tempScale[j] = pow(tempScale[j], 2);
          tempScale[j] *= 1.0f;
       }
-      cout << "Temp scale: " << tempScale[0] << " " << tempScale[1] << " " << tempScale[2]
-         << " " << tempScale[3] << " " << tempScale[4] << " " << tempScale[5] << endl;
+      //cout << "Temp scale: " << tempScale[0] << " " << tempScale[1] << " " << tempScale[2]
+      //   << " " << tempScale[3] << " " << tempScale[4] << " " << tempScale[5] << endl;
       multVectorTrans(tempScale, reg);
       //reg[0][0] = reg[1][1] = reg[2][2] = reg[3][3] = reg[4][4] = reg[5][5] = 1;
 
@@ -1240,11 +1240,11 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
       cout << endl;*/
 
       solveCholesky(A, b, x);
-      cout << "Modified results: " << x[0] << " " << x[1] << " " << x[2] << " " << x[3] << " " << x[4]
-         << " " << x[5] << endl;
+      //cout << "Modified results: " << x[0] << " " << x[1] << " " << x[2] << " " << x[3] << " " << x[4]
+      //   << " " << x[5] << endl;
 
-      cout << "Total movement: " << totalMovement[0] << " " << totalMovement[1] << " " << totalMovement[2] << " "
-          << totalMovement[3] << " " << totalMovement[4] << " " << totalMovement[5] << endl;
+      //cout << "Total movement: " << totalMovement[0] << " " << totalMovement[1] << " " << totalMovement[2] << " "
+      //    << totalMovement[3] << " " << totalMovement[4] << " " << totalMovement[5] << endl;
 
       /*cout << "Results: ";
       for (int j = 0; j < DOF; j++) {
@@ -1322,8 +1322,8 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
    }
    Pose endPose = curTrans;
    endPose.getYPR(y,p,r);
-   cout << "End pose is: " << endPose.position.x << " " << endPose.position.y << " " <<
-       endPose.position.z << "  " << y << " " << p << " " << r << endl;
+   //cout << "End pose is: " << endPose.position.x << " " << endPose.position.y << " " <<
+   //    endPose.position.z << "  " << y << " " << p << " " << r << endl;
    if (!failed) {
       if (limit) {
          cout << "^^^^Uncertain of x,y,y, limiting movement" << endl;
@@ -1342,7 +1342,7 @@ void PositionTrackFull3D::alignICP(tf::Transform sensorPose, tf::Transform newPo
    }
    t2 = ros::WallTime::now();
    totalTime = t2 - t1;
-   cout << "Total time of icp aligning (" << i << "its): " << totalTime.toSec() * 1000.0f << endl;
+   //cout << "Total time of icp aligning (" << i << "its): " << totalTime.toSec() * 1000.0f << endl;
 }
 
 
@@ -1365,7 +1365,7 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
    
    ros::WallTime t2 = ros::WallTime::now();
    ros::WallDuration totalTime = t2 - t1;
-   cout << "Total time of predict surface: " << totalTime.toSec() * 1000.0f << endl;
+   //cout << "Total time of predict surface: " << totalTime.toSec() * 1000.0f << endl;
    t1 = ros::WallTime::now();
 
    int kernelI = RAY_TRACE_ICP;
@@ -1404,8 +1404,8 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
    Pose startPose = curTrans;
    double y,p,r;
    startPose.getYPR(y,p,r);
-   cout << "Start pose is: " << startPose.position.x << " " << startPose.position.y << " " <<
-         startPose.position.z << "  " << y << " " << p << " " << r << endl;
+   //cout << "Start pose is: " << startPose.position.x << " " << startPose.position.y << " " <<
+   //      startPose.position.z << "  " << y << " " << p << " " << r << endl;
 
    float totalMovement[6];
    for (int i = 0; i < 6; i++) {
@@ -1547,8 +1547,8 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
          tempScale[j] = pow(tempScale[j], 2);
          tempScale[j] *= (ScaleRegularisation / scaleOff);
       }
-      cout << "Temp scale: " << tempScale[0] << " " << tempScale[1] << " " << tempScale[2]
-         << " " << tempScale[3] << " " << tempScale[4] << " " << tempScale[5] << endl;
+      //cout << "Temp scale: " << tempScale[0] << " " << tempScale[1] << " " << tempScale[2]
+      //   << " " << tempScale[3] << " " << tempScale[4] << " " << tempScale[5] << endl;
       multVectorTrans(tempScale, reg);
       //reg[0][0] = reg[1][1] = reg[2][2] = reg[3][3] = reg[4][4] = reg[5][5] = 0;
 
@@ -1594,11 +1594,11 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
       cout << endl;*/
 
       solveCholesky(A, b, x);
-      cout << "Modified results: " << x[0] << " " << x[1] << " " << x[2] << " " << x[3] << " " << x[4]
-         << " " << x[5] << endl;
+      //cout << "Modified results: " << x[0] << " " << x[1] << " " << x[2] << " " << x[3] << " " << x[4]
+      //   << " " << x[5] << endl;
 
-      cout << "Total movement: " << totalMovement[0] << " " << totalMovement[1] << " " << totalMovement[2] << " "
-          << totalMovement[3] << " " << totalMovement[4] << " " << totalMovement[5] << endl;
+      //cout << "Total movement: " << totalMovement[0] << " " << totalMovement[1] << " " << totalMovement[2] << " "
+      //    << totalMovement[3] << " " << totalMovement[4] << " " << totalMovement[5] << endl;
 
       /*cout << "Results: ";
       for (int j = 0; j < DOF; j++) {
@@ -1676,8 +1676,8 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
    }
    Pose endPose = curTrans;
    endPose.getYPR(y,p,r);
-   cout << "End pose is: " << endPose.position.x << " " << endPose.position.y << " " <<
-       endPose.position.z << "  " << y << " " << p << " " << r << endl;
+   //cout << "End pose is: " << endPose.position.x << " " << endPose.position.y << " " <<
+   //    endPose.position.z << "  " << y << " " << p << " " << r << endl;
    if (!failed) {
       if (limit) {
          cout << "^^^^Uncertain of x,y,y, limiting movement" << endl;
@@ -1696,7 +1696,7 @@ void PositionTrackFull3D::alignRayTraceICP(tf::Transform sensorPose, tf::Transfo
    }
    t2 = ros::WallTime::now();
    totalTime = t2 - t1;
-   cout << "Total time of icp aligning (" << i << "its): " << totalTime.toSec() * 1000.0f << endl;
+   //cout << "Total time of icp aligning (" << i << "its): " << totalTime.toSec() * 1000.0f << endl;
 }
 
 
@@ -1748,8 +1748,8 @@ void PositionTrackFull3D::scaleRayTraceICP(int numGroups, float scale[6]) {
    opencl_task->queueKernel(kernelI, 1, LocalSize, LocalSize, 0, NULL, NULL, false);
    readBuffer(clLocalMapCommon, CL_TRUE, icpScaleResultsOffset, sizeof(ocl_float) * 6, 
          scale, 0, 0, 0, "Reading the scale icp results");
-   cout << "Scale results are: " << scale[0] << " " << scale[1] << " " << scale[2] << " " 
-      << scale[3] << " " << scale[4] << " " << scale[5] << endl;
+   //cout << "Scale results are: " << scale[0] << " " << scale[1] << " " << scale[2] << " "
+   //   << scale[3] << " " << scale[4] << " " << scale[5] << endl;
 
 }
 
@@ -1886,8 +1886,8 @@ void PositionTrackFull3D::scaleICP(int numGroups, tf::Transform trans, float sca
    opencl_task->queueKernel(kernelI, 1, LocalSize, LocalSize, 0, NULL, NULL, false);
    readBuffer(clLocalMapCommon, CL_TRUE, icpScaleResultsOffset, sizeof(ocl_float) * 6, 
          scale, 0, 0, 0, "Reading the scale icp results");
-   cout << "Scale results are: " << scale[0] << " " << scale[1] << " " << scale[2] << " " 
-      << scale[3] << " " << scale[4] << " " << scale[5] << endl;
+   //cout << "Scale results are: " << scale[0] << " " << scale[1] << " " << scale[2] << " "
+   //   << scale[3] << " " << scale[4] << " " << scale[5] << endl;
 }
 
 void PositionTrackFull3D::alignZOnlyICP(tf::Transform sensorPose, tf::Transform newPose) {
@@ -1945,7 +1945,7 @@ void PositionTrackFull3D::alignZOnlyICP(tf::Transform sensorPose, tf::Transform 
       float count = results[1];
       float zAl = distance / count;
 
-      cout << "Count is: " << count << endl;
+      //cout << "Count is: " << count << endl;
       int cc = (int)count;
       //if (count < MinCount) {
       if (cc == 0) {
@@ -1959,7 +1959,7 @@ void PositionTrackFull3D::alignZOnlyICP(tf::Transform sensorPose, tf::Transform 
       }
    }
    if (success /*&& fabs(zInc) < MaxMove*/) {
-      cout << "Moved: " << zInc << endl;
+      //cout << "Moved: " << zInc << endl;
       Pose endPose = newPose;
       endPose.position.z += zInc;
       icpFullPose = endPose.toTF();
