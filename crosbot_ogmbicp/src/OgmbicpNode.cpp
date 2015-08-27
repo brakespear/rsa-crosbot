@@ -35,12 +35,17 @@ void OgmbicpNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("reset_map_sub", reset_map_sub, "resetMap");
    paramNH.param<bool>("UseExternalZ", UseExternalZ, false);
    paramNH.param<bool>("UseFloorHeight", UseFloorHeight, true);
+   paramNH.param<bool>("UseStampedOrientation", UseStampedOrientation, false);
 
    pos_tracker.initialise(nh);
    pos_tracker.start();
 
    scanSubscriber = nh.subscribe(scan_sub, 1, &OgmbicpNode::callbackScan, this);
-   orientationSubscriber = nh.subscribe(orientation_sub, 1, &OgmbicpNode::callbackOrientation, this);
+   if (UseStampedOrientation) {
+       orientationSubscriber = nh.subscribe(orientation_sub, 1, &OgmbicpNode::callbackOrientationStamped, this);
+   } else {
+       orientationSubscriber = nh.subscribe(orientation_sub, 1, &OgmbicpNode::callbackOrientation, this);
+   }
    imagePub = nh.advertise<sensor_msgs::Image>(local_map_image_pub, 1);
    localMapPub = nh.advertise<nav_msgs::OccupancyGrid>(local_map_pub, 1);
    recentScansServer = nh.advertiseService(recent_scans_srv, &OgmbicpNode::getRecentScans, this);
@@ -159,7 +164,11 @@ void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan)
    }
 }
 
-void OgmbicpNode::callbackOrientation(const geometry_msgs::QuaternionStamped& quat) {
+void OgmbicpNode::callbackOrientation(const geometry_msgs::Quaternion& quaternion) {
+    pos_tracker.processImuOrientation(quaternion);
+}
+
+void OgmbicpNode::callbackOrientationStamped(const geometry_msgs::QuaternionStamped& quat) {
    pos_tracker.processImuOrientation(quat.quaternion);
 }
 

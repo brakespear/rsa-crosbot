@@ -74,6 +74,7 @@ private:
 
    bool UseExternalZ;
    bool UseFloorHeight;
+   bool UseStampedOrientation;
 
    Ogmbicp &pos_tracker;
    //Is it the initial scan?
@@ -92,7 +93,8 @@ private:
     * Callback for the orientation from the IMU
     */
    //void callbackOrientation(const geometry_msgs::Quaternion& quat);
-   void callbackOrientation(const geometry_msgs::QuaternionStamped& quat);
+   void callbackOrientation(const geometry_msgs::Quaternion& quat);
+   void callbackOrientationStamped(const geometry_msgs::QuaternionStamped& quat);
    void callbackZ(const geometry_msgs::Vector3& vec);
 
    /*
