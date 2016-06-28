@@ -10,10 +10,13 @@
 #ifndef CROSBOT_HANDLE_H_
 #define CROSBOT_HANDLE_H_
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <exception>
+#include <string>
+
+#include <crosbot/exception.hpp>
 
 #define		REF_COUNT_TYPE	long int
 
@@ -158,38 +161,6 @@ inline bool operator==(void *lhs, const HandledObject& rhs)
 {
     return lhs == &(rhs);
 }
-
-#define DEFAULT_NULLHANDLEMESSAGE   "Null Handle Exception."
-class NullHandleException: public std::exception {
-public :
-    char* msg;
-
-	NullHandleException(): exception(), msg(NULL) {}
-	NullHandleException(const char * what): exception() {
-	    if (what == NULL)
-	        msg = NULL;
-	    size_t n = strlen(what) + 1;
-	    msg = (char *)malloc(n);
-	    if (msg != NULL)
-	        memcpy(msg, what, n);
-	}
-	NullHandleException(const std::string& what): exception() {
-        size_t n = what.size() + 1;
-        msg = (char *)malloc(n);
-        if (msg != NULL)
-            memcpy(msg, &what[0], n);
-	}
-	~NullHandleException() throw () {
-	    if (msg != NULL)
-	        free(msg);
-	}
-
-	const char* what() const throw() {
-	    if (msg == NULL)
-	        return DEFAULT_NULLHANDLEMESSAGE;
-	    return msg;
-	}
-};
 
 /**
  * A handle(pointer) to a ManagedObject.
