@@ -18,6 +18,9 @@
 
 #include <crosbot/exception.hpp>
 
+/**
+ * Reference counter type
+ */
 #define		REF_COUNT_TYPE	long int
 
 #if __cplusplus < 201103L
@@ -28,7 +31,11 @@
 namespace crosbot {
 
 /**
- * A reference counted self managed object.
+ * Superclass for Crosbot implementation of thread-safe shared pointers.
+ * Any class to be used as a thread-safe shared pointer must inherit this class.
+ *
+ * @warning All methods provided by this class should be be directly called, but are only
+ *    to be used by crosbot::Handle
  */
 class HandledObject {
 private:
@@ -42,16 +49,25 @@ public:
 	virtual ~HandledObject() {
 	};
 
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
 	void __incRef() {
 		Lock lock(_refMutex);
 		++_refCount;
 	}
 
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
 	void __incRef() const {
 		Lock lock(*((Mutex *)&_refMutex));
 		++*((int *)&_refCount);
 	}
 
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
 	void __decRef() {
 		Lock lock(_refMutex);
 		--_refCount;
@@ -64,6 +80,9 @@ public:
 		}
 	}
 
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
 	void __decRef() const {
 		Lock lock(*((Mutex *)&_refMutex));
 		--*((int *)&_refCount);
@@ -76,6 +95,9 @@ public:
 		}
 	}
 
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
 	REF_COUNT_TYPE __getRef() const {
 		return _refCount;
 	}
@@ -91,7 +113,11 @@ public:
 namespace crosbot {
 
 /**
- * A reference counted self managed object.
+ * Superclass for Crosbot implementation of thread-safe shared pointers.
+ * Any class to be used as a thread-safe shared pointer must inherit this class.
+ *
+ * @warning All methods provided by this class should be be directly called, but are only
+ *    to be used by crosbot::Handle
  */
 class HandledObject {
 private:
@@ -108,14 +134,23 @@ public:
 	virtual ~HandledObject() {
 	};
 
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
 	void __incRef() {
 		++_refCount;
 	}
 
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
 	void __incRef() const {
 		++*((std::atomic< int > *)&_refCount);
 	}
 
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
 	void __decRef() {
 		--_refCount;
 		if (_refCount < 0) {
@@ -126,6 +161,9 @@ public:
 		}
 	}
 
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
 	void __decRef() const {
 		--*((std::atomic< int > *)&_refCount);
 		if (_refCount < 0) {
@@ -136,6 +174,9 @@ public:
 		}
 	}
 
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
 	REF_COUNT_TYPE __getRef() const {
 		return _refCount.load();
 	}
@@ -163,14 +204,18 @@ inline bool operator==(void *lhs, const HandledObject& rhs)
 }
 
 /**
- * A handle(pointer) to a ManagedObject.
+ * A handle (pointer) to an object inheriting from crosbot::HandledObject.
+ * Ensure thread-safe management of the shared pointer using the interface methods of crosbot::HandledObject.
  */
 template<typename T>
-class Handle
-{
+class Handle {
 private:
     T* _ptr;
-    void throwNullHandleException() const;
+
+    void throwNullHandleException() const {
+        throw NullHandleException();
+    }
+
 public:
 	Handle(const T* p = NULL)
 	{
@@ -335,12 +380,6 @@ public:
     }
 
 };
-
-template<typename T> inline void
-Handle<T>::throwNullHandleException() const
-{
-    throw NullHandleException();
-}
 
 template<typename T, typename U>
 inline bool operator==(const Handle<T>& lhs, const Handle<U>& rhs)
