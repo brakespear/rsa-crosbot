@@ -24,7 +24,7 @@ JoystickRender::JoystickRender(RobotPanel& panel, ConfigElementPtr config) :
 	for (uint32_t i = 0; i < config->getChildCount(); ++i) {
 		ConfigElementPtr child = config->getChild(i);
 
-		if (child != NULL && (strcasecmp(child->name.c_str(), "button") == 0)) {
+		if (child != NULL && (strcasecmp(child->getChildName().c_str(), "button") == 0)) {
 			int id =  child->getParamAsInt("id", Joystick::Undefined);
 			id =  child->getParamAsInt("button", id);
 			if (id >= 0 && id < MAX_JOYSTICK_BUTTONS) {

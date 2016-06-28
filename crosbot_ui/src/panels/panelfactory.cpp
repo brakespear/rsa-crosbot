@@ -42,26 +42,26 @@ Panel *PanelFactory::createPanel(ConfigElementPtr config) {
 	}
 
 	if (rval == NULL) {
-		if (strcasecmp(config->name.c_str(), PANEL_IMAGE) == 0) {
+		if (strcasecmp(config->getChildName().c_str(), PANEL_IMAGE) == 0) {
 			rval = new ImagePanel(config);
-		} else if (strcasecmp(config->name.c_str(), PANEL_SCROLL) == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), PANEL_SCROLL) == 0) {
 			rval = new ScrollPanel(config);
-		} else if (strcasecmp(config->name.c_str(), PANEL_SPLIT) == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), PANEL_SPLIT) == 0) {
 			rval = new SplitPanel(config);
-		} else if (strcasecmp(config->name.c_str(), PANEL_TABS) == 0 ||
-				strcasecmp(config->name.c_str(), PANEL_TAB) == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), PANEL_TABS) == 0 ||
+				strcasecmp(config->getChildName().c_str(), PANEL_TAB) == 0) {
 			rval = new TabPanel(config);
-		} else if (strcasecmp(config->name.c_str(), PANEL_POINTCLOUD) == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), PANEL_POINTCLOUD) == 0) {
 			rval = new PointCloudPanel(config);
-		} else if (strcasecmp(config->name.c_str(), PANEL_MAP) == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), PANEL_MAP) == 0) {
 			rval = new MapPanel(config);
-		} else if (strcasecmp(config->name.c_str(), PANEL_SNAP) == 0 ||
-				strcasecmp(config->name.c_str(), ELEMENT_SNAPS) == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), PANEL_SNAP) == 0 ||
+				strcasecmp(config->getChildName().c_str(), ELEMENT_SNAPS) == 0) {
 			rval = new SnapPanel(config);
-		} else if (strcasecmp(config->name.c_str(), "snap2") == 0 ||
-				strcasecmp(config->name.c_str(), "snaps2") == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), "snap2") == 0 ||
+				strcasecmp(config->getChildName().c_str(), "snaps2") == 0) {
 			rval = new SnapPanel2(config);
-		} else if (strcasecmp(config->name.c_str(), PANEL_ROBOT) == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), PANEL_ROBOT) == 0) {
 			rval = new RobotPanel(config);
 		}
 	}

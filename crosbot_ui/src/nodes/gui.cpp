@@ -42,7 +42,7 @@ void catch_int(int sig_num)
 }
 
 void printConfig(ConfigElementPtr config, string indent) {
-	printf("%s%s", indent.c_str(), config->name.c_str());
+	printf("%s%s", indent.c_str(), config->getChildName().c_str());
 
 //	for (unsigned int i = 0; i < config-> attributes.size(); i++)
 //		printf(" %s=\"%s\"", config->attributes[i].c_str(), config->values[i].c_str());

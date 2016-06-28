@@ -88,25 +88,25 @@ RobotRender *RobotPanel::getRender(ConfigElementPtr config, RobotPanel& panel) {
 		rval = robotRenderFactories[i](config, panel);
 	}
 	if (rval == NULL) {
-		if (strcasecmp(config->name.c_str(), RENDER_CROSSHAIR) == 0) {
+		if (strcasecmp(config->getChildName().c_str(), RENDER_CROSSHAIR) == 0) {
 			rval = new CrosshairRender(panel, config);
-		} else if (strcasecmp(config->name.c_str(), RENDER_SPEED) == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), RENDER_SPEED) == 0) {
 			rval = new SpeedRender(panel, config);
-		} else if (strcasecmp(config->name.c_str(), RENDER_POWER) == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), RENDER_POWER) == 0) {
 			rval = new PowerRender(panel, config);
-		} else if (strcasecmp(config->name.c_str(), RENDER_ATTITUDE) == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), RENDER_ATTITUDE) == 0) {
 			rval = new AttitudeRender(panel, config);
-		} else if (strcasecmp(config->name.c_str(), RENDER_MESSAGE) == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), RENDER_MESSAGE) == 0) {
 			rval = new MessageRender(panel, config);
-		} else if (strcasecmp(config->name.c_str(), RENDER_IMAGE) == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), RENDER_IMAGE) == 0) {
 			rval = new ImageRender(panel, config);
-		} else if (strcasecmp(config->name.c_str(), RENDER_JOYSTICK) == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), RENDER_JOYSTICK) == 0) {
 			rval = new JoystickRender(panel, config);
 #ifdef JUNK_RENDER
-		} else if (strcasecmp(config->name.c_str(), "junk") == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), "junk") == 0) {
 			rval = new JointRender(panel, config);
 #endif
-		} else if (strcasecmp(config->name.c_str(), "emu") == 0) {
+		} else if (strcasecmp(config->getChildName().c_str(), "emu") == 0) {
 			rval = new EmuRender(panel, config);
 		}
 	}
@@ -125,22 +125,22 @@ RobotPanel::RobotPanel(ConfigElementPtr config) :
 	for (uint32_t i = 0; i < config->getChildCount(); ++i) {
 		ConfigElementPtr child = config->getChild(i);
 
-		if (strcasecmp(child->name.c_str(), ELEMENT_DRIVE) == 0) {
+		if (strcasecmp(child->getChildName().c_str(), ELEMENT_DRIVE) == 0) {
 			driveTopic = child->getParam(PARAM_NAME);
 			driveTopic = child->getParam(PARAM_TOPIC, driveTopic);
 
 			maxSpeed = child->getParamAsFloat("speed", maxSpeed);
 			maxTurn = child->getParamAsFloat("turn", maxTurn);
-		} else if (strcasecmp(child->name.c_str(), ELEMENT_KEY) == 0 ||
-				strcasecmp(child->name.c_str(), ELEMENT_JOINT) == 0 ||
-				strcasecmp(child->name.c_str(), ELEMENT_VELOCITY) == 0) {
+		} else if (strcasecmp(child->getChildName().c_str(), ELEMENT_KEY) == 0 ||
+				strcasecmp(child->getChildName().c_str(), ELEMENT_JOINT) == 0 ||
+				strcasecmp(child->getChildName().c_str(), ELEMENT_VELOCITY) == 0) {
 			widget.addInputListener(child);
 		} else {
 			RobotRender* render = getRender(child, *this);
 			if (render != NULL) {
 				widget.addRender(render);
 			} else {
-				ERROR("RobotPanel: Unknown child %s.\n", child->name.c_str());
+				ERROR("RobotPanel: Unknown child %s.\n", child->getChildName().c_str());
 			}
 		}
 	}

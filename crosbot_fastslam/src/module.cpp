@@ -14,7 +14,7 @@ namespace fastslam {
 class FastSLAMFactory {
 public:
 	static MapPtr factory(ConfigElementPtr config) {
-		std::string type = config->getParam(PARAM_TYPE, config->name);
+		std::string type = config->getParam(PARAM_TYPE, config->getChildName());
 		std::string name = config->getParam(PARAM_NAME, "");
 
 		if (strcasecmp(type.c_str(), "fastslam") == 0) {

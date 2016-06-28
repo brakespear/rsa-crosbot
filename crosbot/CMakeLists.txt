@@ -91,7 +91,11 @@ add_dependencies(crosbot ${PROJECT_NAME} crosbot_gencpp)
 #   ${catkin_LIBRARIES}
 # )
 
-target_link_libraries(crosbot jpeg xml2)
+target_link_libraries(crosbot 
+    ${catkin_LIBRARIES}
+    jpeg
+    xml2
+)
 
 #############
 ## Install ##

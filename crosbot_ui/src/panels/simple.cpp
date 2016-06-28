@@ -241,7 +241,7 @@ TabPanel::TabPanel(ConfigElementPtr config) : Panel(config) {
 	for (unsigned int i = 0; i < config->getChildCount(); i++) {
 		ConfigElementPtr childConfig = config->getChild(i);
 
-		if (childConfig->getChildCount() != 1 || strcasecmp(childConfig->name.c_str(), ELEMENT_TAB)) {
+		if (childConfig->getChildCount() != 1 || strcasecmp(childConfig->getChildName().c_str(), ELEMENT_TAB)) {
 //			logger->log(LOG_IMPORTANT, "TabPanel: Unable to configure tab for element %s.\n", childConfig->name.c_str());
 			continue;
 		}

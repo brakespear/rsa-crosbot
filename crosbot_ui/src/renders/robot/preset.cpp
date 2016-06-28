@@ -51,7 +51,7 @@ PresetRender::PresetRender(RobotPanel& panel, ConfigElementPtr config) :
 	for (size_t i = 0; i < config->getChildCount() && setPresets < 10; ++i) {
 		ConfigElementPtr child = config->getChild(i);
 
-		if (strcasecmp(child->name.c_str(), "preset") == 0) {
+		if (strcasecmp(child->getChildName().c_str(), "preset") == 0) {
 			std::string set = child->getParam("value");
 			std::vector< std::string > angs = getParamAsList(set);
 

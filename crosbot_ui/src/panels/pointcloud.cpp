@@ -36,7 +36,7 @@ PointCloudPanel::PointCloudPanel(ConfigElementPtr config) : Panel(config) {
 
 	for (uint32_t i = 0; i < config->getChildCount(); ++i) {
 		ConfigElementPtr child = config->getChild(i);
-		if (strcasecmp(child->name.c_str(), PARAM_POSE) == 0) {
+		if (strcasecmp(child->getChildName().c_str(), PARAM_POSE) == 0) {
 			std::string pose = child->getParam(PARAM_NAME);
 			pose = child->getParam(PARAM_POSE, pose);
 			pose = child->getParam(PARAM_TOPIC, pose);

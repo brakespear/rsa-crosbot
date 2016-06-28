@@ -500,16 +500,16 @@ public:
 };
 
 void RobotWidget::addInputListener(ConfigElementPtr cfg) {
-	if (strcasecmp(cfg->name.c_str(), ELEMENT_KEY) == 0) {
+	if (strcasecmp(cfg->getChildName().c_str(), ELEMENT_KEY) == 0) {
 		listeners.push_back(new TopicMessageKey(cfg));
-	} else if (strcasecmp(cfg->name.c_str(), ELEMENT_JOINT) == 0) {
+	} else if (strcasecmp(cfg->getChildName().c_str(), ELEMENT_JOINT) == 0) {
 		JointController::connect();
 		if (cfg->getParamAsBool("zero", false)) {
 			listeners.push_back(new JointZeroKey(cfg));
 		} else {
 			listeners.push_back(new JointKey(cfg));
 		}
-	} else if (strcasecmp(cfg->name.c_str(), ELEMENT_VELOCITY) == 0) {
+	} else if (strcasecmp(cfg->getChildName().c_str(), ELEMENT_VELOCITY) == 0) {
 		JointController::connect();
 		listeners.push_back(new JointVelocity(cfg));
 	}

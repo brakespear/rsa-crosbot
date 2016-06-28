@@ -69,30 +69,30 @@ void Gui::configure(ConfigElementPtr config) {
 	for (unsigned int i = 0; i < config->getChildCount(); i++) {
 		ConfigElementPtr childConfig = config->getChild(i);
 		// TODO: Add library inclusion.
-		if (strcasecmp(childConfig->name.c_str(), ELEMENT_LIBRARY) == 0) {
+		if (strcasecmp(childConfig->getChildName().c_str(), ELEMENT_LIBRARY) == 0) {
 			loadLibrary(childConfig);
 //		} else if (strcasecmp(childConfig->name.c_str(), ELEMENT_BENCHMARK) == 0) {
 //            loadBenchmark(childConfig);
-		} else if (strcasecmp(childConfig->name.c_str(), ELEMENT_MAP) == 0) {
+		} else if (strcasecmp(childConfig->getChildName().c_str(), ELEMENT_MAP) == 0) {
 			MapPtr map = MapFactory::createMap(childConfig);
 			if (map != NULL) {
 				std::string name = childConfig->getParam(PARAM_NAME, "Map");
 				maps.addMap(name, map);
 			}
-		} else if (strcasecmp(childConfig->name.c_str(), "viewport") == 0) {
+		} else if (strcasecmp(childConfig->getChildName().c_str(), "viewport") == 0) {
 			showMaxed_ = childConfig->getParamAsBool("Maximize", false);
 			showPosx_ = childConfig->getParamAsInt("x", -1);
 			showPosy_ = childConfig->getParamAsInt("y", -1);
 			showSizex_ = childConfig->getParamAsInt("w", 0);
 			showSizey_ = childConfig->getParamAsInt("h", 0);
-		} else if (strcasecmp(childConfig->name.c_str(), ELEMENT_GUI) == 0) {
+		} else if (strcasecmp(childConfig->getChildName().c_str(), ELEMENT_GUI) == 0) {
 			if (guiConfigured) {
 				ROS_LOG(levels::Error, ROS_NAME, "The GUI has been configured by a previous element.\n");
 				continue;
 			}
 			for (unsigned int j = 0; j < childConfig->getChildCount(); j++) {
 				ConfigElementPtr grandchildConfig = childConfig->getChild(j);
-				if (strcasecmp(grandchildConfig->name.c_str(), ELEMENT_MENU) == 0) {
+				if (strcasecmp(grandchildConfig->getChildName().c_str(), ELEMENT_MENU) == 0) {
 					// TODO: Gui: setup the menu
 				} else if (!guiConfigured) {
 					Panel *panel = PanelFactory::createPanel(grandchildConfig);
@@ -103,7 +103,7 @@ void Gui::configure(ConfigElementPtr config) {
 						guiConfigured = true;
 						panels.push_back(panel);
 					} else {
-						ROS_LOG(levels::Error, ROS_NAME, "Unable to create panel for element %s.\n", grandchildConfig->name.c_str());
+						ROS_LOG(levels::Error, ROS_NAME, "Unable to create panel for element %s.\n", grandchildConfig->getChildName().c_str());
 					}
 				}
 			}
