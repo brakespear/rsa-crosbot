@@ -1,6 +1,8 @@
 /*
  * thread.h
  *
+ * Multi-threading functionality and Parallelism controls
+ *
  *  Created on: 10/08/2009
  *      Author: rescue
  */
@@ -14,16 +16,49 @@
 
 namespace crosbot {
 
-#define DEFAULT_WAIT_FOR_THREAD_CLOSE		10000 // Milliseconds
-
-struct _ThreadData;
 /**
- * A thread for processing.
+ * Default thread closing in milliseconds
+ */
+#define DEFAULT_WAIT_FOR_THREAD_CLOSE		10000
+
+/**
+ * Exception thrown if problems occur with thread management
+ */
+class ThreadException: public std::exception {
+private:
+    char* msg;
+
+public:
+    ThreadException();
+    ThreadException(const char * what);
+    ThreadException(const std::string& what);
+    ~ThreadException() throw ();
+    const char* what() const throw();
+};
+
+/**
+ * Internal thread data structures, not given in header to allow ease of change of implementation
+ */
+struct _ThreadData;
+
+/**
+ * Class based implementation of multi-threading.
+ * Classes that wish to spawn a new process in a new thread should inherit from this class
+ *   and implemented the crosbot::Thread::run() method.
+ * A new thread is spawned by calling crosbot::Thread::start(), which detaches a new thread,
+ *   calls the crosbot::Thread::run() method in the new thread, and
+ *   returns control of the current thread to the entity that called crosbot::Thread::start().
+ * The spawned thread will terminate only once the crosbot::Thread::run() returns.
+ *
+ * @warning It is the responsibility of the sub-class to ensure the thread can be terminated,
+ *          and to provide interface methods to allow the main thread to terminate the spawned thread.
+ *
+ * Currently implemented via the PThread C++ Library.
  */
 class Thread {
 public:
 	/**
-	 * Create a new thread with an optional name that can be created as either
+	 * Define a class which can spawn a new thread as either
 	 * joinable or detached.
 	 * @param name Name of this thread used for log messages.
 	 *             Default value: the empty string
@@ -35,18 +70,19 @@ public:
 	virtual ~Thread();
 	
 	/**
-	 * Starts the thread running.
+	 * Start and spawn a new thread.
 	 */
 	void start();
 
 	/**
-	 * The thread.
+	 * Called once a new thread has been spawned, passing control of the thread to the sub-class.
+	 * If this method returns, the thread will be terminated.
 	 */
 	virtual void run()=0;
 	
 	/**
-	 * Join the thread, if the thread is joinable. Throws an exception if called
-	 * for a thread created as detached.
+	 * Join the thread, if the thread cannot be joined.
+	 * @throw crosbot::ThreadException if called for a thread created as detached.
 	 */
 	void join();
 
@@ -91,9 +127,14 @@ private:
 	struct _ThreadData *data;
 };
 
-struct _MutexData;
 /**
- * A mutex for protecting data from corruption.
+ * Internal mutex data structures, not given in header to allow ease of change of implementation
+ */
+struct _MutexData;
+
+/**
+ * Class-based mutex for protecting data from corruption.
+ * Currently implemented as a wrapper around the PThread C++ Library mutex.
  */
 class Mutex {
 public:
@@ -119,9 +160,14 @@ private:
 	struct _MutexData *data;
 };
 
-struct SemaphoreData;
 /**
- * A semaphore.
+ * Internal semaphore data structures, not given in header to allow ease of change of implementation
+ */
+struct _SemaphoreData;
+
+/**
+ * Class-based Semaphore for efficient waiting in multi-threading applications.
+ * Currently implemented as a wrapper around the PThread C++ Library semaphore.
  */
 class Semaphore {
 public:
@@ -132,10 +178,14 @@ public:
 	bool tryWait();
 	void notify(unsigned int incCount = 1);
 private:
-	struct SemaphoreData *data;
+	struct _SemaphoreData *data;
 };
 
+/**
+ * Internal read/write lock data structures, not given in header to allow ease of change of implementation
+ */
 struct RWLockData;
+
 /**
  * A read/write lock.
  */
@@ -154,7 +204,9 @@ private:
 };
 
 /**
- * A class for locking a mutex/rwlock and automatically unlocking when a function returns.
+ * Class-based Lock for scoped based automatic locking/unlocking of mutex'es or read/write locks.
+ * The mutex is automatically locked when the Lock object is created, and automatically unlocked
+ *     when the Lock object goes out of scope.
  */
 class Lock {
 private:
@@ -162,6 +214,11 @@ private:
 	ReadWriteLock *rwlockPtr;
 	bool locked, write;
 public:
+
+	/**
+	 * Create a Lock around a mutex and immediately attempt to lock the mutex.
+	 * @param mutex Mutex to lock
+	 */
 	Lock(Mutex& mutex) {
 		mutexPtr = &mutex;
 		rwlockPtr = NULL;
@@ -170,6 +227,11 @@ public:
 		write = false;
 	}
 	
+	/**
+     * Create a Lock around a read/write mutex and immediately attempt to lock the specified channel.
+     * @param rwlock Read/Write mutex to lock
+     * @param write If true, lock the write channel of the mutex, otherwise lock the read channel
+     */
 	Lock(ReadWriteLock& rwlock, bool write = false) {
 		mutexPtr = NULL;
 		rwlockPtr = &rwlock;
@@ -208,106 +270,10 @@ public:
 	}
 
 	~Lock() {
-		if (locked)
+		if (locked) {
 			unlock();
-	}
-};
-
-class Job {
-public:
-	virtual ~Job(){}
-	virtual void run()=0;
-	virtual void complete() {}
-};
-
-class JobDispatcher {
-protected:
-	class WorkerThread : public Thread {
-	protected:
-		JobDispatcher *dispatch;
-		bool operating;
-	public:
-		WorkerThread(JobDispatcher *dispatch, std::string name = "") :
-			Thread(name),dispatch(dispatch), operating(true)
-		{
-			setGuarded(false);
-			this->start();
 		}
-		void run();
-
-		friend class JobDispatcher;
-	};
-
-	std::string name;
-	bool paused;
-	Semaphore semaphore;
-	std::vector<WorkerThread *> workers;
-	std::vector<WorkerThread *> dyingWorkers;
-
-	Mutex jobMutex;
-	std::queue<Job *> jobs;
-	std::vector<Job *> activeJobs;
-
-public:
-
-	/**
-	 * Creates JobDispatcher
-	 */
-	JobDispatcher(int numThreads = 1, std::string name = "");
-
-	/**
-	 * Creates JobDispatcher
-	 */
-	JobDispatcher(std::string name);
-
-	/**
-	 * Destructor. Will try to stop all threads.
-	 */
-	~JobDispatcher();
-
-	/**
-	 * Changes the number of threads used to run the jobs.
-	 */
-	void setThreads(unsigned int numThreads);
-	size_t threads() {
-		return workers.size();
 	}
-
-	/**
-	 * Pauses job processing. Any jobs being run when this is called will be allowed to finish.
-	 */
-	void pause() {
-		paused = true;
-	}
-
-	/**
-	 * Resumes job processing.
-	 */
-	void resume() {
-		paused = false;
-		Lock lock(jobMutex);
-		if (jobs.size() > 0)
-			semaphore.notify(jobs.size());
-	}
-
-	/**
-	 * Adds a job to the processing queue.
-	 */
-	void addJob(Job *job) {
-		Lock lock(jobMutex);
-		jobs.push(job);
-		semaphore.notify();
-	}
-
-	/**
-	 * Gets the number of jobs currently in the queue.
-	 */
-	size_t jobCount() {
-		Lock lock(jobMutex);
-		return jobs.size() + activeJobs.size();
-	}
-
-	friend class WorkerThread;
 };
 
 } // namespace crosbot

@@ -11,6 +11,7 @@
 #include <crosbot_fastslam/particle.hpp>
 #include <crosbot_map/map.hpp>
 #include <crosbot/thread.hpp>
+#include <crosbot/jobDispatcher.hpp>
 
 namespace crosbot {
 

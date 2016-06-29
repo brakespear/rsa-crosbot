@@ -85,6 +85,7 @@ add_library(crosbot
     src/data.cpp
     src/handle.cpp
     src/image.cpp
+    src/jobDispatcher.cpp
     src/jpeg.cpp
     src/serialization.cpp
     src/thread.cpp
