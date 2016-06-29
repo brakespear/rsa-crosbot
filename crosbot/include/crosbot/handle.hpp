@@ -35,174 +35,61 @@ public:
     const char* what() const throw();
 };
 
-} // namespace crosbot
+#define     REF_COUNT_TYPE  long int
 
 /**
- * Reference counter type
+ * Internal data structure defining the data of the handled objects
  */
-#define		REF_COUNT_TYPE	long int
+struct _HandledObjectData;
 
+/**
+ * Superclass for Crosbot implementation of thread-safe shared pointers.
+ * Any class to be used as a thread-safe shared pointer must inherit this class.
+ *
+ * @warning All methods provided by this class should be be directly called, but are only
+ *    to be used by crosbot::Handle
+ */
+class HandledObject {
+private:
+    _HandledObjectData *_handledData;
+public:
+	HandledObject();
+	HandledObject(const HandledObject&);
+	virtual ~HandledObject();
+
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
+	void __incRef();
+
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
+	void __incRef() const;
+
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
+	void __decRef();
+
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
+	void __decRef() const;
+
+    /**
+     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
+     */
+	REF_COUNT_TYPE __getRef() const;
+};
+
+} // namespace crosbot
+
+// Include correct handle version here
 #if __cplusplus < 201103L
-
-#include <crosbot/thread.hpp>
-#include <string.h>
-
-namespace crosbot {
-
-/**
- * Superclass for Crosbot implementation of thread-safe shared pointers.
- * Any class to be used as a thread-safe shared pointer must inherit this class.
- *
- * @warning All methods provided by this class should be be directly called, but are only
- *    to be used by crosbot::Handle
- */
-class HandledObject {
-private:
-	REF_COUNT_TYPE _refCount;
-	Mutex _refMutex;
-public:
-	HandledObject() {
-		_refCount = 0;
-	}
-
-	virtual ~HandledObject() {
-	};
-
-    /**
-     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
-     */
-	void __incRef() {
-		Lock lock(_refMutex);
-		++_refCount;
-	}
-
-    /**
-     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
-     */
-	void __incRef() const {
-		Lock lock(*((Mutex *)&_refMutex));
-		++*((int *)&_refCount);
-	}
-
-    /**
-     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
-     */
-	void __decRef() {
-		Lock lock(_refMutex);
-		--_refCount;
-		if (_refCount < 0) {
-			fprintf(stderr, "How did the ref count go below zero?\n");
-		}
-		if (_refCount == 0) {
-			lock.unlock();
-			delete this;
-		}
-	}
-
-    /**
-     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
-     */
-	void __decRef() const {
-		Lock lock(*((Mutex *)&_refMutex));
-		--*((int *)&_refCount);
-		if (_refCount < 0) {
-			fprintf(stderr, "How did the ref count go below zero?\n");
-		}
-		if (_refCount == 0) {
-			lock.unlock();
-			delete this;
-		}
-	}
-
-    /**
-     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
-     */
-	REF_COUNT_TYPE __getRef() const {
-		return _refCount;
-	}
-};
-
-} // namespace crosbot
-
+#include <crosbot/handle/handle_cpp03.hpp>
 #else
-
-#include <atomic>
-#include <string>
-
-namespace crosbot {
-
-/**
- * Superclass for Crosbot implementation of thread-safe shared pointers.
- * Any class to be used as a thread-safe shared pointer must inherit this class.
- *
- * @warning All methods provided by this class should be be directly called, but are only
- *    to be used by crosbot::Handle
- */
-class HandledObject {
-private:
-	std::atomic< REF_COUNT_TYPE > _refCount;
-public:
-	HandledObject() {
-		_refCount = 0;
-	}
-
-	HandledObject(const HandledObject&) {
-		_refCount = 0;
-	}
-
-	virtual ~HandledObject() {
-	};
-
-    /**
-     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
-     */
-	void __incRef() {
-		++_refCount;
-	}
-
-    /**
-     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
-     */
-	void __incRef() const {
-		++*((std::atomic< int > *)&_refCount);
-	}
-
-    /**
-     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
-     */
-	void __decRef() {
-		--_refCount;
-		if (_refCount < 0) {
-			fprintf(stderr, "How did the ref count go below zero?\n");
-		}
-		if (_refCount == 0) {
-			delete this;
-		}
-	}
-
-    /**
-     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
-     */
-	void __decRef() const {
-		--*((std::atomic< int > *)&_refCount);
-		if (_refCount < 0) {
-			fprintf(stderr, "How did the ref count go below zero?\n");
-		}
-		if (_refCount == 0) {
-			delete this;
-		}
-	}
-
-    /**
-     * @warning Do not call directly. Used by crosbot::Handle in managing the shared objects
-     */
-	REF_COUNT_TYPE __getRef() const {
-		return _refCount.load();
-	}
-};
-
-} // namespace crosbot
-
+#include <crosbot/handle/handle_cpp11.hpp>
 #endif
 
 namespace crosbot {
