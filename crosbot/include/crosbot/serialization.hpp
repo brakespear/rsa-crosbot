@@ -17,34 +17,27 @@
 
 namespace crosbot {
 
+/**
+ * Exception thrown by crosbot::Serializer if problem are encountered
+ *    when writing crosbot data structures to file or
+ *    loading crosbot data structures from plain-text files.
+ */
 class IOException : public std::exception {
-	std::string description;
+private:
+    std::string description;
+
 public:
-	IOException() : description("IO Exception") {}
-	IOException(const char *description) : description(description) {}
-	IOException(const std::string& description) : description(description) {}
-	~IOException() throw() {}
+	IOException();
+	IOException(const char *description);
+	IOException(const std::string& description);
+	~IOException() throw();
 
-	const char* what() const throw() { return description.c_str(); }
+	const char* what() const throw();
 
-	inline static IOException UnableToOpenFile(std::string filename) {
-		std::string msg = "Unable to open file " + filename + ".";
-		return IOException(msg);
-	}
-
-	inline static IOException ErrorWritingFile(std::string filename) {
-		std::string msg = "Error when writing to file " + filename + ".";
-		return IOException(msg);
-	}
-
-	inline static IOException ErrorReadingFile(std::string filename) {
-		std::string msg = "Error when reading from file " + filename + ".";
-		return IOException(msg);
-	}
-
-	inline static IOException OutOfMemory() {
-		return IOException("Out of memory.");
-	}
+	static IOException UnableToOpenFile(std::string filename);
+	static IOException ErrorWritingFile(std::string filename);
+	static IOException ErrorReadingFile(std::string filename);
+	static IOException OutOfMemory();
 };
 
 namespace serialization {
