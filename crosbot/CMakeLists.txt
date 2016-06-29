@@ -76,9 +76,19 @@ include_directories(include
 #   src/${PROJECT_NAME}/crosbot.cpp
 # )
 
+# This does not automatically trigger CMAKE rebuild if new cpp files are added
+#file(GLOB_RECURSE CPP_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} src/**.cpp)
+#add_library(crosbot ${CPP_SOURCES})
 
-file(GLOB_RECURSE CPP_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} src/**.cpp)
-add_library(crosbot ${CPP_SOURCES})
+add_library(crosbot
+    src/config.cpp
+    src/data.cpp
+    src/handle.cpp
+    src/image.cpp
+    src/jpeg.cpp
+    src/serialization.cpp
+    src/thread.cpp
+)
 
 ## Declare a cpp executable
 # add_executable(crosbot_node src/crosbot_node.cpp)

@@ -16,7 +16,26 @@
 #include <exception>
 #include <string>
 
-#include <crosbot/exception.hpp>
+namespace crosbot {
+
+/**
+ * Exception thrown by crosbot::Handle<T> if attempting to perform invalid
+ *    operations on a NULL pointer.
+ */
+class NullHandleException : public std::exception {
+private:
+    char* msg;
+
+public:
+    NullHandleException();
+    NullHandleException(const char * what);
+    NullHandleException(const std::string& what);
+    ~NullHandleException() throw ();
+
+    const char* what() const throw();
+};
+
+} // namespace crosbot
 
 /**
  * Reference counter type
