@@ -1,0 +1,5 @@
+- builder: doxygen
+  name: C++ API
+  multiline_cpp_is_brief: yes
+  javadoc_autobrief: yes
+  predefined: ROS_VERSION
