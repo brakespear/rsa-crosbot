@@ -20,6 +20,9 @@
 
 namespace crosbot {
 
+/**
+ * RGB-A colour in 0-255 format.
+ */
 struct Colour {
 public:
     uint8_t r, g, b, a;

@@ -24,6 +24,10 @@
 
 namespace crosbot {
 
+/**
+ * 2D Cartesian Pose with a 2D position (crosbot::Point2D)
+ * and single direction orientation, to double (floating-point) precision
+ */
 struct Pose2D {
 public:
     Point2D position;
@@ -86,6 +90,10 @@ inline std::ostream& operator<<(std::ostream& os, const Pose2D& p) {
     return os << "Pose(" << p.position << ", " << p.orientation << ")";
 }
 
+/**
+ * 3D Cartesian Pose (6DOF post) with a 3D position (crosbot::Point3d)
+ * and 3D orientation (crosbot::Quaternion), to double (floating-point) precision
+ */
 struct Pose3D {
 public:
     Point3D position;

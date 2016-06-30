@@ -22,6 +22,9 @@
 
 namespace crosbot {
 
+/**
+ * 3D Quaternion (x,y,z,w)
+ */
 struct Quaternion {
 public:
     double x, y, z, w;

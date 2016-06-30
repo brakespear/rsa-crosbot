@@ -15,6 +15,9 @@
 
 namespace crosbot {
 
+/**
+ * 2D index into 2D matrix.
+ */
 struct Index2D {
 public:
     int x, y;

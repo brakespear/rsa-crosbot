@@ -27,6 +27,9 @@
 
 namespace crosbot {
 
+/**
+ * 2D Cartesian point (x,y) to double (floating-point) precision
+ */
 struct Point2D {
 public:
     double x, y;
@@ -149,6 +152,9 @@ inline std::string Point2D::toString() const {
     return ss.str();
 }
 
+/**
+ * 3D Cartesian point (x,y,z) to double (floating-point) precision
+ */
 struct Point3D {
 public:
     double x, y, z;
@@ -390,7 +396,9 @@ inline bool hasNAN(const geometry_msgs::Pose& p) {
 
 #endif // ROS_VERSION
 
-
+/**
+ * Coloured 3D Cartesian point combining crosbot::Point3D and crosbot::Colour
+ */
 struct ColouredPoint {
 public:
     crosbot::Point3D point;
