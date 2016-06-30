@@ -185,7 +185,7 @@ private:
 /**
  * Internal read/write lock data structures, not given in header to allow ease of change of implementation
  */
-struct RWLockData;
+struct _RWLockData;
 
 /**
  * A read/write lock.
@@ -201,7 +201,7 @@ public:
 	bool tryWriteLock();
 	bool unlock();
 private:
-	struct RWLockData *data;
+	struct _RWLockData *data;
 };
 
 /**

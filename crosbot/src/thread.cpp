@@ -288,11 +288,11 @@ void Semaphore::notify(unsigned int incCount) {
 	}
 }
 
-struct RWLockData {
+struct _RWLockData {
 	pthread_rwlock_t rwlock;
 };
 ReadWriteLock::ReadWriteLock() {
-	data = new RWLockData;
+	data = new _RWLockData;
 	pthread_rwlock_init(&data->rwlock, NULL);
 }
 
