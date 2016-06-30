@@ -16,7 +16,11 @@ namespace crosbot {
 
 void Quaternion::setYPR(const double& yaw, const double& pitch, const double& roll) {
     tf::Quaternion q;
-    q.setEulerZYX(yaw, pitch, roll);
+
+    // Change to remove depreciated function
+    //q.setEulerZYX(yaw, pitch, roll);
+    q.setEuler(yaw, pitch, roll);
+
     *this = q;
 }
 
