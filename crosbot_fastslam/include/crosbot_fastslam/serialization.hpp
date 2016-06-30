@@ -10,6 +10,8 @@
 
 #include <crosbot_fastslam/fastslam.hpp>
 #include <crosbot/serialization.hpp>
+#include <crosbot/serialization/data.hpp>
+#include <crosbot/serialization/geometry.hpp>
 
 namespace crosbot {
 using namespace fastslam;

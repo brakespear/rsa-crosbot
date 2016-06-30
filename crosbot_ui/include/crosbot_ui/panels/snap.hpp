@@ -10,6 +10,7 @@
 
 #include <crosbot_ui/panels/panel.hpp>
 #include <crosbot/data.hpp>
+#include <crosbot/geometry.hpp>
 #include <crosbot_map/map.hpp>
 
 #include <QtGui/QTextEdit>

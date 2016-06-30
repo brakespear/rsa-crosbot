@@ -22,7 +22,7 @@ namespace crosbot {
 
 #define ERASE_SKELETON  ~VoronoiCell::Skeleton
 
-class VoronoiGrid : public Data {
+class VoronoiGrid : public TimeStamptedData {
 public:
 	struct VoronoiCell {
 	public:

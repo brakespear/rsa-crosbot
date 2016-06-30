@@ -8,11 +8,14 @@
 #ifndef CROSBOT_PANEL_ROBOT_HPP_
 #define CROSBOT_PANEL_ROBOT_HPP_
 
+
+
 #include <crosbot_ui/panels/panel.hpp>
 #include <crosbot_ui/renders/robot/robotwidget.hpp>
 #include <crosbot_ui/opengl.hpp>
 
 #include <ros/ros.h>
+
 #include <crosbot/thread.hpp>
 
 namespace crosbot {

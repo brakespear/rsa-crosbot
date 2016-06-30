@@ -8,8 +8,9 @@
 #ifndef CROSBOT_MAP_HPP_
 #define CROSBOT_MAP_HPP_
 
-#include <crosbot/data.hpp>
 #include <crosbot/config.hpp>
+#include <crosbot/data.hpp>
+#include <crosbot/geometry.hpp>
 #include <crosbot_map/tag.hpp>
 #include <crosbot/thread.hpp>
 

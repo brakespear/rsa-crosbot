@@ -10,6 +10,7 @@
 #ifndef CROSBOT_THREAD_H_
 #define CROSBOT_THREAD_H_
 
+#include <exception>
 #include <string>
 #include <queue>
 #include <vector>
@@ -24,7 +25,7 @@ namespace crosbot {
 /**
  * Exception thrown if problems occur with thread management
  */
-class ThreadException: public std::exception {
+class ThreadException : public std::exception {
 private:
     char* msg;
 

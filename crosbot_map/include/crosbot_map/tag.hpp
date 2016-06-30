@@ -8,7 +8,14 @@
 #ifndef CROSBOT_TAG_HPP_
 #define CROSBOT_TAG_HPP_
 
+#include <iostream>
+
 #include <crosbot/data.hpp>
+#include <crosbot/geometry.hpp>
+#include <crosbot/serialization.hpp>
+#include <crosbot/serialization/data.hpp>
+#include <crosbot/serialization/geometry.hpp>
+
 #include <crosbot/PointCloudMsg.h>
 #include <crosbot_map/SnapMsg.h>
 
@@ -19,7 +26,7 @@ typedef Handle<Tag> TagPtr;
 
 typedef TagPtr (*TagFactoryFunc)(const UUID uuid);
 
-class Tag : public Data {
+class Tag : public TimeStamptedData {
 public:
 	static const UUID uuid;
 

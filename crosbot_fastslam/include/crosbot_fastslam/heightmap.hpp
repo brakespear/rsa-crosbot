@@ -11,6 +11,7 @@
 #include <ros/ros.h>
 #include <crosbot_fastslam/probtable.hpp>
 #include <crosbot/data.hpp>
+#include <crosbot/geometry.hpp>
 #include <crosbot/utils.hpp>
 
 

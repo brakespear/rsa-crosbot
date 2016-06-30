@@ -12,34 +12,12 @@
 #include <string>
 #include <vector>
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
+
+#include <crosbot/exceptions.hpp>
 
 namespace crosbot {
-
-/**
- * Exception thrown by crosbot::Serializer if problem are encountered
- *    when writing crosbot data structures to file or
- *    loading crosbot data structures from plain-text files.
- */
-class IOException : public std::exception {
-private:
-    std::string description;
-
-public:
-	IOException();
-	IOException(const char *description);
-	IOException(const std::string& description);
-	~IOException() throw();
-
-	const char* what() const throw();
-
-	static IOException UnableToOpenFile(std::string filename);
-	static IOException ErrorWritingFile(std::string filename);
-	static IOException ErrorReadingFile(std::string filename);
-	static IOException OutOfMemory();
-};
-
 namespace serialization {
 
 template <typename T>
@@ -354,7 +332,6 @@ public:
 };
 
 } // namespace serialization
-
 } // namespace crosbot
 
 #endif /* CROSBOT_SERIALIZATION_H_ */

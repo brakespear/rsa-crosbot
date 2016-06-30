@@ -6,8 +6,12 @@
  */
 
 #include <ros/ros.h>
+
+#include <string>
+
 #include "../mbicpStd.h"
 #include <crosbot/data.hpp>
+#include <crosbot/geometry.hpp>
 #include <crosbot/utils.hpp>
 
 using namespace crosbot;

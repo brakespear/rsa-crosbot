@@ -5,6 +5,8 @@
  *      Author: rescue
  */
 
+#include <ros/ros.h>
+
 #include <crosbot/data.hpp>
 #include "image.hpp"
 #include "jpeg.hpp"
@@ -1117,8 +1119,8 @@ void writeJPEG(std::string filename, const Image& image) throw (IOException) {
 
 	// Set file modification time to image.timestamp
 	struct timeval times[2];
-	times[0].tv_sec = times[1].tv_sec = image.timestamp.sec;
-	times[0].tv_usec = times[1].tv_usec = image.timestamp.nsec/1000;
+	times[0].tv_sec = times[1].tv_sec = image.getTimestamp().sec;
+	times[0].tv_usec = times[1].tv_usec = image.getTimestamp().nsec/1000;
 	utimes(filename.c_str(), times);
 }
 
@@ -1197,8 +1199,8 @@ void writeBMP(std::string filename, const Image& image) throw (IOException) {
 
 	// Set file modification time to image.timestamp
 	struct timeval times[2];
-	times[0].tv_sec = times[1].tv_sec = image.timestamp.sec;
-	times[0].tv_usec = times[1].tv_usec = image.timestamp.nsec/1000;
+	times[0].tv_sec = times[1].tv_sec = image.getTimestamp().sec;
+	times[0].tv_usec = times[1].tv_usec = image.getTimestamp().nsec/1000;
 	utimes(filename.c_str(), times);
 }
 
@@ -1221,7 +1223,7 @@ void writePGM(std::string filename, const Image& image) throw (IOException) {
 	fprintf(file, "P5\n");
 
 	char comments[256];
-	sprintf(comments, "# timestamp: %d.%09d\n", image.timestamp.sec, image.timestamp.nsec);
+	sprintf(comments, "# timestamp: %d.%09d\n", image.getTimestamp().sec, image.getTimestamp().nsec);
 	fprintf(file, "%s", comments);
 
 	fprintf(file, "%u %u\n", grey->width, grey->height);
@@ -1288,7 +1290,7 @@ void writePPM(std::string filename, const Image& image) throw (IOException) {
 	fprintf(file, "P6\n");
 
 	char comments[256];
-	sprintf(comments, "# timestamp: %d.%09d\n", image.timestamp.sec, image.timestamp.nsec);
+	sprintf(comments, "# timestamp: %d.%09d\n", image.getTimestamp().sec, image.getTimestamp().nsec);
 	fprintf(file, "%s", comments);
 	fprintf(file, "%u %u\n", rgb->width, rgb->height);
 
@@ -1394,7 +1396,7 @@ void writePAM(std::string filename, const Image& image) throw (IOException) {
 	fprintf(file, "P7\n");
 
 	char comments[256];
-	sprintf(comments, "# timestamp: %d.%09d\n", image.timestamp.sec, image.timestamp.nsec);
+	sprintf(comments, "# timestamp: %d.%09d\n", image.getTimestamp().sec, image.getTimestamp().nsec);
 	fprintf(file, "%s", comments);
 
 	fprintf(file, "WIDTH %u\nHEIGHT %u\n", image.width, image.height);
@@ -1724,7 +1726,7 @@ ImagePtr readPBM(std::string filename) throw (IOException) {
 	ImagePtr rval = new Image(encoding, height, width);
 	if (rval->data == NULL)
 		return NULL;
-	rval->timestamp = timestamp;
+	rval->timestamp = timestamp.toROS();
 
 	if (!binary) {
 		uint64_t numSamples = width * height * Image::numberOfChannels(encoding);

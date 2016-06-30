@@ -9,7 +9,7 @@
 #define CROSBOT_LOCALMAP_HPP_
 
 #include <crosbot/data.hpp>
-
+#include <crosbot/geometry.hpp>
 
 #ifdef ROS_VERSION
 
@@ -19,7 +19,7 @@
 
 namespace crosbot {
 
-class LocalMap : public Data {
+class LocalMap : public TimeStamptedData {
 public:
 	class Cell {
 	public:

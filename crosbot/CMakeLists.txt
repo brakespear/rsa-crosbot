@@ -82,7 +82,11 @@ include_directories(include
 
 add_library(crosbot
     src/config.cpp
-    src/data.cpp
+    src/data/image.cpp
+    src/data/time.cpp
+    src/exceptions.cpp
+    src/geometry/pointCloud.cpp
+    src/geometry/quaternion.cpp
     src/handle.cpp
     src/image.cpp
     src/jobDispatcher.cpp

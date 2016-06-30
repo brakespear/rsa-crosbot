@@ -5,6 +5,8 @@
  *      Author: mmcgill
  */
 
+#include <ros/ros.h>
+
 #include <crosbot_map/tag.hpp>
 
 namespace crosbot {

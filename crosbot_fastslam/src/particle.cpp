@@ -5,6 +5,8 @@
  *      Author: rescue
  */
 
+#include <ros/ros.h>
+
 #include <crosbot_fastslam/particle.hpp>
 
 namespace crosbot {

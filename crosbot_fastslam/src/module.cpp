@@ -5,6 +5,9 @@
  *      Author: mmcgill
  */
 
+#include <ros/ros.h>
+
+#include <crosbot/config.hpp>
 #include <crosbot_fastslam/module.hpp>
 
 namespace crosbot {

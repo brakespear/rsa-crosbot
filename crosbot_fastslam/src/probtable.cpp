@@ -4,6 +4,9 @@
  *  Created on: 08/09/2009
  *      Author: rescue
  */
+
+#include <ros/ros.h>
+
 #include <crosbot_fastslam/probtable.hpp>
 #include <stdio.h>
 #include <iostream>

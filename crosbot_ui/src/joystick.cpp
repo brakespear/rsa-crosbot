@@ -5,6 +5,8 @@
  *      Author: rescue
  */
 
+#include <ros/ros.h>
+
 #include <crosbot_ui/joystick.hpp>
 #include <crosbot/data.hpp>
 

@@ -4,6 +4,9 @@
  *  Created on: 09/02/2010
  *      Author: rescue
  */
+
+#include <ros/ros.h>
+
 #include <crosbot_ui/opengl.hpp>
 #include <string.h>
 #include <crosbot/utils.hpp>

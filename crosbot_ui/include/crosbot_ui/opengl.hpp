@@ -9,6 +9,7 @@
 #define CROSBOT_OPENGL_HPP_
 
 #include <crosbot/data.hpp>
+#include <crosbot/geometry.hpp>
 
 #include <GL/glut.h>
 

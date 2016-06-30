@@ -4,6 +4,9 @@
  *  Created on: 09/09/2009
  *      Author: rescue
  */
+
+#include <ros/ros.h>
+
 #include <crosbot_fastslam/heightmap.hpp>
 
 namespace crosbot {
