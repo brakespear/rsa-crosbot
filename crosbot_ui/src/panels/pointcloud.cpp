@@ -77,7 +77,7 @@ void PointCloudPanel::stop() {
 	poseSubscribers.clear();
 }
 
-void PointCloudPanel::callbackPointCloud(crosbot::PointCloudMsgConstPtr ros) {
+void PointCloudPanel::callbackPointCloud(crosbot_msgs::PointCloudMsgConstPtr ros) {
 	PointCloudPtr pc = new PointCloud(ros);
 	view.setCloud(pc);
 }

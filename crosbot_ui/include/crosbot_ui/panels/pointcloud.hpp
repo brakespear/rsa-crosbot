@@ -13,7 +13,7 @@
 #include <crosbot_ui/panels/wasdmouse.hpp>
 #include <ros/ros.h>
 
-#include <crosbot/PointCloudMsg.h>
+#include <crosbot_msgs/PointCloudMsg.h>
 //#include <sensor_msgs/PointCloud.h>
 #include <geometry_msgs/Pose.h>
 #include <crosbot/thread.hpp>
@@ -84,7 +84,7 @@ public:
 	void start();
 	void stop();
 
-	void callbackPointCloud(crosbot::PointCloudMsgConstPtr);
+	void callbackPointCloud(crosbot_msgs::PointCloudMsgConstPtr);
 protected:
 	PointCloudView view;
 

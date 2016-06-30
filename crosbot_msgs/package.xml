@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <package format="2">
-    <name>crosbot</name>
-    <version>3.0.0</version>
+    <name>crosbot_msgs</name>
+    <version>1.0.0</version>
     <description>
-        The crosbot (core) libraries/package for robotics software
+        Messages for the crosbot (core) libraries/package for robotics software
         developed by the AI Robotics Lab, School of Computer Science and Engineering,
         University of New South Wales (UNSW).
     </description>
@@ -28,24 +28,15 @@
     <!-- <author email="jane.doe@example.com">Jane Doe</author> -->
     <author email="mmcgill@cse.unsw.edu.au">Matthew McGill</author>
     <author email="amilstein@cse.unsw.edu.au">Adam Milstein</author>
-    <author email="adrianr@cse.unsw.edu.au">Adrian Ratter</author>
     
     <!-- Build tool dependencies -->
     <buildtool_depend>catkin</buildtool_depend>
     
     <!-- Build and run dependencies -->
-    <depend>roscpp</depend>
-    <depend>tf</depend>
+    <depend>std_msgs</depend>
     <depend>geometry_msgs</depend>
     <depend>sensor_msgs</depend>
-    <depend>crosbot_msgs</depend>
     
-    <!-- Documentation dependencies -->
-    <doc_depend>rosdoc_lite</doc_depend>
-    <doc_depend>doxygen</doc_depend>
-    
-    <export>
-        <!-- Documentation -->
-        <rosdoc config="cfg/rosdoc.yaml" />
-    </export>
+    <!-- Pure build dependencies -->
+    <build_depend>message_generation</build_depend>
 </package>

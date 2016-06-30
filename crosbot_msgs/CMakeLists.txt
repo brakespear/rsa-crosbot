@@ -1,29 +1,29 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(crosbot)
+project(crosbot_msgs)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-                    roscpp
+                    message_generation
+                    std_msgs
                     geometry_msgs
                     sensor_msgs
-                    crosbot_msgs
              )
-
-## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
-
+         
 #######################################
 ## Declare ROS messages and services ##
 #######################################
 
 ## Generate messages in the 'msg' folder
-#add_message_files(
-#  DIRECTORY msg
-#  FILES
-#    xMsg.msg
-#)
+add_message_files(
+  DIRECTORY msg
+  FILES
+    ColourMsg.msg
+    ColouredCloudMsg.msg
+    ColouredPointMsg.msg
+    PointCloudMsg.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -33,12 +33,12 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-#generate_messages(
-#  DEPENDENCIES
-#    std_msgs  # Or other packages containing msgs
-#    geometry_msgs
-#    sensor_msgs
-#)
+generate_messages(
+  DEPENDENCIES
+    std_msgs
+    geometry_msgs
+    sensor_msgs
+)
 
 ###################################################
 ## Declare things to be passed to other projects ##
@@ -49,70 +49,35 @@ find_package(catkin REQUIRED COMPONENTS
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
    INCLUDE_DIRS include
-   LIBRARIES crosbot
+#   LIBRARIES crosbot
    CATKIN_DEPENDS
-       roscpp
-       tf
+       std_msgs
        geometry_msgs
        sensor_msgs
-       crosbot_msgs
 #  DEPENDS system_lib
-   CFG_EXTRAS ${PROJECT_NAME}-extras.cmake
 )
-
-# Additional (optional) crosbot cmake include
-INCLUDE ( cmake/${PROJECT_NAME}-extras.cmake.in )
 
 ###########
 ## Build ##
 ###########
 
 ## Specify additional locations of header files
-include_directories(include
-  ${catkin_INCLUDE_DIRS}
-  /usr/include/libxml2
-)
+#include_directories(include
+#  ${catkin_INCLUDE_DIRS}
+#)
 
 ## Declare a cpp library
 # add_library(crosbot
 #   src/${PROJECT_NAME}/crosbot.cpp
 # )
 
-# This does not automatically trigger CMAKE rebuild if new cpp files are added
-#file(GLOB_RECURSE CPP_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} src/**.cpp)
-#add_library(crosbot ${CPP_SOURCES})
-
-add_library(crosbot
-    src/config.cpp
-    src/data/image.cpp
-    src/data/time.cpp
-    src/exceptions.cpp
-    src/geometry/pointCloud.cpp
-    src/geometry/quaternion.cpp
-    src/handle.cpp
-    src/image.cpp
-    src/jobDispatcher.cpp
-    src/jpeg.cpp
-    src/serialization.cpp
-    src/thread.cpp
-)
-
 ## Declare a cpp executable
 # add_executable(crosbot_node src/crosbot_node.cpp)
-
-## Add dependencies to the executable
-add_dependencies(crosbot ${PROJECT_NAME} crosbot_gencpp)
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(crosbot_node
 #   ${catkin_LIBRARIES}
 # )
-
-target_link_libraries(crosbot 
-    ${catkin_LIBRARIES}
-    jpeg
-    xml2
-)
 
 #############
 ## Install ##
@@ -126,18 +91,18 @@ target_link_libraries(crosbot
 # )
 
 ## Mark executables and/or libraries for installation
-install(TARGETS crosbot
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+#install(TARGETS crosbot_msgs
+#  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+#  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+#  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+#)
 
 ## Mark cpp header files for installation
-install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-  FILES_MATCHING PATTERN "*.hpp"
-  PATTERN ".svn" EXCLUDE
-)
+#install(DIRECTORY include/${PROJECT_NAME}/
+#  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+#  FILES_MATCHING PATTERN "*.hpp"
+#  PATTERN ".svn" EXCLUDE
+#)
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES

@@ -15,7 +15,11 @@
 #include <crosbot/data/defines.hpp>
 
 #ifdef ROS_VERSION
-#include <crosbot/ColourMsg.h>
+
+#include <crosbot_msgs/ColourMsg.h>
+
+using crosbot_msgs::ColourMsg;
+
 #endif
 
 namespace crosbot {

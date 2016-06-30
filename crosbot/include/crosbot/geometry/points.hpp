@@ -18,11 +18,15 @@
 #include <crosbot/geometry/defines.hpp>
 
 #ifdef ROS_VERSION
-#include <crosbot/ColouredPointMsg.h>
+
+#include <crosbot_msgs/ColouredPointMsg.h>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/PointStamped.h>
 #include <geometry_msgs/Point32.h>
 #include <tf/tf.h>
+
+using crosbot_msgs::ColouredPointMsg;
+
 #endif
 
 namespace crosbot {

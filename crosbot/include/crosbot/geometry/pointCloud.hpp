@@ -20,13 +20,22 @@
 #include <crosbot/geometry/poses.hpp>
 
 #ifdef ROS_VERSION
+
 #include <sensor_msgs/PointCloud.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/LaserScan.h>
 
-#include <crosbot/ColourMsg.h>
-#include <crosbot/ColouredCloudMsg.h>
-#include <crosbot/PointCloudMsg.h>
+#include <crosbot_msgs/ColourMsg.h>
+#include <crosbot_msgs/ColouredCloudMsg.h>
+#include <crosbot_msgs/PointCloudMsg.h>
+
+using crosbot_msgs::ColourMsg;
+using crosbot_msgs::ColouredPointMsg;
+using crosbot_msgs::ColouredCloudMsg;
+using crosbot_msgs::PointCloudMsg;
+using crosbot_msgs::PointCloudMsgPtr;
+using crosbot_msgs::PointCloudMsgConstPtr;
+
 #endif
 
 namespace crosbot {

@@ -16,7 +16,7 @@
 #include <crosbot/serialization/data.hpp>
 #include <crosbot/serialization/geometry.hpp>
 
-#include <crosbot/PointCloudMsg.h>
+#include <crosbot_msgs/PointCloudMsg.h>
 #include <crosbot_map/SnapMsg.h>
 
 namespace crosbot {
