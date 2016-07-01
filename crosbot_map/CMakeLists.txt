@@ -6,8 +6,8 @@ project(crosbot_map)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
                     roscpp
-                    crosbot
                     crosbot_msgs
+                    crosbot
                     nav_msgs
                     message_generation
             )
@@ -33,18 +33,18 @@ add_message_files(
 ## Generate services in the 'srv' folder
 add_service_files(
   FILES
-  ListSnaps.srv
-  GetSnap.srv
-  ModifySnap.srv
+    ListSnaps.srv
+    GetSnap.srv
+    ModifySnap.srv
 )
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
-  std_msgs
-  geometry_msgs
-  sensor_msgs
-  crosbot_msgs
+    std_msgs
+    geometry_msgs
+    sensor_msgs
+    crosbot_msgs
 )
 
 ###################################################
