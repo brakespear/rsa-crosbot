@@ -454,6 +454,20 @@ inline std::string ColouredPoint::toString() const {
     return ss.str();
 }
 
+
+#ifdef ROS_VERSION
+
+inline bool operator==(const ColouredPointMsg& p1, const ColouredPointMsg& p2) {
+    return p1.p == p2.p && p1.c == p2.c;
+}
+
+inline bool hasNAN(const ColouredPointMsg& cp) {
+    return hasNAN(cp.p);
+}
+
+#endif
+
+
 } // namespace crosbot
 
 

@@ -25,11 +25,8 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/LaserScan.h>
 
-#include <crosbot_msgs/ColourMsg.h>
 #include <crosbot_msgs/PointCloudMsg.h>
 
-using crosbot_msgs::ColourMsg;
-using crosbot_msgs::ColouredPointMsg;
 using crosbot_msgs::PointCloudMsg;
 using crosbot_msgs::PointCloudMsgPtr;
 using crosbot_msgs::PointCloudMsgConstPtr;
@@ -285,22 +282,6 @@ public:
 };
 
 #ifdef ROS_VERSION
-// XXX: Why does ROS not generate an equality operator?
-
-inline bool operator==(const ColourMsg& c1, const ColourMsg& c2) {
-    return c1.r == c2.r && c1.g == c2.g && c1.b == c2.b && c1.a == c2.a;
-}
-
-inline bool operator==(const ColouredPointMsg& p1, const ColouredPointMsg& p2) {
-    return p1.p == p2.p && p1.c == p2.c;
-}
-
-/**
- * Tests that a value isn't corrupt.
- */
-inline bool hasNAN(const ColouredPointMsg& cp) {
-    return hasNAN(cp.p);
-}
 
 inline bool hasNAN(const PointCloudMsg& pc) {
     for (size_t i = 0; i < pc.points.size(); i++) {
