@@ -40,6 +40,9 @@
     <depend>sensor_msgs</depend>
     <depend>crosbot_msgs</depend>
     
+    <depend>message_generation</depend>
+    <depend>message_runtime</depend>
+    
     <!-- Documentation dependencies -->
     <doc_depend>rosdoc_lite</doc_depend>
     <doc_depend>doxygen</doc_depend>

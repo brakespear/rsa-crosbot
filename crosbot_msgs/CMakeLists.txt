@@ -54,6 +54,7 @@ catkin_package(
        std_msgs
        geometry_msgs
        sensor_msgs
+       message_runtime
 #  DEPENDS system_lib
 )
 

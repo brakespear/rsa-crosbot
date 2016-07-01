@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
                     geometry_msgs
                     sensor_msgs
                     crosbot_msgs
+                    message_runtime
              )
 
 ## System dependencies are found with CMake's conventions
@@ -56,6 +57,7 @@ catkin_package(
        geometry_msgs
        sensor_msgs
        crosbot_msgs
+       message_runtime
 #  DEPENDS system_lib
    CFG_EXTRAS ${PROJECT_NAME}-extras.cmake
 )
@@ -101,7 +103,13 @@ add_library(crosbot
 # add_executable(crosbot_node src/crosbot_node.cpp)
 
 ## Add dependencies to the executable
-add_dependencies(crosbot ${PROJECT_NAME} crosbot_gencpp)
+#add_dependencies(crosbot ${PROJECT_NAME} crosbot_gencpp)
+
+## WHY IS THIS NEEDED FOR LOCAL BUILDS????
+# Make sure crosbot_msgs actually makes the messages before crosbot is built
+add_dependencies(crosbot
+	crosbot_msgs_generate_messages
+)
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(crosbot_node

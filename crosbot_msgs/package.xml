@@ -40,6 +40,9 @@
     <!-- Pure build dependencies -->
     <build_depend>message_generation</build_depend>
     
+    <!--  Run depends -->
+    <exec_depend>message_runtime</exec_depend>
+    
     <!-- Documentation dependencies -->
     <doc_depend>rosdoc_lite</doc_depend>
     <doc_depend>doxygen</doc_depend>
