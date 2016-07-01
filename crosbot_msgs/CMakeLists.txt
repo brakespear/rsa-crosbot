@@ -19,9 +19,8 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
   DIRECTORY msg
   FILES
-    ColourMsg.msg
-    ColouredCloudMsg.msg
     ColouredPointMsg.msg
+    ColourMsg.msg
     PointCloudMsg.msg
 )
 

@@ -26,12 +26,10 @@
 #include <sensor_msgs/LaserScan.h>
 
 #include <crosbot_msgs/ColourMsg.h>
-#include <crosbot_msgs/ColouredCloudMsg.h>
 #include <crosbot_msgs/PointCloudMsg.h>
 
 using crosbot_msgs::ColourMsg;
 using crosbot_msgs::ColouredPointMsg;
-using crosbot_msgs::ColouredCloudMsg;
 using crosbot_msgs::PointCloudMsg;
 using crosbot_msgs::PointCloudMsgPtr;
 using crosbot_msgs::PointCloudMsgConstPtr;
@@ -305,14 +303,6 @@ inline bool hasNAN(const ColouredPointMsg& cp) {
 }
 
 inline bool hasNAN(const PointCloudMsg& pc) {
-    for (size_t i = 0; i < pc.points.size(); i++) {
-        if (hasNAN(pc.points[i]))
-            return true;
-    }
-    return false;
-}
-
-inline bool hasNAN(const ColouredCloudMsg& pc) {
     for (size_t i = 0; i < pc.points.size(); i++) {
         if (hasNAN(pc.points[i]))
             return true;
