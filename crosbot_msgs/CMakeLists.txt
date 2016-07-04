@@ -23,6 +23,12 @@ add_message_files(
     ColourMsg.msg
     PointCloudMsg.msg
 )
+add_message_files(
+  DIRECTORY msg/controls
+  FILES
+    ControlCommand.msg
+    ControlStatus.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
