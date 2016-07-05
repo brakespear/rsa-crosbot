@@ -179,6 +179,8 @@ public:
 		return parent;
 	}
 };
+typedef Handle<ROSConfigElement> ROSConfigElementPtr;
+
 #endif // ROS_VERSION
 
 
