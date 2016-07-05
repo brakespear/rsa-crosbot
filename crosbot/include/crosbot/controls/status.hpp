@@ -117,7 +117,7 @@ public:
      */
     void sendStatus(crosbot_msgs::ControlStatus::_status_type status,
             crosbot_msgs::ControlStatus::_level_type level) {
-        std::vector<std::string> args;
+        crosbot_msgs::ControlStatus::_args_type args;
         sendStatus(status, level, args);
     }
 };
