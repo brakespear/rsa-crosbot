@@ -13,11 +13,19 @@
 #include <crosbot/data.hpp>
 #include <crosbot/thread.hpp>
 
-#include <pcl/point_types.h>
-#include <pcl/kdtree/kdtree_flann.h>
-
 #include <crosbot_graphslam/localMap.hpp>
 #include <crosbot_3d_graphslam_full/graphSlamFull3DNode.hpp>
+
+// PCL defines these macros as well, so undef
+#ifdef DEG2RAD
+#undef DEG2RAD
+#endif
+#ifdef RAD2DEG
+#undef RAD2DEG
+#endif
+
+#include <pcl/point_types.h>
+#include <pcl/kdtree/kdtree_flann.h>
 
 using namespace std;
 using namespace crosbot;

@@ -6,6 +6,7 @@ project(crosbot_graphslam)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
+  crosbot_msgs
   crosbot crosbot_map nav_msgs sensor_msgs tf message_generation
 )
 

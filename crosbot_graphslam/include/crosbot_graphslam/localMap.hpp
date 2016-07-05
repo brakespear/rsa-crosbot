@@ -9,11 +9,12 @@
 #define CROSBOT_GRAPHSLAM_LOCALMAP_HPP_
 
 #include <crosbot/data.hpp>
-#include <crosbot/PointCloudMsg.h>
+#include <crosbot/geometry.hpp>
+#include <crosbot_msgs/PointCloudMsg.h>
 #include <crosbot_graphslam/LocalMapMsg.h>
 namespace crosbot {
 
-class LocalMapInfo : public Data {
+class LocalMapInfo : public TimeStamptedData {
 public:
 
    /*

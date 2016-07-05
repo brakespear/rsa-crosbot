@@ -9,6 +9,7 @@
 #define DEPTHPOINTS_HPP_
 
 #include <crosbot/data.hpp>
+#include <crosbot/geometry.hpp>
 #include <tf/tf.h>
 #include <sensor_msgs/PointCloud2.h>
 
