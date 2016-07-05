@@ -120,6 +120,19 @@ public:
         crosbot_msgs::ControlStatus::_args_type args;
         sendStatus(status, level, args);
     }
+
+    /**
+     * Send status as formatted list
+     */
+    void sendStatus(crosbot_msgs::ControlStatus::_level_type level,
+            const char* fmt, ...);
+
+    /**
+     * Send status as formatted list, with extra args
+     */
+    void sendStatus(crosbot_msgs::ControlStatus::_level_type level,
+            const crosbot_msgs::ControlStatus::_args_type& args,
+            const char* fmt, ...);
 };
 typedef Handle<CrosbotStatus> CrosbotStatusPtr;
 

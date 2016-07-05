@@ -86,6 +86,7 @@ include_directories(include
 
 add_library(crosbot
     src/config.cpp
+    src/control/control.cpp
     src/data/image.cpp
     src/data/time.cpp
     src/exceptions.cpp
