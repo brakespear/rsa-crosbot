@@ -11,5 +11,7 @@ string[]    args
 
 # Common Commands
 string CMD_EM_STOP      = command_EM_STOP
+string CMD_RESET        = command_reset
 string CMD_RESUME       = command_resume
+string CMD_START        = command_start
 string CMD_STOP         = command_stop
