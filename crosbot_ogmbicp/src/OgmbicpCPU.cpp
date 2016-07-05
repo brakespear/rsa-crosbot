@@ -48,12 +48,19 @@ void OgmbicpCPU::start() {
 void OgmbicpCPU::stop() {
 }
 
-void OgmbicpCPU::initialiseTrack(Pose sensorPose, PointCloudPtr cloud) {
-   curPose.position.z = InitHeight;
+void OgmbicpCPU::initialiseTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose) {
+   curPose.position.z = zOffset;
    px = py = pz = pth = 0;
+   oldOdom = odomPose;
 }
 
-void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
+void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose) {
+   curPose.position.z = zOffset;
+   if (UseOdometry) {
+      getOdomGuess(oldOdom.toTF(), odomPose.toTF(), curPose.toTF(), px, py, pth);
+      //cout << "guess is: " << px << " " << py << " " << pth << endl;
+      oldOdom = odomPose;
+   }
 
    if (discardScan) {
       //cout << "Ignoring scan" << endl;
@@ -77,7 +84,8 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    laserPose = sensorPose;
 
    LaserPoints scan = new _LaserPoints(worldPoints, MaxSegLen, IgnoreZValues,
-         FloorHeight, MinAddHeight, MaxAddHeight);
+         FloorHeight, MinAddHeight, MaxAddHeight, floorHeight);
+   //cout << " " << zOffset << endl;
 
    if (initScans > 0) {
       localMap->addScan(scan, MaxObservations, LifeRatio, true);
@@ -105,15 +113,16 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    gz = pz;
    gth = pth;
 
-
+   //cout << "Point init: " << cloud->cloud.size() << " final: " << scan->points.size() << endl;
    //TODO: put the initial transform stuff here
    
    scan->transformPoints(dx, dy, dz, dth, laserOffset);
 
    int iterCount = 0;
    bool alignedScan = false;
+   int lastCount = 0;
    //int count = 0;
-   while (iterCount < MaxIterations && getOffset(scan, dx, dy, dz, dth)) {
+   while (iterCount < MaxIterations && getOffset(scan, dx, dy, dz, dth, lastCount)) {
       scan->transformPoints(dx, dy, dz, dth, laserOffset);
       //count = (int) dz;
       dz = 0; //TODO: fix this
@@ -150,6 +159,10 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
       }
    }
    failCount = 0;
+   if (!alignedScan && iterCount < MaxIterations) {
+      cout << "Scan alignment failed " << lastCount << " " << iterCount << endl;
+      gx = gy = gth = gz = 0;
+   }
 
    transformToRobot(gx, gy, gz, gth);
    ANGNORM(gth);
@@ -170,7 +183,8 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
 
    curPose.position.x += gx;
    curPose.position.y += gy;
-   curPose.position.z = InitHeight + gz;
+   curPose.position.z = zOffset + gz;
+   //cout << "Movement is: " << gx << " " << gy << " " << gth << endl;
 
    double roll, pitch, yaw;
    curPose.getYPR(yaw, pitch, roll);
@@ -209,7 +223,7 @@ void OgmbicpCPU::updateTrack(Pose sensorPose, PointCloudPtr cloud) {
    }
 }
 
-bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth) {
+bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth, int &lastCount) {
 
    Point scanPoint;
    Point mPoint;
@@ -227,14 +241,23 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
    a11 = a12 = a13 = a14 = a22 = a23 = a24 = a33 = a34 = a44 = 0.0;
    b1 = b2 = b3 = b4 = 0;
 
+   //int tempH = 0;
+   //int tempNan = 0;
+   //int tempMax = 0;
+   //int tempInf = 0;
+   //int tempCol = 0;
+   //int tempCount = 0;
+   //tt = 0;
 
    for (i = 0; i < scan->points.size(); i += LaserSkip) {
       //TODO: deal with z values properly
-      if (scan->points[i].point.z < MinAddHeight || scan->points[i].point.z > MaxAddHeight) {
+      if (scan->points[i].point.z < MinAddHeight || scan->points[i].point.z > MaxAddHeight /*|| (!isnan(floorHeight) && scan->points[i].point.z < floorHeight)*/) {
+         //tempH++;
          //cout << "points have the wrong height" << endl;
          continue;
       }
       if (scan->points[i].pointNxt.hasNAN()) {
+         //tempNan++;
          //cout << "points have nan" << endl;
          continue;
       }
@@ -242,6 +265,7 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
 
       double d = sqrt(SQ(scanPoint.x) + SQ(scanPoint.y));
       if (LaserMaxAlign > 0 && d > LaserMaxAlign) {
+         //tempMax++;
          //cout << "laser max align failing" << endl;
          continue;
       }
@@ -254,6 +278,7 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
       }
       double h = findMatchingPoint(scanPoint, mPoint, lValue2);
       if (h == INFINITY) {
+         //tempInf++;
          //cout << "no matching point found" << endl;
          continue;
       }
@@ -262,10 +287,12 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
 
       Cell3DColumn *colCell = localMap->columnAtXY(mPointMap.x, mPointMap.y);
       if (colCell == NULL) {
+         //tempCol++;
          continue;
       }
       if (colCell->obsCount < MinCellCount) {
          //cout << "min cell count failed" << endl;
+         //tempCount++;
          continue;
       }
       double fac = 1;
@@ -335,6 +362,9 @@ bool OgmbicpCPU::getOffset(LaserPoints scan, double &dx, double &dy, double &dz,
       }
       count++;
    }
+   lastCount = count;
+   //cout << "count: " << count << " " << tempH << " " << tempNan << " " <<
+   //   tempMax << " " << tempInf << " " << tempCol << " " << tempCount << " " << tt << endl;
    if (count < MinGoodCount) {
       dx = dy = dz = dth = 0.0;
       return false;

@@ -19,6 +19,9 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 
+#include <crosbot_graphslam/graphSlamNode.hpp>
+#include <crosbot_graphslam/localMap.hpp>
+
 using namespace crosbot;
 using namespace std;
 
@@ -39,6 +42,8 @@ public:
    Pose currentSlamPose;
 };
 
+
+class GraphSlamNode;
 class GraphSlam {
 
 public:
@@ -251,6 +256,8 @@ protected:
    void fixSlamHistoryPositions(int combineIndex, double alignX, double alignY, double alignTh);
 
 public:
+   GraphSlamNode *graphSlamNode;
+
    Pose slamPose;
    /*
     * Has graph slam finished setting up?

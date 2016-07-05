@@ -243,7 +243,6 @@ public:
 	static ConfigElementPtr parseFile(std::string filename);
 };
 
-
 /**
  * Common elements and parameters
  */

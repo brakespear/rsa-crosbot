@@ -27,8 +27,8 @@ public:
    void initialise(ros::NodeHandle &nh);
    void start();
    void stop();
-   void initialiseTrack(Pose sensorPose, PointCloudPtr cloud);
-   void updateTrack(Pose sensorPose, PointCloudPtr cloud);
+   void initialiseTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose);
+   void updateTrack(Pose sensorPose, PointCloudPtr cloud, Pose odomPose);
    void resetMap();
 
    OgmbicpCPU();
@@ -52,12 +52,13 @@ private:
    ros::WallDuration totalTime;
    int numIterations;
    int avNumIts;
+   //int tt; //debugging
 
    //Number of scans just to add to the map
    int initScans;
 
    //Get the offset from an iteration of ogmbicp
-   bool getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth);
+   bool getOffset(LaserPoints scan, double &dx, double &dy, double &dz, double &dth, int &lastCount);
    //Find the best matching point (mPoint) to scanPoint
    //Returns the matching score. INFINITY if no matching point was found
    double findMatchingPoint(Point scanPoint, Point &mPoint, double lVal);

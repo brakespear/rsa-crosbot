@@ -70,6 +70,7 @@ private:
       double internalCovar[3][3];
 
       double startingPos[3];
+      Pose globalPose;
 
       int numConstraints;
       int indexNextNode;
@@ -185,10 +186,11 @@ private:
    //bool tempO;
    bool alreadyOutput;
 
+   Pose curIcpPose;
+
    //debugging for timings
    ros::WallDuration totalTime;
    int numIterations;
-
 
    /*
     * Private methods

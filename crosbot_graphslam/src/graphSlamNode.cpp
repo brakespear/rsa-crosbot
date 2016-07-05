@@ -19,6 +19,8 @@ GraphSlamNode::GraphSlamNode(GraphSlam &graphSlam): icp_frame(DEFAULT_ICPFRAME),
    isInit = false;
    lastCaptured = ros::Time::now();
    lastPublishedMap = ros::Time::now();
+
+   graph_slam.graphSlamNode = this;
 }
 
 void GraphSlamNode::initialise(ros::NodeHandle &nh) {
@@ -31,6 +33,8 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("global_map_image_pub", global_map_image_pub, "globalImage");
    paramNH.param<std::string>("slam_history_pub", slam_history_pub, "slamHistory");
    paramNH.param<std::string>("global_grid_pub", global_grid_pub, "slamGrid");
+   paramNH.param<std::string>("local_map_pub", local_map_pub, "localMapInfo");
+   paramNH.param<std::string>("optimise_map_srv", optimise_map_srv, "optimiseMapInfo");
    paramNH.param<std::string>("snap_list_srv", snap_list_srv, "snaps_list");
    paramNH.param<std::string>("snap_update_srv", snap_update_srv, "snap_update");
    paramNH.param<std::string>("snap_get_srv", snap_get_srv, "snap_get");
@@ -44,6 +48,7 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
 
    paramNH.param<bool>("IncludeHighMapsSlice", IncludeHighMapSlice, false);
    paramNH.param<double>("HighMapSliceHeight", HighMapSliceHeight, 2.0);
+   paramNH.param<bool>("PublishLocalMapInfo", PublishLocalMapInfo, true);
 
    graph_slam.initialise(nh);
    graph_slam.start();
@@ -55,13 +60,19 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
       slamGridPubs.push_back(nh.advertise<nav_msgs::OccupancyGrid>(name, 1));
       mapSlices.push_back(HighMapSliceHeight);
    }
-   scanSubscriber = nh.subscribe(scan_sub, 10, &GraphSlamNode::callbackScan, this);
+   scanSubscriber = nh.subscribe(scan_sub, 1, &GraphSlamNode::callbackScan, this);
    snapSub = nh.subscribe(snap_sub, 1, &GraphSlamNode::callbackSnaps, this);
    imagePub = nh.advertise<sensor_msgs::Image>(global_map_image_pub, 1);
    slamHistoryPub = nh.advertise<nav_msgs::Path>(slam_history_pub, 1);
    snapListServer = nh.advertiseService(snap_list_srv, &GraphSlamNode::getSnapsList, this);
    snapUpdateServer = nh.advertiseService(snap_update_srv, &GraphSlamNode::snapUpdate, this);
    snapGetServer = nh.advertiseService(snap_get_srv, &GraphSlamNode::snapGet, this);
+
+   if (PublishLocalMapInfo) {
+      localMapInfoPub = nh.advertise<crosbot_graphslam::LocalMapMsg>(local_map_pub, 1);
+      //optimiseMapPub = nh.advertise<crosbot_graphslam::LocalMapMsgList>(optimise_map_pub, 1);
+      optimiseMapService = nh.serviceClient<crosbot_graphslam::LoopClose>(optimise_map_srv);
+   }
 
    //Kinect subscriber
    if (useKinect) {
@@ -105,7 +116,7 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
    				latestScan->header.frame_id, latestScan->header.stamp, laser2Base);
   		sensorPose = laser2Base;
 
-      tfListener.waitForTransform(icp_frame, base_frame, latestScan->header.stamp, ros::Duration(1,0));
+      tfListener.waitForTransform(icp_frame, base_frame, latestScan->header.stamp, ros::Duration(1, 0));
       tfListener.lookupTransform(icp_frame, base_frame, latestScan->header.stamp, base2Icp);
       icpPose = base2Icp;
 
@@ -201,6 +212,39 @@ void GraphSlamNode::publishSlamHistory() {
    path.header.frame_id = slam_frame;
    path.header.stamp = ros::Time::now();
    slamHistoryPub.publish(path);
+}
+
+void GraphSlamNode::publishLocalMapInfo(LocalMapInfo& info) {
+   if (PublishLocalMapInfo) {
+      localMapInfoPub.publish(info.toROSsmall());
+   }
+}
+
+void GraphSlamNode::publishOptimiseLocalMapInfo(vector<LocalMapInfoPtr>& localMapInfo, vector<int> iCon, vector<int> jCon, bool wasFullLoop) {
+   if (PublishLocalMapInfo) {
+      /*crosbot_graphslam::LocalMapMsgList list;
+      list.localMaps.resize(localMapInfo.size());
+      for (int i = 0; i < localMapInfo.size(); i++) {
+         list.localMaps[i] = *(localMapInfo[i]->toROSsmall());
+      }
+      optimiseMapPub.publish(list);*/
+      crosbot_graphslam::LoopClose optInfo;
+      optInfo.request.wasFullLoop = wasFullLoop;
+      optInfo.request.i.resize(iCon.size());
+      optInfo.request.j.resize(jCon.size());
+      for (int i = 0; i < iCon.size(); i++) {
+         optInfo.request.i[i] = iCon[i];
+         optInfo.request.j[i] = jCon[i];
+      }
+      optInfo.request.localMaps.resize(localMapInfo.size());
+      for (int i = 0; i < localMapInfo.size(); i++) {
+         optInfo.request.localMaps[i] = *(localMapInfo[i]->toROSsmall());
+      }
+      if (!optimiseMapService.call(optInfo)) {
+         cout << "ERROR: service call to 3d graph slam didn't work" << endl;
+      }
+      //Do any response needed
+   }
 }
 
 geometry_msgs::TransformStamped GraphSlamNode::getTransform(const Pose& pose, std::string childFrame, 

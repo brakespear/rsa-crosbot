@@ -14,6 +14,7 @@
 #include <tf/transform_broadcaster.h>
 #include <sensor_msgs/LaserScan.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Vector3.h>
 #include <std_msgs/String.h>
 
 #include <crosbot/data.hpp>
@@ -51,7 +52,7 @@ private:
     * ROS config params for position tracking
     */
    string icp_frame, base_frame, odom_frame;
-   string scan_sub, orientation_sub;
+   string scan_sub, orientation_sub, z_sub;
    string local_map_image_pub, local_map_pub;
    string recent_scans_srv;
 
@@ -63,13 +64,17 @@ private:
     */
    ros::Subscriber scanSubscriber;
    ros::Subscriber orientationSubscriber;
+   ros::Subscriber zSub;
+   ros::Subscriber resetMapSubscriber;
    tf::TransformListener tfListener;
    tf::TransformBroadcaster tfPub;
    ros::Publisher imagePub;
    ros::Publisher localMapPub;
    ros::ServiceServer recentScansServer;
 
-   ros::Subscriber resetMapSubscriber;
+   bool UseExternalZ;
+   bool UseFloorHeight;
+   bool UseStampedOrientation;
 
    Ogmbicp &pos_tracker;
    //Is it the initial scan?
@@ -87,7 +92,10 @@ private:
    /*
     * Callback for the orientation from the IMU
     */
+   //void callbackOrientation(const geometry_msgs::Quaternion& quat);
    void callbackOrientation(const geometry_msgs::Quaternion& quat);
+   void callbackOrientationStamped(const geometry_msgs::QuaternionStamped& quat);
+   void callbackZ(const geometry_msgs::Vector3& vec);
 
    /*
     * Callback to reset the position tracker

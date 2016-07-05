@@ -27,23 +27,33 @@ void OgmbicpNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<std::string>("base_frame", base_frame, DEFAULT_BASEFRAME);
    paramNH.param<std::string>("odom_frame", odom_frame, DEFAULT_ODOMFRAME);
    paramNH.param<std::string>("scan_sub", scan_sub, "/scan");
+   paramNH.param<std::string>("z_sub", z_sub, "z_values");
    paramNH.param<std::string>("local_map_image_pub", local_map_image_pub, "localImage");
    paramNH.param<std::string>("local_map_pub", local_map_pub, "localGrid");
    paramNH.param<std::string>("recent_scans_srv", recent_scans_srv, "icpRecentScans");
    paramNH.param<std::string>("orientation_sub", orientation_sub, "/orientation");
    paramNH.param<std::string>("reset_map_sub", reset_map_sub, "resetMap");
+   paramNH.param<bool>("UseExternalZ", UseExternalZ, false);
+   paramNH.param<bool>("UseFloorHeight", UseFloorHeight, true);
+   paramNH.param<bool>("UseStampedOrientation", UseStampedOrientation, false);
 
    pos_tracker.initialise(nh);
    pos_tracker.start();
 
    scanSubscriber = nh.subscribe(scan_sub, 1, &OgmbicpNode::callbackScan, this);
-   orientationSubscriber = nh.subscribe(orientation_sub, 1, &OgmbicpNode::callbackOrientation, this);
+   if (UseStampedOrientation) {
+       orientationSubscriber = nh.subscribe(orientation_sub, 1, &OgmbicpNode::callbackOrientationStamped, this);
+   } else {
+       orientationSubscriber = nh.subscribe(orientation_sub, 1, &OgmbicpNode::callbackOrientation, this);
+   }
    imagePub = nh.advertise<sensor_msgs::Image>(local_map_image_pub, 1);
    localMapPub = nh.advertise<nav_msgs::OccupancyGrid>(local_map_pub, 1);
    recentScansServer = nh.advertiseService(recent_scans_srv, &OgmbicpNode::getRecentScans, this);
+   if (UseExternalZ) {
+      zSub = nh.subscribe(z_sub, 1, &OgmbicpNode::callbackZ, this);
+   }
 
    resetMapSubscriber = nh.subscribe(reset_map_sub, 1, &OgmbicpNode::callbackResetMap, this);
-
 }
 
 void OgmbicpNode::shutdown() {
@@ -130,11 +140,11 @@ void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan)
    //sensorPose.position = Point();
    if (!isInit) {
       isInit = true;
-      pos_tracker.initialiseTrack(sensorPose, cloud);
+      pos_tracker.initialiseTrack(sensorPose, cloud, odomPose);
       uint32_t dim = (uint32_t) (pos_tracker.MapSize / pos_tracker.CellSize);
       localMap = new LocalMap(dim, dim, pos_tracker.CellSize, icp_frame);
    } else {
-      pos_tracker.updateTrack(sensorPose, cloud);
+      pos_tracker.updateTrack(sensorPose, cloud, odomPose);
    }
    ImagePtr image = pos_tracker.drawMap(localMap);
    if (image != NULL) {
@@ -154,8 +164,21 @@ void OgmbicpNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan)
    }
 }
 
-void OgmbicpNode::callbackOrientation(const geometry_msgs::Quaternion& quat) {
-   pos_tracker.processImuOrientation(quat);
+void OgmbicpNode::callbackOrientation(const geometry_msgs::Quaternion& quaternion) {
+    pos_tracker.processImuOrientation(quaternion);
+}
+
+void OgmbicpNode::callbackOrientationStamped(const geometry_msgs::QuaternionStamped& quat) {
+   pos_tracker.processImuOrientation(quat.quaternion);
+}
+
+void OgmbicpNode::callbackZ(const geometry_msgs::Vector3& vec) {
+   pos_tracker.zOffset = vec.z;
+   if (UseFloorHeight) {
+      pos_tracker.floorHeight = vec.x;
+   } else {
+      pos_tracker.floorHeight = NAN;
+   }
 }
 
 void OgmbicpNode::callbackResetMap(const std_msgs::String& name) {

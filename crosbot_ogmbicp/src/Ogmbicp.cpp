@@ -24,8 +24,8 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("MaxErrorTh", MaxErrorTh, 0.01);
    paramNH.param<double>("MaxErrorZ", MaxErrorZ, 0.001);
    paramNH.param<double>("MinAddHeight", MinAddHeight, -1);
-   paramNH.param<double>("MaxAddHeight", MaxAddHeight, 1);
-   paramNH.param<double>("FloorHeight", FloorHeight, -INFINITY);
+   paramNH.param<double>("MaxAddHeight", MaxAddHeight, 3);
+   paramNH.param<double>("FloorHeight", FloorHeight, -1);
    paramNH.param<double>("LaserMinDist", LaserMinDist, 0.4);
    paramNH.param<double>("LaserMaxDistance", LaserMaxDistance, 10.0);
    paramNH.param<bool>("IgnoreZValues", IgnoreZValues, false);
@@ -55,11 +55,15 @@ void Ogmbicp::initialise(ros::NodeHandle &nh) {
    paramNH.param<int>("AddSkipCount", AddSkipCount, 50);
    paramNH.param<int>("MaxFail", MaxFail, 5);
    paramNH.param<bool>("UsePriorMove", UsePriorMove, true);
+   paramNH.param<bool>("UseOdometry", UseOdometry, false);
    paramNH.param<int>("ImgTransmitTime", ImgTransmitTime, 50000);
    paramNH.param<double>("ScanListTime", ScanListTime, 20);
    //paramNH.param<bool>("UseIMUOrientation", UseIMUOrientation, true);
    paramNH.param<bool>("DiscardScansOrientation", DiscardScansOrientation, true);
    paramNH.param<double>("DiscardThreshold", DiscardThreshold, 0.6);
+
+   zOffset = InitHeight;
+   floorHeight = FloorHeight;
 
 }
 
@@ -236,5 +240,21 @@ void Ogmbicp::processImuOrientation(const geometry_msgs::Quaternion& quat) {
          discardScan = false;
       }
    }
+}
+
+void Ogmbicp::getOdomGuess(tf::Transform oldOdom, tf::Transform newOdom, tf::Transform icpCur,
+      double &x, double &y, double &th) {
+
+   tf::Vector3 odomChange = newOdom.getOrigin() - oldOdom.getOrigin();
+   tf::Transform trans = oldOdom.inverse() * icpCur;
+   tf::Vector3 update = trans.getBasis() * odomChange;
+   x = update[0];
+   y = update[1];
+
+   Pose pEst(oldOdom.inverse() * newOdom);
+   double yo,po,ro;
+   pEst.getYPR(yo,po,ro);
+   th = yo;
+
 }
 

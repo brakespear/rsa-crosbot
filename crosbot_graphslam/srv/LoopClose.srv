@@ -1,0 +1,5 @@
+uint32 wasFullLoop
+uint32[] i
+uint32[] j
+crosbot_graphslam/LocalMapMsg[] localMaps
+---

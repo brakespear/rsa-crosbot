@@ -45,18 +45,24 @@ find_package(SuiteSparse REQUIRED)
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
+ add_message_files(
+    DIRECTORY msg
+    FILES
+       LocalMapMsg.msg
+       LocalMapMsgList.msg
 #   FILES
 #   Message1.msg
 #   Message2.msg
-# )
+ )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
+ add_service_files(
+   DIRECTORY srv
+   FILES
+      LoopClose.srv
 #   Service1.srv
 #   Service2.srv
-# )
+ )
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -66,12 +72,13 @@ find_package(SuiteSparse REQUIRED)
 # )
 
 ## Generate added messages and services with any dependencies listed here
-#generate_messages(
-#   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
+generate_messages(
+   DEPENDENCIES
+   std_msgs  # Or other packages containing msgs
 #   nav_msgs
-#   crosbot_map
-#)
+   geometry_msgs
+   crosbot_map
+)
 
 ###################################
 ## catkin specific configuration ##
@@ -112,7 +119,8 @@ add_executable(crosbot_graphslam src/graphSlamNode.cpp src/graphSlam.cpp src/gra
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
-# add_dependencies(crosbot_graphslam_node crosbot_graphslam_generate_messages_cpp)
+#add_dependencies(crosbot_graphslam crosbot_graphslam_gencpp)
+add_dependencies(graphslam ${PROJECT_NAME}_gencpp)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(crosbot_graphslam graphslam
