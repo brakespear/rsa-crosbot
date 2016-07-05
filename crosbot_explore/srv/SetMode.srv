@@ -3,4 +3,11 @@ int32 mode # 0 paused
            # 2 left wall
            # 3 right wall
            # 4 waypoint
+
+int32 MODE_PAUSED       = 0
+int32 MODE_RESUME       = 1
+int32 MODE_LEFT_WALL    = 2
+int32 MODE_RIGHT_WALL   = 3
+int32 MODE_WAYPOINT     = 4
+
 ---
