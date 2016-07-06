@@ -14,6 +14,7 @@
 
 #include <ros/publisher.h>
 #include <ros/subscriber.h>
+#include <ros/time.h>
 
 namespace crosbot {
 
@@ -74,7 +75,7 @@ public:
         }
         if (callback != NULL) {
             receive = true;
-            subscriber = nh.subscribe(TOPIC_CROSBOT_CONTROL_STATUS, 1, &CrosbotStatus::_callback_receivedStatus, this);
+            subscriber = nh.subscribe(TOPIC_CROSBOT_CONTROL_STATUS, 10, &CrosbotStatus::_callback_receivedStatus, this);
         }
     };
     virtual ~CrosbotStatus() {
@@ -104,6 +105,7 @@ public:
             const crosbot_msgs::ControlStatus::_args_type& args) {
         if (send) {
             crosbot_msgs::ControlStatus msg;
+            msg.header.stamp = ros::Time::now();
             msg.level = level;
             msg.stats_namespace = nspace;
             msg.status = status;

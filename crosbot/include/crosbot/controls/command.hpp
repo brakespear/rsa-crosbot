@@ -14,6 +14,7 @@
 
 #include <ros/publisher.h>
 #include <ros/subscriber.h>
+#include <ros/time.h>
 
 namespace crosbot {
 
@@ -58,6 +59,7 @@ private:
             const crosbot_msgs::ControlCommand::_args_type& args) {
         if (send) {
             crosbot_msgs::ControlCommand msg;
+            msg.header.stamp = ros::Time::now();
             msg.cmd_namespace = nspace;
             msg.command = command;
             msg.args = args;
@@ -92,7 +94,7 @@ public:
         }
         if (callback != NULL) {
             receive = true;
-            subscriber = nh.subscribe(TOPIC_CROSBOT_CONTROL_COMMANDS, 1, &CrosbotCommand::_callback_receivedCommand, this);
+            subscriber = nh.subscribe(TOPIC_CROSBOT_CONTROL_COMMANDS, 10, &CrosbotCommand::_callback_receivedCommand, this);
         }
     };
     virtual ~CrosbotCommand() {
