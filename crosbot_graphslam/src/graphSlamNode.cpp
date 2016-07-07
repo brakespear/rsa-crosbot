@@ -156,24 +156,24 @@ void GraphSlamNode::reset() {
 
 void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan) {
    Pose sensorPose, icpPose;
-  	tf::StampedTransform laser2Base, base2Icp;
-  	try {
-  		tfListener.waitForTransform(base_frame, latestScan->header.frame_id,
-             latestScan->header.stamp, ros::Duration(1, 0));
-  		tfListener.lookupTransform(base_frame,
-   				latestScan->header.frame_id, latestScan->header.stamp, laser2Base);
-  		sensorPose = laser2Base;
+   tf::StampedTransform laser2Base, base2Icp;
+   try {
+      tfListener.waitForTransform(base_frame, latestScan->header.frame_id,
+          latestScan->header.stamp, ros::Duration(1, 0));
+      tfListener.lookupTransform(base_frame,
+             latestScan->header.frame_id, latestScan->header.stamp, laser2Base);
+      sensorPose = laser2Base;
 
       tfListener.waitForTransform(icp_frame, base_frame, latestScan->header.stamp, ros::Duration(1, 0));
       tfListener.lookupTransform(icp_frame, base_frame, latestScan->header.stamp, base2Icp);
       icpPose = base2Icp;
 
-  	} catch (tf::TransformException& ex) {
- 		fprintf(stderr, "graph slam: Error getting transform. (%s) (%d.%d)\n", ex.what(),
-   		latestScan->header.stamp.sec, latestScan->header.stamp.nsec);
-   	return;
+   } catch (tf::TransformException& ex) {
+      fprintf(stderr, "graph slam: Error getting transform. (%s) (%d.%d)\n", ex.what(),
+      latestScan->header.stamp.sec, latestScan->header.stamp.nsec);
+      return;
    } 
-   //cout << "Got transform" << endl;
+
    PointCloudPtr cloud = new PointCloud(base_frame, PointCloud(latestScan, true), sensorPose);
    if (!isInit) {
       isInit = true;
@@ -191,6 +191,7 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
    } else {
       graph_slam->updateTrack(icpPose, cloud, latestScan->header.stamp);
    }
+
    ImagePtr image = graph_slam->drawMap(globalMaps, icpPose, mapSlices);
    if (image != NULL) {
       publishSlamHistory();
@@ -204,10 +205,12 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
       //Debugging publisher
       imageTestPub.publish((testMap->getImage())->toROS());
    }
+
    Pose slamPose = graph_slam->slamPose;
    Pose correction = slamPose.toTF() * icpPose.toTF().inverse();
    geometry_msgs::TransformStamped slamCor = getTransform(correction, icp_frame, slam_frame, base2Icp.stamp_);
    tfPub.sendTransform(slamCor);
+
 }
 
 void GraphSlamNode::callbackSnaps(const crosbot_map::SnapMsg& newSnapMsg) {
