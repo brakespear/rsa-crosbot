@@ -14,12 +14,24 @@
 
 namespace crosbot {
 
+/**
+ * Replaces deprecated function of the same name in tf::Quaternion.
+ * Implementation copied from <tf/LinearMath/Quaternion.h> for ROS indigo.
+ */
+tf::Quaternion setEulerZYX(const tfScalar& yaw, const tfScalar& pitch, const tfScalar& roll)
+{
+    tf::Quaternion q;
+    q.setRPY(roll, pitch, yaw);
+    return q;
+}
+
 void Quaternion::setYPR(const double& yaw, const double& pitch, const double& roll) {
     tf::Quaternion q;
 
     // Change to remove depreciated function
     //q.setEulerZYX(yaw, pitch, roll);
-    q.setEuler(yaw, pitch, roll);
+
+    q = setEulerZYX(yaw, pitch, roll);
 
     *this = q;
 }
