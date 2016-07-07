@@ -23,6 +23,7 @@ using namespace crosbot;
 using namespace crosbot_explore;
 
 #define DEFAULT_BASEFRAME			"/base_link"
+#define LOG_START                   "crosbot_explore ::"
 
 class ExplorerNode : public Explorer {
 protected:
@@ -118,6 +119,7 @@ public:
 			voronoiConstraints.partial = voronoiCfg->getParamAsDouble("partial", voronoiConstraints.partial);
 			voronoiConstraints.expand = voronoiCfg->getParamAsDouble("expand", voronoiConstraints.expand);
 			voronoiConstraints.orphanThreshold = voronoiCfg->getParamAsInt("orphan", voronoiConstraints.orphanThreshold);
+			ROS_INFO("%s restrict: %.2lf - partial: %.2lf - expand: %.2lf - orphan: %d", LOG_START, voronoiConstraints.restricted, voronoiConstraints.partial, voronoiConstraints.expand, voronoiConstraints.orphanThreshold);
 		}
 		ConfigElementPtr searchCfg = cfg->getChild("search");
 		if (searchCfg != NULL) {
@@ -173,7 +175,7 @@ public:
 //			tfListener.waitForTransform(mapFrame, baseFrame, ros::Time(0), ros::Duration(5.0));
 			tfListener.lookupTransform(mapFrame, baseFrame, ros::Time(0), transform);
 		} catch (tf::TransformException& e) {
-			LOG("ExplorerNode::getLatestPose(): Exception caught(%s).\n", e.what());
+			LOG("%s getLatestPose(): Exception caught(%s).\n", LOG_START, e.what());
 			return Pose(INFINITY, INFINITY, INFINITY);
 		}
 		return Pose(transform);
@@ -182,6 +184,7 @@ public:
 	Pose findDriveTarget(const VoronoiGrid& voronoi, const Pose& robot) {
 		Pose rval = Explorer::findDriveTarget(voronoi, robot);
 
+		// TODO: to view in camera relative frame need camera_info topic (see http://wiki.ros.org/rviz/DisplayTypes/Camera)
 		if (imagePub.getNumSubscribers() > 0) {
 			ImagePtr image = getPlanImage(voronoi, robot, rval);
 			imagePub.publish(image->toROS());
@@ -194,7 +197,7 @@ public:
 		if (((void*)(velPub)) == NULL)
 			return false;
 
-		LOG("ExplorerNode::stopMotors()\n");
+		LOG("%s stopMotors()\n", LOG_START);
 		geometry_msgs::Twist twist;
 
 		twist.linear.x = twist.linear.y = twist.linear.z = 0;
