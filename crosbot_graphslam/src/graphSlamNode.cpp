@@ -34,6 +34,7 @@ GraphSlamNode::GraphSlamNode(FactoryGraphSlam& factoryGraphSlam) :
 }
 
 void GraphSlamNode::initialise(ros::NodeHandle &nh) {
+   ROS_INFO("GraphSlamNode :: initialise");
 
    isInit = false;
    lastCaptured = ros::Time::now();
@@ -120,10 +121,13 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
 
    //Debugging publisher
    imageTestPub = nh.advertise<sensor_msgs::Image>("slamTest", 1);
+
+   ROS_INFO("GraphSlamNode :: initialise - done");
 }
 
 void GraphSlamNode::shutdown() {
    // Shutdown subscribers, publishers and services
+   ROS_INFO("GraphSlamNode :: shutdown");
    scanSubscriber.shutdown();
    snapSubscriber.shutdown();
    resetSubscriber.shutdown();
@@ -143,6 +147,11 @@ void GraphSlamNode::shutdown() {
    // Stop and delete GraphSlam
    graph_slam->stop();
    delete graph_slam;
+
+   // Clear out data
+   globalMaps.clear();
+   mapSlices.clear();
+   testMap = NULL;
 }
 
 void GraphSlamNode::reset() {
