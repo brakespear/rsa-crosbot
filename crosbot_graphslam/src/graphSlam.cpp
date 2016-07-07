@@ -7,6 +7,8 @@
  * Common code for all graph slam methods    
  */
 
+#include <ros/ros.h>
+
 #include <newmat/newmat.h>
 #include <crosbot_graphslam/graphSlam.hpp>
 

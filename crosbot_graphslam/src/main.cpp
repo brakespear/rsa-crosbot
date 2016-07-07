@@ -15,8 +15,8 @@ int main(int argc, char **argv) {
 
    ros::NodeHandle nh;
 
-   GraphSlamCPU graphSlam;
-   GraphSlamNode node(graphSlam);
+   FactoryGraphSlamCPU factoryGraphSlam;
+   GraphSlamNode node(factoryGraphSlam);
    node.initialise(nh);
 
    while (ros::ok()) {

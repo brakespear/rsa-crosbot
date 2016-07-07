@@ -9,6 +9,7 @@
 #define GRAPHSLAM_CPU_HPP_
 
 #include <crosbot_graphslam/graphSlam.hpp>
+#include <crosbot_graphslam/factory.hpp>
 
 #include <suitesparse/cs.h>
 //#include <cs.h>
@@ -294,4 +295,17 @@ private:
 
 };
 
-#endif
+/**
+ * Factory for constructing the CPU implementation of GraphSlam
+ */
+class FactoryGraphSlamCPU : public FactoryGraphSlam {
+public:
+   FactoryGraphSlamCPU() {};
+   virtual ~FactoryGraphSlamCPU() {};
+
+   virtual GraphSlam *makeGraphSlam() {
+      return new GraphSlamCPU();
+   }
+};
+
+#endif /* GRAPHSLAM_CPU_HPP_ */

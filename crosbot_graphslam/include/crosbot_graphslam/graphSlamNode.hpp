@@ -28,6 +28,8 @@
 #include <crosbot_graphslam/localMap.hpp>
 #include <crosbot_graphslam/LocalMapMsg.h>
 #include <crosbot_graphslam/LoopClose.h>
+
+#include <crosbot_graphslam/factory.hpp>
 #include <crosbot_graphslam/graphSlam.hpp>
 
 #define DEFAULT_ICPFRAME "/icp"
@@ -41,7 +43,7 @@ class GraphSlam;
 class GraphSlamNode {
 public:
 
-   GraphSlamNode(GraphSlam&);
+   GraphSlamNode(FactoryGraphSlam& factoryGraphSlam);
 
    /*
     * Initialises the graph slam node
@@ -52,6 +54,12 @@ public:
     * Shuts down the graph slam node
     */
    void shutdown();
+
+   /**
+    * Causes this graphslam node to reset/re-initialise itself
+    */
+   void reset();
+
    /*
     * Publishes information about a local map
     */
@@ -65,11 +73,22 @@ public:
 
 private:
   
+   /**
+    * Namespaces for subscribing to topics, etc.
+    */
+   string nhNamespace;
+   string paramNamespace;
+
+   /**
+    * Factory for generating a new GraphSlam entity
+    */
+   FactoryGraphSlam& factoryGraphSlam;
+
    /*
     * ROS config params for graph slam
     */
    string icp_frame, base_frame, slam_frame;
-   string scan_sub, snap_sub;
+   string scan_sub, snap_sub, reset_sub;
    string global_map_image_pub, slam_history_pub, global_grid_pub, local_map_pub;
    string snap_list_srv, snap_update_srv, snap_get_srv, optimise_map_srv;
 
@@ -89,7 +108,8 @@ private:
     * ROS connections
     */
    ros::Subscriber scanSubscriber;
-   ros::Subscriber snapSub;
+   ros::Subscriber snapSubscriber;
+   ros::Subscriber resetSubscriber;
    ros::Publisher imagePub;
    ros::Publisher slamHistoryPub;
    ros::Publisher localMapInfoPub;
@@ -118,7 +138,11 @@ private:
    ros::Publisher imageTestPub;
    LocalMapPtr testMap;
 
-   GraphSlam &graph_slam;
+   /**
+    * GraphSlam implementation
+    */
+   GraphSlam *graph_slam;
+
    vector<LocalMapPtr> globalMaps;
 
    //Is it the first scan?
@@ -134,6 +158,11 @@ private:
     * Callback for adding a new snap
     */
    void callbackSnaps(const crosbot_map::SnapMsg& newSnapMsg);
+   /**
+    * Callback for reset map notification
+    */
+   void callbackResetMap(std_msgs::StringConstPtr resetMsg);
+
    /*
     * Service to return a list of snaps
     */

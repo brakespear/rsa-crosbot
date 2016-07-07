@@ -7,29 +7,47 @@
  * Interface of graph slam algorithm with ROS
  */
 
+#include <ros/ros.h>
+
 #include <crosbot_graphslam/graphSlamNode.hpp>
 
 using namespace std;
 using namespace crosbot;
 
-GraphSlamNode::GraphSlamNode(GraphSlam &graphSlam): icp_frame(DEFAULT_ICPFRAME),
-                            base_frame(DEFAULT_BASEFRAME),
-                            graph_slam(graphSlam)
+GraphSlamNode::GraphSlamNode(FactoryGraphSlam& factoryGraphSlam) :
+    factoryGraphSlam(factoryGraphSlam),
+    icp_frame(DEFAULT_ICPFRAME),
+    base_frame(DEFAULT_BASEFRAME)
 {
    isInit = false;
    lastCaptured = ros::Time::now();
    lastPublishedMap = ros::Time::now();
 
-   graph_slam.graphSlamNode = this;
+   useKinect = false;
+   kinectCaptureRate = 0;
+   PublishLocalMapInfo = false;
+   HighMapSliceHeight = false;
+   IncludeHighMapSlice = false;
+   globalMapPublishRate = 0;
+
+   graph_slam = NULL;
 }
 
 void GraphSlamNode::initialise(ros::NodeHandle &nh) {
-   ros::NodeHandle paramNH("~");
+
+   isInit = false;
+   lastCaptured = ros::Time::now();
+   lastPublishedMap = ros::Time::now();
+
+   nhNamespace = nh.getNamespace();
+   paramNamespace = "~";
+   ros::NodeHandle paramNH(paramNamespace);
    paramNH.param<std::string>("icp_frame", icp_frame, DEFAULT_ICPFRAME);
    paramNH.param<std::string>("base_frame", base_frame, DEFAULT_BASEFRAME);
    paramNH.param<std::string>("slam_frame", slam_frame, "/slam");
    paramNH.param<std::string>("scan_sub", scan_sub, "scan");
    paramNH.param<std::string>("snap_sub", snap_sub, "snaps");
+   paramNH.param<std::string>("reset_sub", reset_sub, "/graphslam/resetMap");
    paramNH.param<std::string>("global_map_image_pub", global_map_image_pub, "globalImage");
    paramNH.param<std::string>("slam_history_pub", slam_history_pub, "slamHistory");
    paramNH.param<std::string>("global_grid_pub", global_grid_pub, "slamGrid");
@@ -50,18 +68,22 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
    paramNH.param<double>("HighMapSliceHeight", HighMapSliceHeight, 2.0);
    paramNH.param<bool>("PublishLocalMapInfo", PublishLocalMapInfo, true);
 
-   graph_slam.initialise(nh);
-   graph_slam.start();
+   // Configure graph slam entity
+   graph_slam = factoryGraphSlam.makeGraphSlam();
+   graph_slam->graphSlamNode = this;
+   graph_slam->initialise(nh);
+   graph_slam->start();
 
    slamGridPubs.push_back(nh.advertise<nav_msgs::OccupancyGrid>(global_grid_pub, 1, true));
-   mapSlices.push_back(graph_slam.MinAddHeight);
+   mapSlices.push_back(graph_slam->MinAddHeight);
    if (IncludeHighMapSlice) {
       string name = global_grid_pub + "High";
       slamGridPubs.push_back(nh.advertise<nav_msgs::OccupancyGrid>(name, 1));
       mapSlices.push_back(HighMapSliceHeight);
    }
    scanSubscriber = nh.subscribe(scan_sub, 1, &GraphSlamNode::callbackScan, this);
-   snapSub = nh.subscribe(snap_sub, 1, &GraphSlamNode::callbackSnaps, this);
+   snapSubscriber = nh.subscribe(snap_sub, 1, &GraphSlamNode::callbackSnaps, this);
+   resetSubscriber = nh.subscribe(reset_sub, 1, &GraphSlamNode::callbackResetMap, this);
    imagePub = nh.advertise<sensor_msgs::Image>(global_map_image_pub, 1);
    slamHistoryPub = nh.advertise<nav_msgs::Path>(slam_history_pub, 1);
    snapListServer = nh.advertiseService(snap_list_srv, &GraphSlamNode::getSnapsList, this);
@@ -101,9 +123,35 @@ void GraphSlamNode::initialise(ros::NodeHandle &nh) {
 }
 
 void GraphSlamNode::shutdown() {
+   // Shutdown subscribers, publishers and services
    scanSubscriber.shutdown();
-   graph_slam.stop();
+   snapSubscriber.shutdown();
+   resetSubscriber.shutdown();
+   imagePub.shutdown();
+   slamHistoryPub.shutdown();
+   localMapInfoPub.shutdown();
+   optimiseMapService.shutdown();
+   snapListServer.shutdown();
+   snapUpdateServer.shutdown();
+   snapGetServer.shutdown();
 
+   for(ros::Publisher pub : slamGridPubs) {
+      pub.shutdown();
+   }
+   slamGridPubs.clear();
+
+   // Stop and delete GraphSlam
+   graph_slam->stop();
+   delete graph_slam;
+}
+
+void GraphSlamNode::reset() {
+   // Shutdown
+   shutdown();
+
+   // Re-initialise - initialise already calls graph_slam->start()
+   ros::NodeHandle nh(nhNamespace);
+   initialise(nh);
 }
 
 void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestScan) {
@@ -129,24 +177,24 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
    PointCloudPtr cloud = new PointCloud(base_frame, PointCloud(latestScan, true), sensorPose);
    if (!isInit) {
       isInit = true;
-      graph_slam.initialiseTrack(icpPose, cloud);
-      uint32_t dim = (uint32_t) (graph_slam.DimGlobalOG);
+      graph_slam->initialiseTrack(icpPose, cloud);
+      uint32_t dim = (uint32_t) (graph_slam->DimGlobalOG);
       int i;
       for (i = 0; i < mapSlices.size(); i++) {
-         globalMaps.push_back(new LocalMap(dim, dim, graph_slam.CellSize, slam_frame));
+         globalMaps.push_back(new LocalMap(dim, dim, graph_slam->CellSize, slam_frame));
       }
       //Debugging publisher
-      dim = (uint32_t)(graph_slam.DimLocalOG);
-      //dim = (uint32_t)(graph_slam.DimGlobalOG);
-      testMap = new LocalMap(dim, dim, graph_slam.CellSize, slam_frame);
-      graph_slam.testMap = testMap;
+      dim = (uint32_t)(graph_slam->DimLocalOG);
+      //dim = (uint32_t)(graph_slam->DimGlobalOG);
+      testMap = new LocalMap(dim, dim, graph_slam->CellSize, slam_frame);
+      graph_slam->testMap = testMap;
    } else {
-      graph_slam.updateTrack(icpPose, cloud, latestScan->header.stamp);
+      graph_slam->updateTrack(icpPose, cloud, latestScan->header.stamp);
    }
-   ImagePtr image = graph_slam.drawMap(globalMaps, icpPose, mapSlices);
+   ImagePtr image = graph_slam->drawMap(globalMaps, icpPose, mapSlices);
    if (image != NULL) {
       publishSlamHistory();
-      graph_slam.addSlamTrack(image);
+      graph_slam->addSlamTrack(image);
       int i;
       for (i = 0; i < mapSlices.size(); i++) {
          slamGridPubs[i].publish(globalMaps[i]->getGrid());
@@ -156,7 +204,7 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
       //Debugging publisher
       imageTestPub.publish((testMap->getImage())->toROS());
    }
-   Pose slamPose = graph_slam.slamPose;
+   Pose slamPose = graph_slam->slamPose;
    Pose correction = slamPose.toTF() * icpPose.toTF().inverse();
    geometry_msgs::TransformStamped slamCor = getTransform(correction, icp_frame, slam_frame, base2Icp.stamp_);
    tfPub.sendTransform(slamCor);
@@ -164,16 +212,21 @@ void GraphSlamNode::callbackScan(const sensor_msgs::LaserScanConstPtr& latestSca
 
 void GraphSlamNode::callbackSnaps(const crosbot_map::SnapMsg& newSnapMsg) {
    SnapPtr newSnap = new Snap(newSnapMsg);
-   graph_slam.addSnap(newSnap);
+   graph_slam->addSnap(newSnap);
+}
+
+void GraphSlamNode::callbackResetMap(std_msgs::StringConstPtr resetMsg) {
+   ROS_INFO("GraphSlamNode :: Resetting Map");
+   reset();
 }
 
 bool GraphSlamNode::getSnapsList(crosbot_map::ListSnaps::Request& req, 
          crosbot_map::ListSnaps::Response& res) {
-   if (!graph_slam.finishedSetup) {
+   if (!graph_slam->finishedSetup) {
       return false;
    }
    vector<SnapPtr> list;
-   graph_slam.getSnaps(list);
+   graph_slam->getSnaps(list);
    res.snaps.resize(list.size());
    int i;
    for (i = 0; i < list.size(); i++) {
@@ -184,21 +237,21 @@ bool GraphSlamNode::getSnapsList(crosbot_map::ListSnaps::Request& req,
 
 bool GraphSlamNode::snapUpdate(crosbot_map::ModifySnap::Request& req, 
          crosbot_map::ModifySnap::Response& res) {
-   if (!graph_slam.finishedSetup) {
+   if (!graph_slam->finishedSetup) {
       return false;
    }
-   return graph_slam.updateSnap(req.id.data, req.type.data, 
+   return graph_slam->updateSnap(req.id.data, req.type.data,
          req.description.data, req.status.data);
 
 }
 
 bool GraphSlamNode::snapGet(crosbot_map::GetSnap::Request& req, 
          crosbot_map::GetSnap::Response& res) {
-   if (!graph_slam.finishedSetup) {
+   if (!graph_slam->finishedSetup) {
       return false;
    }
    SnapPtr snap = new Snap();
-   if (!graph_slam.getSnap(req.id.data, req.type.data, snap)) {
+   if (!graph_slam->getSnap(req.id.data, req.type.data, snap)) {
       return false;
    }
    res.snap = *(snap->toROS());
@@ -206,7 +259,7 @@ bool GraphSlamNode::snapGet(crosbot_map::GetSnap::Request& req,
 }
 
 void GraphSlamNode::publishSlamHistory() {
-   vector<geometry_msgs::PoseStamped>& history = graph_slam.getSlamHistory();
+   vector<geometry_msgs::PoseStamped>& history = graph_slam->getSlamHistory();
    nav_msgs::Path path;
    path.poses = history;
    path.header.frame_id = slam_frame;
@@ -281,7 +334,7 @@ void GraphSlamNode::callbackKinect(const sensor_msgs::PointCloud2ConstPtr& ptClo
    		   ptCloud->header.stamp.sec, ptCloud->header.stamp.nsec);
       	return;
       }
-      graph_slam.captureScan(ptCloud->data, sensorPose);
+      graph_slam->captureScan(ptCloud->data, sensorPose);
 
       /*cout << "Length is: " << ptCloud->fields.size() << " " << ptCloud->point_step<< endl;
       cout << ptCloud->row_step << " " << ptCloud->width << " " << ptCloud->height << " " << (int)ptCloud->is_dense << " " << (int)ptCloud->is_bigendian << endl;
@@ -295,7 +348,7 @@ void GraphSlamNode::callbackKinect(const sensor_msgs::PointCloud2ConstPtr& ptClo
          cout << "Publishing point cloud" << endl;
          //Publish the point cloud
          worldScan.header.stamp = ros::Time::now();
-         graph_slam.getPoints(worldScan.data);
+         graph_slam->getPoints(worldScan.data);
          worldScan.row_step = worldScan.data.size();
          worldScan.width = worldScan.row_step / worldScan.point_step;
          worldMap.publish(worldScan);
