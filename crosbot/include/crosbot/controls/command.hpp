@@ -81,8 +81,9 @@ public:
      * @param callback Callback class for subscribing to command messages
      */
     CrosbotCommand(crosbot_msgs::ControlCommand::_cmd_namespace_type nspace = "",
+            bool send = false,
             CrosbotCommandCallbackPtr callback = NULL) :
-        send(true),
+        send(send),
         receive(false),
         nspace(nspace),
         callback(callback)
