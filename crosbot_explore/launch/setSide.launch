@@ -1,0 +1,6 @@
+<launch>
+	<node name="set_wallfollow_side" pkg="crosbot_explore" type="set_wallfollow_side" >
+
+	</node>
+
+</launch>

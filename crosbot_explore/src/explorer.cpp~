@@ -94,7 +94,7 @@ Pose Explorer::findDriveTarget(const VoronoiGrid& voronoi, const Pose& robot) {
 
 Pose Explorer::findWallFollowTarget(const VoronoiGrid& voronoi, const Pose& robot) {
 	search.previousWallTarget = search.wallTarget;
-	ROS_INFO("Finding wall follow target");
+	ROS_ERROR("Finding wall follow target");
 	double Y, P, R;
 	robot.orientation.getYPR(Y,P,R);
 
