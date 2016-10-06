@@ -74,12 +74,14 @@ add_library(crosbot_explore
 add_executable(astar src/nodes/astar.cpp)
 add_executable(explorer src/nodes/explorer.cpp)
 add_executable(move src/nodes/move.cpp)
+add_executable(set_wallfollow_side src/set_wallfollow_side.cpp)
 
 ## Add dependencies to the executable
 add_dependencies(crosbot_explore ${PROJECT_NAME}_gencpp)
 add_dependencies(astar ${PROJECT_NAME} crosbot_explore)
 add_dependencies(explorer ${PROJECT_NAME} crosbot_explore)
 add_dependencies(move ${PROJECT_NAME} crosbot_explore)
+add_dependencies(set_wallfollow_side ${PROJECT_NAME} crosbot_explore)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(crosbot_explore
@@ -89,6 +91,11 @@ target_link_libraries(crosbot_explore
 target_link_libraries(astar
   ${catkin_LIBRARIES} crosbot_explore
 )
+
+target_link_libraries(set_wallfollow_side
+  ${catkin_LIBRARIES} crosbot_explore
+)
+
 target_link_libraries(explorer
   ${catkin_LIBRARIES} crosbot_explore
 )
