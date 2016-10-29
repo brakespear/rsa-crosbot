@@ -28,13 +28,13 @@ roslaunch crosbot_explore explore.launch
 Use the python mode client to select an initial wallfollowing side and pause the robot.
 For example to start the robot left wallfollowing
 ```
-rosrun crosbot\_explore set\_mode_client.py 2
-rosrun crosbot\_explore set\_mode_client.py 0
+rosrun crosbot_explore set_mode_client.py 2
+rosrun crosbot_explore set_mode_client.py 0
 ```
 Now run the wallfollow side switcher and start the robot
 ``` 
-rosrun crosbot\_explore set\_wallfollow_side
-rosrun crosbot\_explore set\_mode_client.py 1
+rosrun crosbot_explore set_wallfollow_side
+rosrun crosbot_explore set_mode_client.py 1
 ```
 
 
