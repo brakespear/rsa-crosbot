@@ -16,6 +16,8 @@
 #include <ros/subscriber.h>
 #include <sensor_msgs/LaserScan.h>
 
+#define MAX_SIDE_CHECK 25
+
 using namespace std;
 
 class SetSide {

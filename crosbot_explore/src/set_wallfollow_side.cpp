@@ -95,7 +95,7 @@ void SetSide::updateSidesVector(string side) {
 		}
 		sides.push_back(side);
 		string newSideToFollow = sides.back();
-		if (sides.size()>=15 && currentSide.compare(newSideToFollow) != 0) {
+		if (sides.size()>=MAX_SIDE_CHECK && currentSide.compare(newSideToFollow) != 0) {
 			setWallfollowMode(newSideToFollow);
 		}
 	}
