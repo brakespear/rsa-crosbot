@@ -1,6 +1,6 @@
 ### Copyright School of Computer Science and Engineering, UNSW
 
-### Welcome to the crobot package
+### Welcome to the crosbot package
 > * Warning this package requires that you also have installed **hector_slam** located at https://github.com/tu-darmstadt-ros-pkg/hector_slam
 The **rsa-crosbot** package contains navigation functionalities intended to be used in conjunction with the **rsa-ass2** package located at https://github.com/brakespear/rsa-ass2 to achieve some basic tasks of the Robocup@Home competition.
 This package is largely unchanged from the one located here http://robolab.cse.unsw.edu.au:4443/rescue/crosbot. The main additions are in crosbot_explore where code has been written to set the mode of the explorer, change wallfollowing side and use the hector mapping.
